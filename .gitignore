@@ -1,0 +1,27 @@
+# Python and local environments
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Credentials, notebooks, editor settings, and local files
+.env
+.env.*
+!.env.example
+.ipynb_checkpoints/
+.DS_Store
+.vscode/
+logs/
+.pytest_cache/
+
+# Generated datasets: retain the directory placeholders
+/data/raw/*
+!/data/raw/.gitkeep
+/data/processed/*
+!/data/processed/.gitkeep
+/data/proceseed/*
+
+# Generated experiment/backtest outputs
+/results/*
+!/results/.gitkeep
