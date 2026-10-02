@@ -6,15 +6,16 @@ The long-term goal is to support historical market data, multiple independent st
 
 ## Current stage
 
-**Stage 4.1 — Backtesting Execution Contract (completed).**
+**Stage 4.2 — Minimal Execution Helper (completed).**
 
 - Stage 1 completed: reusable historical data collection and a validated BTCUSDT hourly snapshot.
 - Stage 2 completed: statistical market analysis of returns, volatility, volume, extreme movements, and BTC buy-and-hold drawdown in `notebooks/01_data_exploration.ipynb`.
 - Stage 3 completed: EMA20/EMA50 long-only signal research in `notebooks/02_ema_strategy.ipynb`.
 - Stage 3.1 completed: a 50-candle warm-up, explicit `desired_position`, validated alternating entry/exit signals, and clarified signal availability.
-- Stage 4.1 completed: the [backtesting execution contract](decisions/002_backtest_execution_contract.md) defines next-candle-OPEN fills, initial flat executed state, and final-candle behavior. Its implementation is deferred.
+- Stage 4.1 completed: the [backtesting execution contract](decisions/002_backtest_execution_contract.md) defines next-candle-OPEN fills, initial flat executed state, and final-candle behavior.
+- Stage 4.2 completed: `src/trading_lab/backtest/execution.py` implements fill timing and executed state for supplied signals. Its 23 synthetic tests and all 13 existing market-data tests pass.
 
-The first 50 candles are initialization-only; signals become eligible on candle 51 and use only completed candle data. `desired_position` is research state. The future execution model starts flat and applies valid events at the next candle's OPEN, maintaining `executed_position` separately. A final-candle signal cannot execute without a next candle. No execution helper, executed-position calculation, backtesting engine, PnL simulation, trade simulation, or demo trading exists yet.
+The EMA notebook's first 50 candles are initialization-only; signals become eligible on candle 51 and use only completed candle data. `desired_position` is research state. The execution helper consumes pre-generated signals, starts flat, and applies valid events at the next candle's OPEN. Execution time/price are recorded on the source signal row N; `executed_position` changes on row N+1. A valid final-candle signal has no fill, and invalid flat/long transitions raise `ValueError`. No full backtesting engine, PnL, trade ledger, portfolio simulation, or demo trading exists yet.
 
 The platform currently uses no real money. Public data collection requires no API key. Exchange trading and demo trading integration will be added later.
 
@@ -40,7 +41,7 @@ Trading Lab/
 ├── src/trading_lab/
 │   ├── data/              # Reusable data loading and preprocessing
 │   ├── strategies/        # Strategy signal generation
-│   ├── backtest/          # Future historical simulation
+│   ├── backtest/          # Fill timing/state; future full simulation
 │   ├── analytics/         # Future shared performance analysis
 │   ├── exchange/          # Future exchange-specific adapters
 │   ├── execution/         # Future order and execution management
@@ -50,11 +51,11 @@ Trading Lab/
 ├── strategies/            # Existing Python placeholders, preserved
 ├── dashboard/             # Future dashboards; documentation only
 ├── results/               # Generated experiment and backtest output
-├── tests/                 # Future checks for reusable code
+├── tests/                 # Offline checks for reusable code
 └── scripts/               # Future small command-line utilities
 ```
 
-The data package now contains `market_data.py`, and the exchange package contains the public HTTP adapter `bybit_market_data.py`. Other application packages remain placeholders. Existing `.py` files in `notebooks/` and the top-level `strategies/` are preserved. New reusable strategy code should eventually go in `src/trading_lab/strategies/`.
+The data package contains `market_data.py`, the exchange package contains the public HTTP adapter `bybit_market_data.py`, and the backtest package contains the execution helper `execution.py`. Other application packages remain placeholders. Existing `.py` files in `notebooks/` and the top-level `strategies/` are preserved. New reusable strategy code should eventually go in `src/trading_lab/strategies/`.
 
 ## Research and reusable code
 

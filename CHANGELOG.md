@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-02 — Stage 4.2 minimal execution helper
+
+- Added a pure next-candle-OPEN execution helper with initial flat state, delayed row-level position changes, explicit signal-row fill metadata, final-candle handling, and rejection of invalid transitions and hourly inputs.
+- Added 23 synthetic tests covering decision 002 cases A–G and validation; all 36 tests passed, including the existing 13 market-data tests.
+- Updated current-stage documentation. Preserved EMA notebook behavior, raw data, and dependencies; no PnL, trade ledger, or full backtesting engine was added.
+
 ## 2026-10-02 — Stage 4.1 backtesting execution contract
 
 - Recorded next-candle-OPEN execution, completed-candle signal availability, desired/executed state separation, long-only transitions from initial flat state, and unexecutable final-candle events in decision 002.

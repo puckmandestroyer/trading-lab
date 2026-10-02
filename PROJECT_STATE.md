@@ -6,7 +6,7 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 ## Current stage
 
-Stage 4.1 — Backtesting Execution Contract (completed).
+Stage 4.2 — Minimal Execution Helper (completed).
 
 ## Completed
 
@@ -34,8 +34,11 @@ Stage 4.1 — Backtesting Execution Contract (completed).
 - First valid LONG_ENTRY candle: 2025-10-13 02:00 UTC, signal_time 03:00 UTC. First valid LONG_EXIT candle: 2025-10-14 05:00 UTC, signal_time 06:00 UTC.
 - All 12 updated notebook code cells ran successfully. Warm-up, previous-state, alternating-event, HOLD-stability, timing, and causal-prefix checks passed; raw CSV and the earlier analytics notebook stayed unchanged. No processed dataset was created.
 - Stage 4.1 execution contract recorded in `decisions/002_backtest_execution_contract.md`: completed-candle signals map to the next candle's OPEN, with separate desired/executed state, initial executed state 0, and no execution for final-candle events without a next candle.
-- Acceptance cases A–G are documented for future timing/state code. No helper, new tests, execution columns, backtest loop, PnL, or portfolio simulation was introduced; Stage 3.1 behavior remains unchanged.
-- All 13 existing market-data tests passed during Stage 4.1 verification. No execution implementation exists yet, so acceptance cases A–G are specifications for future tests, not runtime-tested execution behavior.
+- Stage 4.1 documented acceptance cases A–G without implementing execution. All 13 existing market-data tests passed during that milestone.
+- Stage 4.2 added the pure function `apply_next_open_execution(candles: pd.DataFrame) -> pd.DataFrame` in `src/trading_lab/backtest/execution.py`, consuming pre-generated signals without generating strategy decisions.
+- Required input columns: `timestamp`, `open`, `signal`. Exact output columns: `timestamp`, `open`, `signal`, `execution_time`, `execution_price`, `executed_position`. Optional input columns are neither required nor copied into the output; input is not modified.
+- Execution metadata on signal row N describes its fill at N+1 OPEN. `executed_position` describes state during the row's candle: initial 0, with N's event changing state only on N+1. Valid final-candle events retain their signal with missing execution metadata and no resulting state change; invalid transitions raise `ValueError`, including on the final candle.
+- Added 23 synthetic execution tests covering cases A–G, invalid inputs, hourly continuity, input preservation, and edge cases. All 36 tests passed, including the existing 13 market-data tests. Stage 3.1 notebook, raw data, and dependencies remain unchanged. No PnL, trade ledger, or full backtesting engine was added.
 
 ## Environment status
 
@@ -48,7 +51,7 @@ Stage 4.1 — Backtesting Execution Contract (completed).
 
 ## Current focus
 
-Stage 4.1 defines the first historical execution contract. Review its next-candle-open timing and acceptance cases before approving Stage 4.2 implementation. No backtest, simulated fills, PnL, or trading integration is present.
+Stage 4.2 implements and tests next-candle-OPEN simulated fill timing and long-only executed state under decision 002. Strategy generation remains in the notebook; PnL, a trade ledger, portfolio simulation, and trading integration are not implemented.
 
 ## Not implemented yet
 
@@ -64,9 +67,9 @@ Stage 4.1 defines the first historical execution contract. Review its next-candl
 
 ## Next milestone
 
-Proposed Stage 4.2: implement a small pure next-candle execution timing/state helper under `src/trading_lab/backtest/` and tests for cases A–G in decision 002. Keep signal generation separate and defer PnL and portfolio simulation. Do not start Stage 4.2 until the owner approves it.
+Proposed Stage 4.3: extract the notebook's EMA20/EMA50 signal logic into a small reusable function under `src/trading_lab/strategies/`, preserving Stage 3.1 warm-up, timing, and desired-state behavior with synthetic tests. Do not start Stage 4.3 until the owner approves it.
 
-No processed dataset or reusable preprocessing module is needed yet. Keep the EMA logic in the notebook for now; extract it when the next approved workflow establishes the reuse requirement. No strategy classes or framework are needed.
+No processed dataset or reusable preprocessing module is needed yet. Keep the EMA logic in the notebook until Stage 4.3 is approved. No strategy classes or framework are needed.
 
 ## Backtesting execution contract
 
@@ -77,8 +80,10 @@ No processed dataset or reusable preprocessing module is needed yet. Keep the EM
 - `signal_time` marks information availability; `execution_time` marks the simulated action. For continuous hourly data they share the same boundary timestamp, while completion and signal availability precede execution conceptually.
 - Initial simulated `executed_position = 0`. An executable LONG_ENTRY requires flat state and changes 0 → 1; LONG_EXIT requires long state and changes 1 → 0. HOLD creates no execution and leaves state unchanged. Invalid executed-state transitions must be rejected.
 - A final-candle signal can change desired state but cannot execute without a next candle. Do not invent a price or force a terminal entry/exit.
-- Future `executed_position` belongs to backtest execution, not the strategy notebook. It is defined by this contract but is not yet implemented or stored. No backtest, PnL, trade ledger, portfolio simulation, or execution-price calculation exists yet.
-- See `decisions/002_backtest_execution_contract.md` for definitions, causal ordering, and future acceptance cases A–G.
+- `executed_position` is now calculated in memory by the backtest helper, independently of `desired_position`. Row N records the state after any prior signal fills at N's OPEN; N's own signal cannot change that row's executed state.
+- `execution_time` and `execution_price` are stored on the source signal row, not the receiving candle row. A final row can receive the prior row's fill while its own event remains unexecuted. HOLD has no execution metadata, even when a preceding event changes state at that candle's OPEN.
+- No full backtesting engine, PnL, trade ledger, portfolio simulation, or persistence exists yet.
+- See `decisions/002_backtest_execution_contract.md` for definitions, causal ordering, and acceptance cases A–G, now covered by synthetic tests.
 
 ## Current limitations
 
@@ -87,6 +92,8 @@ The loader supports fixed minute-based Bybit intervals, not daily/weekly/monthly
 Stage 2 volatility uses sample standard deviation (`ddof=1`) of hourly returns over trailing 24/168-observation windows and is not annualized. First-return and rolling-window NaNs are expected warm-up values. Drawdown uses candle closes and excludes intrahour lows; the index is BTC buy-and-hold price analysis, not a bot backtest.
 
 Stage 3.1 keeps `ewm(span=20/50, adjust=False)` with the first close as the seed. The 50-candle warm-up is a research convention, not an EWM mathematical requirement or a guarantee that seed effects have disappeared. No entry is synthesized merely because warm-up ends in a bullish regime; the flat strategy waits for a new bullish crossover. `desired_position` is not an executed position.
+
+The execution helper requires pandas datetime timestamps with continuous one-hour spacing; it preserves timezone semantics and does not sort or fill gaps. It validates allowed signals, state transitions, and finite positive OPEN prices used for fills. Full OHLCV validation remains upstream. It does not enforce a strategy warm-up or read optional `desired_position`/`signal_time` columns; it executes only supplied events.
 
 ## Existing files preserved
 
