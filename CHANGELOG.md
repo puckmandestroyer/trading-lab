@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-02 — Stage 4.6 closed-trade returns and PnL
+
+- Added separate pure ledger accounting for quantity, CLOSED-trade returns, realized gross PnL, and sequentially compounded capital. The model defaults to 10,000 USDT, allocates 100% per long spot trade, and excludes leverage and trading costs; OPEN trades receive quantity without realized results or valuation.
+- Added 27 synthetic accounting tests; all 128 tests passed. BTC integration retained 77 CLOSED/one OPEN trade, verified the first trade independently, and produced realized capital of 9,641.111388344 USDT before the final OPEN entry, with quantity 0.1130341406801 BTC.
+- Updated current-stage documentation. Pipeline/ledger behavior, raw data, notebooks, and dependencies remain unchanged; no fees, slippage, unrealized PnL, equity curve, or performance analytics was added.
+
 ## 2026-10-02 — Stage 4.5 trade ledger
 
 - Added a pure trade-ledger helper that pairs recorded entry/exit fills into CLOSED or OPEN trades, validates metadata/order/state, and preserves unexecuted final-signal behavior without forced exits.

@@ -6,7 +6,7 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 ## Current stage
 
-Stage 4.5 — Trade Ledger (completed).
+Stage 4.6 — Closed-Trade Returns & PnL (completed).
 
 ## Completed
 
@@ -58,6 +58,13 @@ Stage 4.5 — Trade Ledger (completed).
 - Ledger validation rejects partial execution metadata, invalid prices/signals, HOLD fills, non-chronological fills, invalid pairing, and inconsistent executed state. Source state must agree with prior recorded fills; where the receiving row exists, its timestamp/state must agree with the fill. No strategy or execution calculations are repeated.
 - Added 25 synthetic ledger tests covering cases A–M, validation, empty/typed output, input preservation, and existing execution-helper integration. All 101 tests passed: 25 ledger, 19 pipeline, 21 strategy, 23 execution, and 13 market-data tests.
 - BTC integration verified actual fills individually: 78 executed entries and 77 executed exits produce 77 CLOSED trades and one final OPEN trade. First trade entry: 2025-10-13 03:00 UTC at 115,332.3 USDT; exit: 2025-10-14 06:00 UTC at 112,482.0 USDT. Final trade entered at 2026-09-30 13:00 UTC and remains OPEN with missing exit fields. Raw CSV, pipeline input/behavior, notebooks, existing modules/tests, architecture decisions, and dependencies remain unchanged; no PnL, returns, capital, fees, or valuation was added.
+- Stage 4.6 added `calculate_trade_results(trades: pd.DataFrame, initial_capital: float = 10_000.0) -> pd.DataFrame` in `src/trading_lab/backtest/performance.py`, consuming the six-column Stage 4.5 ledger separately from pipeline and trade pairing.
+- Exact required inputs: `trade_id`, `entry_time`, `entry_price`, `exit_time`, `exit_price`, `status`. Exact output preserves those six columns and appends `capital_before`, `quantity`, `trade_return`, `gross_pnl`, `capital_after`; input context/index are preserved, optional columns omitted, and financial fields use float64.
+- First accounting model: long-only spot economics, one trade at a time, 100% of current capital allocated, no leverage/borrowing, zero fees/commissions/slippage, and no quantity rounding. Default initial capital is 10,000 USDT. Quantity is `capital_before / entry_price`; CLOSED return is `exit_price / entry_price - 1`, gross PnL is `quantity * (exit_price - entry_price)`, and capital after is `capital_before + gross_pnl`, compounded into the next trade.
+- A final OPEN trade receives capital before and quantity from its executed entry, with missing return, gross PnL, and capital after. Capital before means realized funds available before entering, not cash remaining after allocation. No market price is used to value an OPEN trade; no unrealized PnL or equity curve exists.
+- Validation rejects invalid capital, IDs/status/order, overlapping trades, malformed exit metadata, invalid prices, multiple/non-final OPEN trades, and impossible numerical results. Added 27 synthetic accounting tests; all 128 tests passed: 27 accounting, 25 ledger, 19 pipeline, 21 strategy, 23 execution, and 13 market-data tests.
+- BTC integration retained 77 CLOSED trades and one OPEN trade. First trade return: -0.0247138052393; quantity: 0.0867059791576 BTC; gross PnL: -247.138052393 USDT; capital after: 9,752.861947607 USDT. Independent decimal arithmetic verified the first trade, and all CLOSED capital identities/compounding checks passed.
+- From 10,000 USDT, realized capital after the final CLOSED trade is 9,641.111388344 USDT. The final OPEN trade has that capital before and quantity 0.1130341406801 BTC; it was not valued. Pipeline, ledger, existing tests/notebooks, raw CSV, architecture decisions, and dependencies remain unchanged; results remain in memory with no persistence.
 
 ## Environment status
 
@@ -70,12 +77,13 @@ Stage 4.5 — Trade Ledger (completed).
 
 ## Current focus
 
-Stage 4.5 converts recorded simulated execution fills into a separate one-row-per-trade ledger with CLOSED and OPEN status. The strategy/execution pipeline still returns its candle state table unchanged. PnL, returns, portfolio simulation, and trading integration are not implemented.
+Stage 4.6 adds separate CLOSED-trade return, quantity, realized gross PnL, and compounded-capital accounting after the unchanged pipeline and ledger. OPEN trades receive entry quantity only; transaction costs, unrealized valuation, candle-level portfolio simulation, and trading integration are not implemented.
 
 ## Not implemented yet
 
 - Transformed datasets and reusable preprocessing workflows.
-- Full backtesting engine, trade returns, PnL, and portfolio simulation.
+- Full backtesting engine and candle-level portfolio/equity simulation.
+- Fees, commissions, slippage, and unrealized/mark-to-market PnL.
 - Additional reusable strategies beyond the EMA crossover strategy.
 - Reusable strategy-performance analytics and strategy comparison.
 - Live/demo execution and exchange integration.
@@ -87,7 +95,7 @@ Stage 4.5 converts recorded simulated execution fills into a separate one-row-pe
 
 ## Next milestone
 
-Proposed Stage 4.6: define the next minimal closed-trade return/PnL contract, including units, sizing assumptions, and exclusion of OPEN trades from realized results, before implementation. Do not start Stage 4.6 until the owner approves it.
+Proposed Stage 4.7: define explicit transaction-cost conventions and tests before adding separate fee/slippage accounting. Preserve gross results and clarify how cost-adjusted results would differ. Do not start Stage 4.7 until the owner approves it.
 
 No processed dataset or reusable preprocessing module is needed yet. Keep strategy generation and execution separate; no strategy classes or framework are needed.
 
@@ -102,7 +110,7 @@ No processed dataset or reusable preprocessing module is needed yet. Keep strate
 - A final-candle signal can change desired state but cannot execute without a next candle. Do not invent a price or force a terminal entry/exit.
 - `executed_position` is now calculated in memory by the backtest helper, independently of `desired_position`. Row N records the state after any prior signal fills at N's OPEN; N's own signal cannot change that row's executed state.
 - `execution_time` and `execution_price` are stored on the source signal row, not the receiving candle row. A final row can receive the prior row's fill while its own event remains unexecuted. HOLD has no execution metadata, even when a preceding event changes state at that candle's OPEN.
-- A separate trade ledger now pairs recorded fills. No full backtesting engine, PnL, portfolio simulation, or persistence exists yet.
+- A separate trade ledger pairs recorded fills, followed by separate CLOSED-trade gross accounting. No full backtesting engine, unrealized PnL, candle-level portfolio simulation, or persistence exists yet.
 - See `decisions/002_backtest_execution_contract.md` for definitions, causal ordering, and acceptance cases A–G, now covered by synthetic tests.
 
 ## Current limitations
@@ -120,6 +128,8 @@ The execution helper requires pandas datetime timestamps with continuous one-hou
 The pipeline delegates validation and calculations to those components, adds alignment checks, and returns in-memory results only. `desired_position` is intent after a completed candle; `executed_position` is the state held during that candle after any previous signal fills at its OPEN. They legitimately differ on entry/exit signal rows. Prefix stability excludes execution metadata for a former final-row event that gains a next candle; all earlier rows and shared-prefix strategy/position values remain unchanged.
 
 The ledger consumes the full candle state table starting flat and validates its recorded fills; it does not sort malformed input, calculate fills, or value an open trade. It preserves datetime timezone semantics and returns an empty typed ledger when no entry actually executes. The candle pipeline table and trade ledger remain separate in-memory outputs; neither is persisted.
+
+Accounting assumes consecutive trade IDs from 1, chronological non-overlapping trades, and at most one final OPEN trade. It never repairs or sorts invalid ledgers. CLOSED exit prices must be strictly positive; calculated results must remain finite with non-negative capital, and impossible quantity overflow/underflow raises an error. Floating-point tolerance is used for arithmetic checks. `trade_return` is a decimal return for one CLOSED trade; `gross_pnl` is realized PnL before costs. Compounded capital after closed trades is not a mark-to-market equity curve, and OPEN trades have no realized result or valuation.
 
 ## Existing files preserved
 
