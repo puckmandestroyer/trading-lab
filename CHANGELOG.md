@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-02 — Stage 3.1 EMA logic cleanup before backtesting
+
+- Added 50 initialization-only candles, renamed research state to `desired_position`, and gated entry/exit signals by prior state.
+- Strengthened warm-up, alternating-event, HOLD-stability, state-transition, and causal-prefix checks; clarified completed-candle signal availability and separate future execution.
+- Refreshed README and project state while preserving earlier milestone history. All 12 notebook code cells passed: 78 bullish/78 bearish eligible crossovers, 78 valid entries/77 valid exits, final desired state 1. Raw CSV remained unchanged; no backtest or processed data was added.
+
 ## 2026-10-02 — Stage 3 EMA trend-following signal research
 
 - Added an EMA20/EMA50 long-only research notebook with explicit crossover events, LONG_ENTRY/LONG_EXIT/HOLD signals, and flat/long state transitions.

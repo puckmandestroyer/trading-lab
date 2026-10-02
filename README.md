@@ -6,7 +6,14 @@ The long-term goal is to support historical market data, multiple independent st
 
 ## Current stage
 
-**Stage 1 — Historical market data and research environment.** A reusable Bybit public-market-data pipeline now downloads, normalizes, validates, and saves historical OHLCV candles. The exploration notebook loads a local snapshot and provides quality checks, summary statistics, and price/volume plots. Strategies, backtesting, and exchange trading are not implemented.
+**Stage 3.1 — EMA Strategy Logic Cleanup before Backtesting (completed).**
+
+- Stage 1 completed: reusable historical data collection and a validated BTCUSDT hourly snapshot.
+- Stage 2 completed: statistical market analysis of returns, volatility, volume, extreme movements, and BTC buy-and-hold drawdown in `notebooks/01_data_exploration.ipynb`.
+- Stage 3 completed: EMA20/EMA50 long-only signal research in `notebooks/02_ema_strategy.ipynb`.
+- Stage 3.1 completed: a 50-candle warm-up, explicit `desired_position`, validated alternating entry/exit signals, and clarified signal availability.
+
+The first 50 candles are initialization-only; signals become eligible on candle 51 and use only completed candle data. `desired_position` is research state, not an executed position. Stage 4 will define next-candle execution and executed position state separately. No backtesting engine, PnL simulation, trade simulation, or demo trading exists yet.
 
 The platform currently uses no real money. Public data collection requires no API key. Exchange trading and demo trading integration will be added later.
 
