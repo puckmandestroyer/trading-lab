@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-02 — Stage 4.1 backtesting execution contract
+
+- Recorded next-candle-OPEN execution, completed-candle signal availability, desired/executed state separation, long-only transitions from initial flat state, and unexecutable final-candle events in decision 002.
+- Documented acceptance cases A–G and updated current-stage documentation; all 13 existing tests passed. No execution helper, new tests, backtest loop, PnL, or portfolio simulation was added; Stage 3.1 logic and raw data remain unchanged.
+
 ## 2026-10-02 — Stage 3.1 EMA logic cleanup before backtesting
 
 - Added 50 initialization-only candles, renamed research state to `desired_position`, and gated entry/exit signals by prior state.
