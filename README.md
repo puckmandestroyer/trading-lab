@@ -6,7 +6,7 @@ The long-term goal is to support historical market data, multiple independent st
 
 ## Current stage
 
-**Stage 4.2 — Minimal Execution Helper (completed).**
+**Stage 4.3 — Reusable EMA Strategy (completed).**
 
 - Stage 1 completed: reusable historical data collection and a validated BTCUSDT hourly snapshot.
 - Stage 2 completed: statistical market analysis of returns, volatility, volume, extreme movements, and BTC buy-and-hold drawdown in `notebooks/01_data_exploration.ipynb`.
@@ -14,8 +14,11 @@ The long-term goal is to support historical market data, multiple independent st
 - Stage 3.1 completed: a 50-candle warm-up, explicit `desired_position`, validated alternating entry/exit signals, and clarified signal availability.
 - Stage 4.1 completed: the [backtesting execution contract](decisions/002_backtest_execution_contract.md) defines next-candle-OPEN fills, initial flat executed state, and final-candle behavior.
 - Stage 4.2 completed: `src/trading_lab/backtest/execution.py` implements fill timing and executed state for supplied signals. Its 23 synthetic tests and all 13 existing market-data tests pass.
+- Stage 4.3 completed: `src/trading_lab/strategies/ema_trend.py` provides the pure `generate_ema_signals` function, requiring only `timestamp` and `close`. The EMA notebook now uses it; 21 strategy tests bring the passing suite to 57 tests.
 
-The EMA notebook's first 50 candles are initialization-only; signals become eligible on candle 51 and use only completed candle data. `desired_position` is research state. The execution helper consumes pre-generated signals, starts flat, and applies valid events at the next candle's OPEN. Execution time/price are recorded on the source signal row N; `executed_position` changes on row N+1. A valid final-candle signal has no fill, and invalid flat/long transitions raise `ValueError`. No full backtesting engine, PnL, trade ledger, portfolio simulation, or demo trading exists yet.
+The reusable strategy preserves the notebook's first 50 initialization-only candles; signals become eligible on candle 51 and use only completed candle data. `desired_position` is research intent, and `signal_time` is the candle timestamp plus one hour. Snapshot results remain 78 bullish/78 bearish crossovers, 78 entries/77 exits, and final desired state 1. Both EMA notebook charts and inspection tables remain available.
+
+The independent execution helper consumes pre-generated signals, starts flat, and applies valid events at the next candle's OPEN. Execution time/price are recorded on the source signal row N; `executed_position` changes on row N+1. A valid final-candle signal has no fill, and invalid flat/long transitions raise `ValueError`. The strategy and execution helper have not yet been composed into a pipeline. No full backtesting engine, PnL, trade ledger, portfolio simulation, or demo trading exists yet.
 
 The platform currently uses no real money. Public data collection requires no API key. Exchange trading and demo trading integration will be added later.
 
@@ -55,7 +58,7 @@ Trading Lab/
 └── scripts/               # Future small command-line utilities
 ```
 
-The data package contains `market_data.py`, the exchange package contains the public HTTP adapter `bybit_market_data.py`, and the backtest package contains the execution helper `execution.py`. Other application packages remain placeholders. Existing `.py` files in `notebooks/` and the top-level `strategies/` are preserved. New reusable strategy code should eventually go in `src/trading_lab/strategies/`.
+The data package contains `market_data.py`, the exchange package contains the public HTTP adapter `bybit_market_data.py`, the strategies package contains `ema_trend.py`, and the backtest package contains `execution.py`. Other application packages remain placeholders. Existing `.py` files in `notebooks/` and the top-level `strategies/` are preserved. New reusable strategy code belongs in `src/trading_lab/strategies/`.
 
 ## Research and reusable code
 

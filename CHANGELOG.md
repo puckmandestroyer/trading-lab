@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-02 — Stage 4.3 reusable EMA strategy
+
+- Extracted Stage 3.1 EMA signals into the pure `generate_ema_signals` function, preserving EMA seeding, 50-candle warm-up, crossover rules, desired-state gating, and hourly signal availability.
+- Added 21 synthetic strategy tests; all 57 tests passed, including the existing execution and market-data suites. Every strategy output matched the original notebook across the 8,760-row snapshot: 78 bullish/78 bearish crossovers, 78 entries/77 exits, final desired state 1.
+- Updated and executed all 12 EMA notebook code cells using the reusable function; preserved its charts and research explanations. Updated current-stage documentation; raw data and dependencies are unchanged. Strategy/execution composition, PnL, and a trade ledger remain deferred.
+
 ## 2026-10-02 — Stage 4.2 minimal execution helper
 
 - Added a pure next-candle-OPEN execution helper with initial flat state, delayed row-level position changes, explicit signal-row fill metadata, final-candle handling, and rejection of invalid transitions and hourly inputs.
