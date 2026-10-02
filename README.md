@@ -6,7 +6,7 @@ The long-term goal is to support historical market data, multiple independent st
 
 ## Current stage
 
-**Stage 4.6 — Closed-Trade Returns & PnL (completed).**
+**Stage 4.7 — Transaction Costs (completed).**
 
 - Stage 1 completed: reusable historical data collection and a validated BTCUSDT hourly snapshot.
 - Stage 2 completed: statistical market analysis of returns, volatility, volume, extreme movements, and BTC buy-and-hold drawdown in `notebooks/01_data_exploration.ipynb`.
@@ -18,6 +18,7 @@ The long-term goal is to support historical market data, multiple independent st
 - Stage 4.4 completed: `src/trading_lab/backtest/pipeline.py` provides `run_ema_execution_pipeline`, requiring `timestamp`, `open`, and `close`. It composes the existing components with explicit alignment checks; 19 integration tests bring the passing suite to 76 tests.
 - Stage 4.5 completed: `src/trading_lab/backtest/trades.py` provides `build_trade_ledger`, called separately after the pipeline. Its 25 tests bring the passing suite to 101 tests; the BTC snapshot has 77 CLOSED trades and one final OPEN trade.
 - Stage 4.6 completed: `src/trading_lab/backtest/performance.py` provides `calculate_trade_results`, consuming the ledger to calculate quantity, CLOSED-trade returns, realized gross PnL, and compounded capital. Its 27 tests bring the passing suite to 128 tests.
+- Stage 4.7 completed: `src/trading_lab/backtest/costs.py` provides `calculate_trade_results_with_costs`, adding self-financing entry sizing, adverse slippage, effective-notional fees, and net compounding. Its 21 tests bring the passing suite to 149 tests. The gross helper remains unchanged.
 
 The reusable strategy preserves the notebook's first 50 initialization-only candles; signals become eligible on candle 51 and use only completed candle data. `desired_position` is research intent, and `signal_time` is the candle timestamp plus one hour. Snapshot results remain 78 bullish/78 bearish crossovers, 78 entries/77 exits, and final desired state 1. Both EMA notebook charts and inspection tables remain available.
 
@@ -27,9 +28,13 @@ The pipeline combines market, strategy, and execution columns after verifying eq
 
 The separate ledger turns recorded execution fills into one row per trade: `trade_id`, `entry_time`, `entry_price`, `exit_time`, `exit_price`, and `status`. CLOSED means an entry and exit actually executed; OPEN means an entry executed with no exit yet. An unexecuted final entry creates no trade, and an unexecuted final exit leaves a trade OPEN. The ledger uses recorded fill times/prices and never invents a terminal exit.
 
-The accounting helper adds `capital_before`, `quantity`, `trade_return`, `gross_pnl`, and `capital_after`. It defaults to 10,000 USDT and deploys 100% of current capital into each long spot trade, with no leverage, fees, commissions, slippage, or quantity rounding. Quantity equals capital before divided by entry price. Each CLOSED trade's gross result compounds into the next trade. OPEN trades have capital before and quantity but missing realized return, PnL, and capital after; no unrealized valuation is calculated.
+The Stage 4.6 zero-cost accounting helper adds `capital_before`, `quantity`, `trade_return`, `gross_pnl`, and `capital_after`. It defaults to 10,000 USDT and deploys 100% of current capital into each long spot trade, with no leverage, fees, commissions, slippage, or quantity rounding. Quantity equals capital before divided by entry price. Each CLOSED trade's gross result compounds into the next trade. OPEN trades have capital before and quantity but missing realized return, PnL, and capital after; no unrealized valuation is calculated.
 
 The BTC snapshot's 77 CLOSED trades leave realized capital of 9,641.111388344 USDT before its final OPEN entry, which holds quantity 0.1130341406801 BTC. This is closed-trade accounting under the stated zero-cost model, not a valuation of that open position or a candle-level equity curve. Full portfolio simulation, performance analytics, and demo trading remain future work.
+
+The separate cost-aware helper defaults both rates to zero, reproducing the gross baseline economically. It preserves the six ledger columns and adds 14 financial columns. For long trades, effective entry is recorded entry times `(1 + slippage_rate)` and effective exit is recorded exit times `(1 - slippage_rate)`. Quantity is `capital_before / (effective_entry_price * (1 + fee_rate))`, so entry notional plus entry fee consumes exactly the available capital within floating-point tolerance. Each side's fee is its effective notional times `fee_rate`. CLOSED net PnL is the effective-price PnL minus both fees; net return divides by capital before, and net capital after compounds into the next trade. Cost-aware `gross_pnl` uses recorded prices and the cost-sized quantity; it differs from running the separate zero-cost model. Rates must be finite real numbers in `[0, 1)`, excluding bools. Initial capital must be positive and finite.
+
+With test assumptions of a 0.10% fee per side and 0.05% adverse slippage per side, the same snapshot leaves 7,652.530163437 USDT after its last CLOSED trade, 1,988.581224907 USDT below the gross baseline. This difference includes slippage, fees, and their effect on compounded sizing; it is not just the sum of fees. These are research assumptions, not current Bybit fees. The final OPEN trade has capital before of 7,652.530163437 USDT, quantity 0.0895852306473 BTC, and entry fee 7.644885278 USDT. Its exit, round-trip total fees, net PnL, net return, and net capital after remain missing. No OPEN trade is valued, and the realized-capital comparison is before that final entry.
 
 The platform currently uses no real money. Public data collection requires no API key. Exchange trading and demo trading integration will be added later.
 
@@ -55,7 +60,7 @@ Trading Lab/
 ├── src/trading_lab/
 │   ├── data/              # Reusable data loading and preprocessing
 │   ├── strategies/        # Strategy signal generation
-│   ├── backtest/          # Fill timing/state; future full simulation
+│   ├── backtest/          # Fill timing, trade ledger, gross/net accounting
 │   ├── analytics/         # Future shared performance analysis
 │   ├── exchange/          # Future exchange-specific adapters
 │   ├── execution/         # Future order and execution management
@@ -69,7 +74,7 @@ Trading Lab/
 └── scripts/               # Future small command-line utilities
 ```
 
-The data package contains `market_data.py`, the exchange package contains the public HTTP adapter `bybit_market_data.py`, the strategies package contains `ema_trend.py`, and the backtest package contains `execution.py`, `pipeline.py`, `trades.py`, and `performance.py`. Other application packages remain placeholders. Existing `.py` files in `notebooks/` and the top-level `strategies/` are preserved. New reusable strategy code belongs in `src/trading_lab/strategies/`.
+The data package contains `market_data.py`, the exchange package contains the public HTTP adapter `bybit_market_data.py`, the strategies package contains `ema_trend.py`, and the backtest package contains `execution.py`, `pipeline.py`, `trades.py`, `performance.py`, and `costs.py`. Other application packages remain placeholders. Existing `.py` files in `notebooks/` and the top-level `strategies/` are preserved. New reusable strategy code belongs in `src/trading_lab/strategies/`.
 
 ## Research and reusable code
 

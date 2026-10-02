@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-02 — Stage 4.7 transaction costs
+
+- Added separate cost-aware ledger accounting with adverse entry/exit slippage, effective-notional fees, self-financing sizing, and net compounding. OPEN trades record entry costs without exit results or valuation; the Stage 4.6 zero-cost helper is unchanged.
+- Added 21 transaction-cost tests; all 149 tests passed. Full BTC zero-cost equivalence and accounting identities passed. Test rates of 0.10% fee and 0.05% slippage per side produce final CLOSED-trade net capital of 7,652.530163437 USDT versus gross capital of 9,641.111388344 USDT; these assumptions are not current Bybit fees.
+- Updated stage documentation. Strategy, execution, pipeline, ledger, raw data, notebooks, architecture, and dependencies remain unchanged. No unrealized PnL, equity curve, performance metrics, or trading integration was added.
+
 ## 2026-10-02 — Stage 4.6 closed-trade returns and PnL
 
 - Added separate pure ledger accounting for quantity, CLOSED-trade returns, realized gross PnL, and sequentially compounded capital. The model defaults to 10,000 USDT, allocates 100% per long spot trade, and excludes leverage and trading costs; OPEN trades receive quantity without realized results or valuation.

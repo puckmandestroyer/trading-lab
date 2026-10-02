@@ -6,7 +6,7 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 ## Current stage
 
-Stage 4.6 — Closed-Trade Returns & PnL (completed).
+Stage 4.7 — Transaction Costs (completed).
 
 ## Completed
 
@@ -66,6 +66,15 @@ Stage 4.6 — Closed-Trade Returns & PnL (completed).
 - BTC integration retained 77 CLOSED trades and one OPEN trade. First trade return: -0.0247138052393; quantity: 0.0867059791576 BTC; gross PnL: -247.138052393 USDT; capital after: 9,752.861947607 USDT. Independent decimal arithmetic verified the first trade, and all CLOSED capital identities/compounding checks passed.
 - From 10,000 USDT, realized capital after the final CLOSED trade is 9,641.111388344 USDT. The final OPEN trade has that capital before and quantity 0.1130341406801 BTC; it was not valued. Pipeline, ledger, existing tests/notebooks, raw CSV, architecture decisions, and dependencies remain unchanged; results remain in memory with no persistence.
 
+- Stage 4.7 added `calculate_trade_results_with_costs(trades: pd.DataFrame, initial_capital: float = 10_000.0, fee_rate: float = 0.0, slippage_rate: float = 0.0) -> pd.DataFrame` in `src/trading_lab/backtest/costs.py`, called separately on the Stage 4.5 ledger. The Stage 4.6 helper and all earlier components remain unchanged.
+- Output preserves the six ledger columns and appends `capital_before`, `effective_entry_price`, `effective_exit_price`, `quantity`, `entry_notional`, `exit_notional`, `entry_fee`, `exit_fee`, `total_fees`, `gross_pnl`, `price_adjusted_pnl`, `net_pnl`, `net_trade_return`, `net_capital_after`. Input is not modified or sorted; optional columns are omitted, index/timezone semantics preserved, and empty financial columns use float64.
+- LONG effective entry/exit prices are recorded prices times `(1 + slippage_rate)` / `(1 - slippage_rate)`. Quantity is `capital_before / (effective_entry_price * (1 + fee_rate))`; entry notional plus entry fee equals capital before within float tolerance. Each side's fee uses its effective quote notional. CLOSED gross PnL uses recorded prices with this quantity, price-adjusted PnL uses effective prices, net PnL subtracts both fees, net return divides by capital before, and `net_capital_after = capital_before + net_pnl` compounds into the next trade.
+- OPEN trades have capital before, effective entry price, quantity, entry notional, and entry fee. Exit and round-trip fields, including `total_fees`, remain missing, with no realized net result or mark-to-market valuation. Raw ledger entry/exit prices are unchanged.
+- Added 21 transaction-cost tests covering zero-cost equivalence, adverse slippage, both fees, self-financing sizing, profitable/losing trades, net compounding, OPEN handling, separate fee/slippage cases, rate/capital/ledger validation, input preservation, empty schema, and arithmetic identities. All 149 tests passed, including all 128 earlier-stage tests.
+- Full 8,760-row BTC integration retained 77 CLOSED and one OPEN trade. Zero-cost results matched Stage 4.6 economically; an independent decimal first-trade calculation, self-financing identities, net compounding, and input preservation passed. Scenario rates are test assumptions: 0.10% fee and 0.05% adverse slippage per side, not current Bybit fees.
+- First trade recorded/effective entry: 115,332.3 / 115,389.96615 USDT; recorded/effective exit: 112,482.0 / 112,425.759 USDT; quantity: 0.0865760717619 BTC. Entry/exit/total fees: 9.990009990 / 9.733380579 / 19.723390569 USDT. Gross / price-adjusted / net PnL: -246.767777343 / -256.629410936 / -276.352801505 USDT; net return: -0.0276352801505; net capital after: 9,723.647198495 USDT.
+- Final CLOSED-trade gross capital: 9,641.111388344 USDT; net capital: 7,652.530163437 USDT; reduction: 1,988.581224907 USDT, including fees, slippage, and compounded sizing effects. The final OPEN trade has capital before 7,652.530163437 USDT, quantity 0.0895852306473 BTC, and entry fee 7.644885278 USDT; it was not valued. These realized-capital figures are before its entry. No raw data, notebooks, architecture, dependencies, or existing source/test files changed.
+
 ## Environment status
 
 - The parent workspace's `.venv/` uses Python 3.9.6. pandas 2.3.3, NumPy 2.0.2, and Matplotlib 3.9.4 were installed for this task. requests and JupyterLab were already available.
@@ -77,13 +86,13 @@ Stage 4.6 — Closed-Trade Returns & PnL (completed).
 
 ## Current focus
 
-Stage 4.6 adds separate CLOSED-trade return, quantity, realized gross PnL, and compounded-capital accounting after the unchanged pipeline and ledger. OPEN trades receive entry quantity only; transaction costs, unrealized valuation, candle-level portfolio simulation, and trading integration are not implemented.
+Stage 4.7 adds separate cost-aware CLOSED-trade accounting after the unchanged pipeline and ledger. The Stage 4.6 gross helper remains the zero-cost baseline. OPEN trades receive entry sizing and entry fees, without exit results or valuation.
 
 ## Not implemented yet
 
 - Transformed datasets and reusable preprocessing workflows.
 - Full backtesting engine and candle-level portfolio/equity simulation.
-- Fees, commissions, slippage, and unrealized/mark-to-market PnL.
+- Exchange-specific or variable transaction-cost models and unrealized/mark-to-market PnL.
 - Additional reusable strategies beyond the EMA crossover strategy.
 - Reusable strategy-performance analytics and strategy comparison.
 - Live/demo execution and exchange integration.
@@ -95,7 +104,7 @@ Stage 4.6 adds separate CLOSED-trade return, quantity, realized gross PnL, and c
 
 ## Next milestone
 
-Proposed Stage 4.7: define explicit transaction-cost conventions and tests before adding separate fee/slippage accounting. Preserve gross results and clarify how cost-adjusted results would differ. Do not start Stage 4.7 until the owner approves it.
+Proposed Stage 4.8: a small research notebook comparing gross and cost-aware trade results, inspecting fees/slippage and net compounding. Keep OPEN trades unvalued. Do not start Stage 4.8 until the owner approves it.
 
 No processed dataset or reusable preprocessing module is needed yet. Keep strategy generation and execution separate; no strategy classes or framework are needed.
 
@@ -110,7 +119,7 @@ No processed dataset or reusable preprocessing module is needed yet. Keep strate
 - A final-candle signal can change desired state but cannot execute without a next candle. Do not invent a price or force a terminal entry/exit.
 - `executed_position` is now calculated in memory by the backtest helper, independently of `desired_position`. Row N records the state after any prior signal fills at N's OPEN; N's own signal cannot change that row's executed state.
 - `execution_time` and `execution_price` are stored on the source signal row, not the receiving candle row. A final row can receive the prior row's fill while its own event remains unexecuted. HOLD has no execution metadata, even when a preceding event changes state at that candle's OPEN.
-- A separate trade ledger pairs recorded fills, followed by separate CLOSED-trade gross accounting. No full backtesting engine, unrealized PnL, candle-level portfolio simulation, or persistence exists yet.
+- A separate trade ledger pairs recorded fills, followed by independent gross and cost-aware CLOSED-trade accounting. Cost adjustments preserve recorded ledger prices and do not change execution. No full backtesting engine, unrealized PnL, candle-level portfolio simulation, or persistence exists yet.
 - See `decisions/002_backtest_execution_contract.md` for definitions, causal ordering, and acceptance cases A–G, now covered by synthetic tests.
 
 ## Current limitations
@@ -130,6 +139,8 @@ The pipeline delegates validation and calculations to those components, adds ali
 The ledger consumes the full candle state table starting flat and validates its recorded fills; it does not sort malformed input, calculate fills, or value an open trade. It preserves datetime timezone semantics and returns an empty typed ledger when no entry actually executes. The candle pipeline table and trade ledger remain separate in-memory outputs; neither is persisted.
 
 Accounting assumes consecutive trade IDs from 1, chronological non-overlapping trades, and at most one final OPEN trade. It never repairs or sorts invalid ledgers. CLOSED exit prices must be strictly positive; calculated results must remain finite with non-negative capital, and impossible quantity overflow/underflow raises an error. Floating-point tolerance is used for arithmetic checks. `trade_return` is a decimal return for one CLOSED trade; `gross_pnl` is realized PnL before costs. Compounded capital after closed trades is not a mark-to-market equity curve, and OPEN trades have no realized result or valuation.
+
+Cost-aware accounting reuses the unchanged gross helper's ledger/capital validation, including its numerical limits, then independently sizes and compounds net results. Rates must be finite real numbers in `[0, 1)`; bools are rejected. Effective prices, entry sizing, and calculated amounts must be representable as finite floats; depleted capital cannot finance another trade. Rates are fixed research assumptions, with no exchange-specific fee tiers, minimum order sizes, or rounding. Cost-aware `gross_pnl` uses recorded prices with the cost-sized quantity, so it is not the separate Stage 4.6 simulation. OPEN `total_fees` stays missing because the round trip is incomplete; its known entry fee is reported separately.
 
 ## Existing files preserved
 
