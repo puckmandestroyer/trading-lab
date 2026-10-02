@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-02 — Stage 4.5 trade ledger
+
+- Added a pure trade-ledger helper that pairs recorded entry/exit fills into CLOSED or OPEN trades, validates metadata/order/state, and preserves unexecuted final-signal behavior without forced exits.
+- Added 25 synthetic ledger tests; all 101 tests passed across all five suites. BTC integration verified 77 CLOSED trades and one final OPEN trade; first entry/exit fills are 2025-10-13 03:00 UTC at 115,332.3 USDT and 2025-10-14 06:00 UTC at 112,482.0 USDT.
+- Updated current-stage documentation. Pipeline behavior, notebooks, raw data, and dependencies remain unchanged; no PnL, returns, sizing, fees, or portfolio valuation was added.
+
 ## 2026-10-02 — Stage 4.4 strategy + execution pipeline
 
 - Added a pure EMA/execution pipeline that calls the existing components, checks row/index/timestamp/order alignment, and preserves desired-state versus next-open executed-state timing without reimplementing either layer.

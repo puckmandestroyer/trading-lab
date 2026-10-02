@@ -6,7 +6,7 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 ## Current stage
 
-Stage 4.4 — Strategy + Execution Pipeline (completed).
+Stage 4.5 — Trade Ledger (completed).
 
 ## Completed
 
@@ -52,6 +52,12 @@ Stage 4.4 — Strategy + Execution Pipeline (completed).
 - Added 19 synthetic pipeline integration tests covering component consistency, row alignment and failures, input preservation, entry/exit timing, warm-up, final events, causal-prefix boundaries, and validation propagation. All 76 tests passed: 19 pipeline, 21 strategy, 23 execution, and 13 market-data tests.
 - BTC snapshot integration retained 8,760 rows, 50 warm-up candles, 78 bullish/78 bearish crossovers, 78 entries/77 exits, and the known first entry/exit signal timestamps. Both final desired and executed states are 1. First entry: candle 2025-10-13 02:00 UTC, signal and execution time 03:00 UTC, execution price 115,332.3 USDT verified against the receiving candle's OPEN; executed state is 0 on the signal row and 1 on the receiving row. Every strategy and execution output equals its direct component result.
 - Raw data, both notebooks, existing strategy/execution modules and tests, architecture decisions, and dependencies remain unchanged. No additional notebook was needed; no PnL, trade ledger, capital, fees, or performance metrics were added.
+- Stage 4.5 added the pure function `build_trade_ledger(backtest: pd.DataFrame) -> pd.DataFrame` in `src/trading_lab/backtest/trades.py`, called separately after the unchanged pipeline. Required inputs: `timestamp`, `signal`, `execution_time`, `execution_price`, `executed_position`.
+- Exact ledger schema: `trade_id`, `entry_time`, `entry_price`, `exit_time`, `exit_price`, `status`. IDs start at 1. Only recorded LONG_ENTRY/LONG_EXIT fills with both execution fields present open/close trades; prices and times come from source-signal-row execution metadata, not signal candle prices or desired state.
+- CLOSED trades have both entry and exit fills. OPEN trades have an executed entry and missing exit time/price. A final unexecuted entry creates no trade; a final unexecuted exit leaves the existing trade OPEN. No exit is fabricated at dataset end.
+- Ledger validation rejects partial execution metadata, invalid prices/signals, HOLD fills, non-chronological fills, invalid pairing, and inconsistent executed state. Source state must agree with prior recorded fills; where the receiving row exists, its timestamp/state must agree with the fill. No strategy or execution calculations are repeated.
+- Added 25 synthetic ledger tests covering cases A–M, validation, empty/typed output, input preservation, and existing execution-helper integration. All 101 tests passed: 25 ledger, 19 pipeline, 21 strategy, 23 execution, and 13 market-data tests.
+- BTC integration verified actual fills individually: 78 executed entries and 77 executed exits produce 77 CLOSED trades and one final OPEN trade. First trade entry: 2025-10-13 03:00 UTC at 115,332.3 USDT; exit: 2025-10-14 06:00 UTC at 112,482.0 USDT. Final trade entered at 2026-09-30 13:00 UTC and remains OPEN with missing exit fields. Raw CSV, pipeline input/behavior, notebooks, existing modules/tests, architecture decisions, and dependencies remain unchanged; no PnL, returns, capital, fees, or valuation was added.
 
 ## Environment status
 
@@ -64,12 +70,12 @@ Stage 4.4 — Strategy + Execution Pipeline (completed).
 
 ## Current focus
 
-Stage 4.4 provides a minimal historical strategy/execution pipeline with explicit alignment checks and separately implemented strategy and execution logic. PnL, a trade ledger, portfolio simulation, and trading integration are not implemented.
+Stage 4.5 converts recorded simulated execution fills into a separate one-row-per-trade ledger with CLOSED and OPEN status. The strategy/execution pipeline still returns its candle state table unchanged. PnL, returns, portfolio simulation, and trading integration are not implemented.
 
 ## Not implemented yet
 
 - Transformed datasets and reusable preprocessing workflows.
-- Full backtesting engine, trade ledger, PnL, and portfolio simulation.
+- Full backtesting engine, trade returns, PnL, and portfolio simulation.
 - Additional reusable strategies beyond the EMA crossover strategy.
 - Reusable strategy-performance analytics and strategy comparison.
 - Live/demo execution and exchange integration.
@@ -81,7 +87,7 @@ Stage 4.4 provides a minimal historical strategy/execution pipeline with explici
 
 ## Next milestone
 
-Proposed Stage 4.5: define a minimal trade-ledger contract for pairing actual simulated entry/exit executions and representing an open final position before adding PnL. Do not start Stage 4.5 until the owner approves it.
+Proposed Stage 4.6: define the next minimal closed-trade return/PnL contract, including units, sizing assumptions, and exclusion of OPEN trades from realized results, before implementation. Do not start Stage 4.6 until the owner approves it.
 
 No processed dataset or reusable preprocessing module is needed yet. Keep strategy generation and execution separate; no strategy classes or framework are needed.
 
@@ -96,7 +102,7 @@ No processed dataset or reusable preprocessing module is needed yet. Keep strate
 - A final-candle signal can change desired state but cannot execute without a next candle. Do not invent a price or force a terminal entry/exit.
 - `executed_position` is now calculated in memory by the backtest helper, independently of `desired_position`. Row N records the state after any prior signal fills at N's OPEN; N's own signal cannot change that row's executed state.
 - `execution_time` and `execution_price` are stored on the source signal row, not the receiving candle row. A final row can receive the prior row's fill while its own event remains unexecuted. HOLD has no execution metadata, even when a preceding event changes state at that candle's OPEN.
-- No full backtesting engine, PnL, trade ledger, portfolio simulation, or persistence exists yet.
+- A separate trade ledger now pairs recorded fills. No full backtesting engine, PnL, portfolio simulation, or persistence exists yet.
 - See `decisions/002_backtest_execution_contract.md` for definitions, causal ordering, and acceptance cases A–G, now covered by synthetic tests.
 
 ## Current limitations
@@ -112,6 +118,8 @@ The reusable EMA strategy expects hourly candle-opening timestamps and returns s
 The execution helper requires pandas datetime timestamps with continuous one-hour spacing; it preserves timezone semantics and does not sort or fill gaps. It validates allowed signals, state transitions, and finite positive OPEN prices used for fills. Full OHLCV validation remains upstream. It does not enforce a strategy warm-up or read optional `desired_position`/`signal_time` columns; it executes only supplied events.
 
 The pipeline delegates validation and calculations to those components, adds alignment checks, and returns in-memory results only. `desired_position` is intent after a completed candle; `executed_position` is the state held during that candle after any previous signal fills at its OPEN. They legitimately differ on entry/exit signal rows. Prefix stability excludes execution metadata for a former final-row event that gains a next candle; all earlier rows and shared-prefix strategy/position values remain unchanged.
+
+The ledger consumes the full candle state table starting flat and validates its recorded fills; it does not sort malformed input, calculate fills, or value an open trade. It preserves datetime timezone semantics and returns an empty typed ledger when no entry actually executes. The candle pipeline table and trade ledger remain separate in-memory outputs; neither is persisted.
 
 ## Existing files preserved
 
