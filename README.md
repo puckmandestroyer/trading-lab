@@ -6,7 +6,7 @@ The long-term goal is to support historical market data, multiple independent st
 
 ## Current stage
 
-**Stage 4.7 — Transaction Costs (completed).**
+**Stage 4.8 — Backtest Research Notebook (completed).**
 
 - Stage 1 completed: reusable historical data collection and a validated BTCUSDT hourly snapshot.
 - Stage 2 completed: statistical market analysis of returns, volatility, volume, extreme movements, and BTC buy-and-hold drawdown in `notebooks/01_data_exploration.ipynb`.
@@ -19,6 +19,7 @@ The long-term goal is to support historical market data, multiple independent st
 - Stage 4.5 completed: `src/trading_lab/backtest/trades.py` provides `build_trade_ledger`, called separately after the pipeline. Its 25 tests bring the passing suite to 101 tests; the BTC snapshot has 77 CLOSED trades and one final OPEN trade.
 - Stage 4.6 completed: `src/trading_lab/backtest/performance.py` provides `calculate_trade_results`, consuming the ledger to calculate quantity, CLOSED-trade returns, realized gross PnL, and compounded capital. Its 27 tests bring the passing suite to 128 tests.
 - Stage 4.7 completed: `src/trading_lab/backtest/costs.py` provides `calculate_trade_results_with_costs`, adding self-financing entry sizing, adverse slippage, effective-notional fees, and net compounding. Its 21 tests bring the passing suite to 149 tests. The gross helper remains unchanged.
+- Stage 4.8 completed: [`notebooks/03_backtest_review.ipynb`](notebooks/03_backtest_review.ipynb) runs the existing local loader → EMA/execution pipeline → ledger → independent gross/net accounting helpers. All 18 code cells execute in order; 38 total cells include comparison tables, first-trade/OPEN inspections, and two Matplotlib plots. All 149 existing tests pass; no reusable financial logic was added.
 
 The reusable strategy preserves the notebook's first 50 initialization-only candles; signals become eligible on candle 51 and use only completed candle data. `desired_position` is research intent, and `signal_time` is the candle timestamp plus one hour. Snapshot results remain 78 bullish/78 bearish crossovers, 78 entries/77 exits, and final desired state 1. Both EMA notebook charts and inspection tables remain available.
 
@@ -35,6 +36,10 @@ The BTC snapshot's 77 CLOSED trades leave realized capital of 9,641.111388344 US
 The separate cost-aware helper defaults both rates to zero, reproducing the gross baseline economically. It preserves the six ledger columns and adds 14 financial columns. For long trades, effective entry is recorded entry times `(1 + slippage_rate)` and effective exit is recorded exit times `(1 - slippage_rate)`. Quantity is `capital_before / (effective_entry_price * (1 + fee_rate))`, so entry notional plus entry fee consumes exactly the available capital within floating-point tolerance. Each side's fee is its effective notional times `fee_rate`. CLOSED net PnL is the effective-price PnL minus both fees; net return divides by capital before, and net capital after compounds into the next trade. Cost-aware `gross_pnl` uses recorded prices and the cost-sized quantity; it differs from running the separate zero-cost model. Rates must be finite real numbers in `[0, 1)`, excluding bools. Initial capital must be positive and finite.
 
 With test assumptions of a 0.10% fee per side and 0.05% adverse slippage per side, the same snapshot leaves 7,652.530163437 USDT after its last CLOSED trade, 1,988.581224907 USDT below the gross baseline. This difference includes slippage, fees, and their effect on compounded sizing; it is not just the sum of fees. These are research assumptions, not current Bybit fees. The final OPEN trade has capital before of 7,652.530163437 USDT, quantity 0.0895852306473 BTC, and entry fee 7.644885278 USDT. Its exit, round-trip total fees, net PnL, net return, and net capital after remain missing. No OPEN trade is valued, and the realized-capital comparison is before that final entry.
+
+The backtest review notebook makes these stages visible without duplicating their logic. Starting from 10,000 USDT, the gross/net realized returns are -3.588886% / -23.474698%. It displays dataset and execution checks, first/last ledger rows, accounting previews, descriptive CLOSED-trade costs, and the final OPEN entry. The two plots show realized capital after completed trades and accumulated modeled costs; neither values positions during candles. The notebook requires the existing local snapshot and never downloads or overwrites it.
+
+These results describe this historical sample under the stated assumptions and do not prove general strategy quality. EMA parameters were not optimized; no out-of-sample or walk-forward validation exists yet. Stage 5 performance analytics is the recommended next milestone and requires approval before work begins.
 
 The platform currently uses no real money. Public data collection requires no API key. Exchange trading and demo trading integration will be added later.
 
@@ -104,6 +109,8 @@ A strategy will produce BUY, SELL, or HOLD signals. The same strategy logic shou
 source ../.venv/bin/activate
 jupyter lab notebooks/01_data_exploration.ipynb
 ```
+
+To review the complete existing backtest instead, open `notebooks/03_backtest_review.ipynb` with the same kernel and run its cells from top to bottom.
 
 Select that virtual environment's Python kernel in a notebook-capable editor. The notebook adds `src/` to its import path, uses the reusable loader, and reads the local CSV when it already exists. It downloads only when the snapshot is absent, preserving consistent inputs for future research and backtests.
 

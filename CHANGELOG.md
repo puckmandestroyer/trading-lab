@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-02 — Stage 4.8 backtest research notebook
+
+- Added and executed `notebooks/03_backtest_review.ipynb` end to end using the existing local loader, EMA/execution pipeline, trade ledger, and independent gross/net accounting helpers. All 18 code cells ran successfully; 38 total cells include comparison tables, first-trade/OPEN inspections, and two Matplotlib plots.
+- Confirmed 8,760 candles, 78 entry/77 exit signals, and 77 CLOSED/one OPEN trade. From 10,000 USDT, gross/net realized capital is 9,641.111388344 / 7,652.530163437 USDT (-3.588886% / -23.474698%), with a 1,988.581224907 USDT gap under research cost assumptions. OPEN remains unvalued.
+- All 149 existing tests passed; updated stage documentation. Raw CSV, notebooks 01/02, reusable modules/tests, dependencies, and architecture remain unchanged. No new production financial logic or Stage 5 analytics was added.
+
 ## 2026-10-02 — Stage 4.7 transaction costs
 
 - Added separate cost-aware ledger accounting with adverse entry/exit slippage, effective-notional fees, self-financing sizing, and net compounding. OPEN trades record entry costs without exit results or valuation; the Stage 4.6 zero-cost helper is unchanged.
