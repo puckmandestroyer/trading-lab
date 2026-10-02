@@ -89,4 +89,4 @@ The loader supports Bybit's fixed minute-based intervals. It paginates backward 
 
 `.env.example` contains empty variable names for future exchange configuration. Never add real credentials to source files or commit a local `.env` file. Credentials are not needed at this stage.
 
-Read `PROJECT_STATE.md` before starting new work. Git is now initialized at the parent workspace, but no commits have been made. The CSV is ignored by the project's `.gitignore`.
+Read `PROJECT_STATE.md` before starting new work. Git is initialized at the project root (`/Users/romankondratenko/trading-lab/Trading Lab`). The initial commit has been pushed to [GitHub](https://github.com/puckmandestroyer/trading-lab), and `main` tracks `origin/main`. The CSV is ignored by the project's `.gitignore`.

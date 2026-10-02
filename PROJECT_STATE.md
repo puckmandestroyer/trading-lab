@@ -6,7 +6,7 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 ## Current stage
 
-Stage 1 — Historical market data and research environment.
+Stage 2 — Minimal Historical Market Analytics (completed).
 
 ## Completed
 
@@ -21,6 +21,10 @@ Stage 1 — Historical market data and research environment.
 - Validation found zero missing values, duplicates, missing hourly candles, or invalid OHLC/volume rows; download used nine pages and removed zero duplicates.
 - Research notebook executed with inspection examples, quality checks, summary statistics, and price/volume plots.
 - Thirteen offline tests passed for pagination, normalization, response failures, incomplete coverage, invalid data, and snapshot preservation.
+- Stage 2 notebook analysis: simple/log returns, sample return statistics and distribution, trailing 24-hour/7-day hourly-return volatility, volume, extreme movements, and BTC buy-and-hold close-based drawdown.
+- All 20 notebook code cells executed successfully using the existing virtual environment, including five plots and checks of the derived calculations.
+- The existing 8,760-row raw snapshot remains unchanged; all seven derived columns exist only in notebook memory. No processed dataset, dependencies, or application modules were added.
+- Observed hourly mean return: -0.002462%; standard deviation: 0.469127%; minimum/maximum: -4.7946% / +3.9581%. Maximum observed close-based buy-and-hold drawdown: -53.7338%. These describe this snapshot, not predictions or bot performance.
 
 ## Environment status
 
@@ -33,13 +37,13 @@ Stage 1 — Historical market data and research environment.
 
 ## Current focus
 
-Explore the saved historical BTCUSDT dataset and record research observations. Historical data collection is implemented; no trading integration is present.
+Stage 2 research is complete. Review its documented observations and agree on the next milestone before further development. Historical collection and notebook-only market analytics are implemented; no trading strategy or trading integration is present.
 
 ## Not implemented yet
 
 - Transformed datasets and reusable preprocessing workflows.
 - Trading strategies and a backtesting engine.
-- Performance metrics and strategy comparison.
+- Reusable strategy-performance analytics and strategy comparison.
 - Live/demo execution and exchange integration.
 - Multiple autonomous bot instances and order management.
 - Centralized risk engine.
@@ -49,11 +53,15 @@ Explore the saved historical BTCUSDT dataset and record research observations. H
 
 ## Next milestone
 
-Review the notebook's dataset summaries and plots, document notable price/volume periods and potential anomalies, and decide whether a reproducible preprocessing step is needed. Preserve the raw snapshot. Do not start this next task until the owner approves it.
+Proposed Stage 3: define the first simple research strategy's signal rules, required inputs, and timing before implementation. Determine which calculations need reuse based on those concrete requirements. Do not start this milestone until the owner approves it.
+
+No processed dataset or reusable preprocessing module is needed yet: the validated OHLCV snapshot and in-memory calculations are sufficient. Extract stable calculations only when an approved additional workflow needs them.
 
 ## Current limitations
 
 The loader supports fixed minute-based Bybit intervals, not daily/weekly/monthly candles. It rejects incomplete periods instead of filling gaps. Requests have a timeout and report failures clearly, but do not retry automatically. Snapshot saving refuses to overwrite existing files. The notebook uses the fixed first-year period and restores CSV dtypes explicitly; no indicators or strategy features are stored in raw data.
+
+Stage 2 volatility uses sample standard deviation (`ddof=1`) of hourly returns over trailing 24/168-observation windows and is not annualized. First-return and rolling-window NaNs are expected warm-up values. Drawdown uses candle closes and excludes intrahour lows; the index is BTC buy-and-hold price analysis, not a bot backtest.
 
 ## Existing files preserved
 
