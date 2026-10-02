@@ -14,6 +14,7 @@ Stage 1 — Historical market data and research environment.
 - Empty reusable Python packages and a starter Jupyter notebook.
 - Initial architecture decision and permanent Codex instructions.
 - Codex-assisted workspace inspection and scaffolding.
+- Git repository setup, initial commit, and successful publication to GitHub.
 - Reusable historical OHLCV loader with backward pagination through the Bybit V5 Public Market Kline API.
 - UTC/numeric normalization, explicit duplicate handling, full-period validation, protected snapshot saving, and validated CSV loading.
 - First Bybit spot BTCUSDT hourly snapshot saved under `data/raw/BTCUSDT_1h.csv`: 8,760 rows spanning 2025-10-01 00:00 UTC through 2026-09-30 23:00 UTC.
@@ -26,7 +27,9 @@ Stage 1 — Historical market data and research environment.
 - The parent workspace's `.venv/` uses Python 3.9.6. pandas 2.3.3, NumPy 2.0.2, and Matplotlib 3.9.4 were installed for this task. requests and JupyterLab were already available.
 - All notebook code cells executed successfully using this virtual environment; the editor's selected kernel was not changed.
 - The existing Python/LibreSSL environment emits an urllib3 compatibility warning. Public API calls succeeded; the warning was not suppressed, and interpreter migration is outside this task.
-- Git is now initialized at `/Users/romankondratenko/trading-lab`, with no commits yet on `main`. At task start, the project and parent `.venv/` were untracked. No Git configuration or commits were changed in this task.
+- Git repository root: `/Users/romankondratenko/trading-lab/Trading Lab`.
+- Branch: `main`, tracking `origin/main`. Initial commit: `ff57150` (`Initialize Trading Lab project`), pushed successfully to GitHub.
+- Remote repository: [puckmandestroyer/trading-lab](https://github.com/puckmandestroyer/trading-lab).
 
 ## Current focus
 

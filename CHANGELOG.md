@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-02 — Git/GitHub setup confirmed
+
+- Confirmed Git is initialized at the project root, with initial commit `ff57150` pushed to [GitHub](https://github.com/puckmandestroyer/trading-lab) and `main` tracking `origin/main`.
+- Corrected stale Git state in the project documentation.
+
 ## 2026-10-01 — Historical market data pipeline
 
 - Added reusable OHLCV loading, normalization, validation, and snapshot persistence using the Bybit V5 Public Market Kline API, with exchange-specific HTTP calls isolated in the exchange layer.
