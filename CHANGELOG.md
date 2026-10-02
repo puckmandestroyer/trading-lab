@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-02 — Stage 4.4 strategy + execution pipeline
+
+- Added a pure EMA/execution pipeline that calls the existing components, checks row/index/timestamp/order alignment, and preserves desired-state versus next-open executed-state timing without reimplementing either layer.
+- Added 19 synthetic integration tests, including final-row causal-prefix behavior and alignment failures; all 76 tests passed across the pipeline, strategy, execution, and market-data suites.
+- Verified the 8,760-row BTC snapshot: unchanged strategy results, final desired/executed states 1/1, and first entry at 2025-10-13 03:00 UTC OPEN of 115,332.3 USDT. Updated stage documentation; notebooks, raw data, existing components, and dependencies are unchanged. No PnL or trade ledger was added.
+
 ## 2026-10-02 — Stage 4.3 reusable EMA strategy
 
 - Extracted Stage 3.1 EMA signals into the pure `generate_ema_signals` function, preserving EMA seeding, 50-candle warm-up, crossover rules, desired-state gating, and hourly signal availability.

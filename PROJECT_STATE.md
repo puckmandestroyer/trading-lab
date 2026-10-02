@@ -6,7 +6,7 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 ## Current stage
 
-Stage 4.3 — Reusable EMA Strategy (completed).
+Stage 4.4 — Strategy + Execution Pipeline (completed).
 
 ## Completed
 
@@ -45,6 +45,13 @@ Stage 4.3 — Reusable EMA Strategy (completed).
 - Local snapshot regression exactly matched the original notebook across all 8,760 rows and ten strategy columns: 78 bullish/78 bearish crossovers, 78 entries/77 exits, first entry candle 2025-10-13 02:00 UTC (signal 03:00), first exit candle 2025-10-14 05:00 UTC (signal 06:00), final desired state 1.
 - Added 21 synthetic strategy tests covering warm-up, crossovers, state gating, HOLD stability, event alternation, causality, input preservation, timing, parameters, validation, and edge cases. All 57 tests passed: 21 strategy, 23 execution, and 13 market-data tests.
 - Updated `notebooks/02_ema_strategy.ipynb` to import the reusable strategy instead of duplicating its calculations. All 12 code cells executed successfully; notebook outputs match the function, fixed snapshot results are asserted, and both charts and inspection tables are retained. Raw CSV, earlier exploration notebook, execution helper, architecture decisions, and dependencies remain unchanged. No strategy/execution composition, PnL, or trade ledger was added.
+- Stage 4.4 added `run_ema_execution_pipeline(candles: pd.DataFrame, fast_span: int = 20, slow_span: int = 50, warmup_candles: int = 50) -> pd.DataFrame` in `src/trading_lab/backtest/pipeline.py`. It orchestrates the existing strategy and execution helpers without duplicating their logic or modifying input.
+- Required pipeline inputs: `timestamp`, `open`, `close`. Exact default output: `timestamp`, `open`, `close`, `ema_20`, `ema_50`, `warmup_complete`, `bullish_cross`, `bearish_cross`, `signal`, `desired_position`, `signal_time`, `execution_time`, `execution_price`, `executed_position`. Custom spans retain dynamic EMA names; optional market-context columns are omitted.
+- Each component's output must match the input row count, index, timestamp values, and chronological order before columns are combined; mismatches raise `ValueError`. Execution output must preserve strategy signals. Existing validation errors propagate without signal repair or index resetting.
+- Preserved 50-candle initialization, separate desired/executed states, source-signal-row fill metadata, and next-candle-OPEN execution. A final event has no fill; appending its next candle may populate only that former final row's execution metadata within the shared prefix, leaving its strategy output and executed state unchanged.
+- Added 19 synthetic pipeline integration tests covering component consistency, row alignment and failures, input preservation, entry/exit timing, warm-up, final events, causal-prefix boundaries, and validation propagation. All 76 tests passed: 19 pipeline, 21 strategy, 23 execution, and 13 market-data tests.
+- BTC snapshot integration retained 8,760 rows, 50 warm-up candles, 78 bullish/78 bearish crossovers, 78 entries/77 exits, and the known first entry/exit signal timestamps. Both final desired and executed states are 1. First entry: candle 2025-10-13 02:00 UTC, signal and execution time 03:00 UTC, execution price 115,332.3 USDT verified against the receiving candle's OPEN; executed state is 0 on the signal row and 1 on the receiving row. Every strategy and execution output equals its direct component result.
+- Raw data, both notebooks, existing strategy/execution modules and tests, architecture decisions, and dependencies remain unchanged. No additional notebook was needed; no PnL, trade ledger, capital, fees, or performance metrics were added.
 
 ## Environment status
 
@@ -57,12 +64,12 @@ Stage 4.3 — Reusable EMA Strategy (completed).
 
 ## Current focus
 
-Stage 4.3 provides reusable EMA signal generation used by the research notebook. The strategy and Stage 4.2 execution helper are independently tested and have not been composed into a backtest pipeline. PnL, a trade ledger, portfolio simulation, and trading integration are not implemented.
+Stage 4.4 provides a minimal historical strategy/execution pipeline with explicit alignment checks and separately implemented strategy and execution logic. PnL, a trade ledger, portfolio simulation, and trading integration are not implemented.
 
 ## Not implemented yet
 
 - Transformed datasets and reusable preprocessing workflows.
-- Combined strategy/execution pipeline and a full backtesting engine.
+- Full backtesting engine, trade ledger, PnL, and portfolio simulation.
 - Additional reusable strategies beyond the EMA crossover strategy.
 - Reusable strategy-performance analytics and strategy comparison.
 - Live/demo execution and exchange integration.
@@ -74,7 +81,7 @@ Stage 4.3 provides reusable EMA signal generation used by the research notebook.
 
 ## Next milestone
 
-Proposed Stage 4.4: compose the independent EMA strategy and next-open execution helper in a minimal historical workflow. Preserve warm-up, signal availability, next-open fills, and separate desired/executed states. Do not start Stage 4.4 until the owner approves it.
+Proposed Stage 4.5: define a minimal trade-ledger contract for pairing actual simulated entry/exit executions and representing an open final position before adding PnL. Do not start Stage 4.5 until the owner approves it.
 
 No processed dataset or reusable preprocessing module is needed yet. Keep strategy generation and execution separate; no strategy classes or framework are needed.
 
@@ -103,6 +110,8 @@ Stage 3.1 keeps `ewm(span=20/50, adjust=False)` with the first close as the seed
 The reusable EMA strategy expects hourly candle-opening timestamps and returns signal availability one hour later. It validates datetime order/uniqueness, finite positive numeric closes, and positive integer parameters with `fast_span < slow_span`. Full OHLCV and hourly continuity validation remain upstream. Default parameters preserve Stage 3.1; custom spans and warm-up are supported but have not been optimized. All derived columns remain in memory; no processed dataset or persistence is introduced.
 
 The execution helper requires pandas datetime timestamps with continuous one-hour spacing; it preserves timezone semantics and does not sort or fill gaps. It validates allowed signals, state transitions, and finite positive OPEN prices used for fills. Full OHLCV validation remains upstream. It does not enforce a strategy warm-up or read optional `desired_position`/`signal_time` columns; it executes only supplied events.
+
+The pipeline delegates validation and calculations to those components, adds alignment checks, and returns in-memory results only. `desired_position` is intent after a completed candle; `executed_position` is the state held during that candle after any previous signal fills at its OPEN. They legitimately differ on entry/exit signal rows. Prefix stability excludes execution metadata for a former final-row event that gains a next candle; all earlier rows and shared-prefix strategy/position values remain unchanged.
 
 ## Existing files preserved
 
