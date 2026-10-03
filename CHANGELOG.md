@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-04 — Stage 5.5 reusable realized-capital drawdown
+
+- Implemented decision 004 unchanged with explicit gross/net path and summary functions, canonical CLOSED capital sources, the initial observation, negative drawdown/amount conventions, source-specific validation, and earliest-minimum associated amounts. OPEN remains excluded and unvalued; the 16-metric trade summary stays unchanged.
+- Added 32 synthetic tests, including actual Stage 4 accounting integration; all 216 tests passed. BTC paths contain 78 points for 77 CLOSED trades. Maximum realized-capital drawdown is -26.723425% GROSS at observation 33 (-2,672.342545499 USDT) and -37.185533% NET at observation 66 (-3,718.553326267 USDT), under research cost assumptions. Final capitals match 9,641.111388344 / 7,652.530163437 USDT; OPEN removal leaves paths/summaries identical.
+- Updated stage documentation and the limitation versus mark-to-market drawdown. Stage 4 code/tests, existing analytics/tests, all decisions, notebooks 01/02/03, raw BTC CSV, and dependencies remain unchanged. Notebook integration and Stage 5.6 have not started.
+
 ## 2026-10-03 — Stage 5.4 realized-capital drawdown contract
 
 - Added decision 004 for independent gross/net capital paths with mandatory initial capital, CLOSED-only observations, running peaks, negative drawdown/amount conventions, maximum drawdown, edge cases, future validation/API/output direction, and the limitation versus mark-to-market portfolio drawdown. OPEN remains excluded and unvalued; the existing 16 metrics stay unchanged.

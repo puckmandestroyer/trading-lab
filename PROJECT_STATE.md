@@ -6,7 +6,7 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 ## Current stage
 
-Stage 5.4 — Realized-Capital Drawdown Contract (completed).
+Stage 5.5 — Reusable Realized-Capital Drawdown Implementation (completed).
 
 ## Completed
 
@@ -104,7 +104,46 @@ Stage 5.4 — Realized-Capital Drawdown Contract (completed).
 - Stage 5.4 recorded `decisions/004_realized_capital_drawdown.md`, defining REALIZED-CAPITAL drawdown only. Each independent path begins with explicit initial capital and then observes canonical capital after each CLOSED trade in existing accounting order: Stage 4.6 `capital_after` for GROSS, Stage 4.7 `net_capital_after` for NET. There are `N + 1` observations for `N` CLOSED trades; capital is never reconstructed from PnL.
 - Running peak is the maximum capital observed so far. Decimal drawdown is `capital / running_peak - 1`, currency amount is `capital - running_peak`, and maximum realized drawdown is the minimum/most negative drawdown. The negative convention gives `-0.25` for a 25% decline. Empty/OPEN-only, flat, or increasing paths have maximum `0.0`; zero post-CLOSED capital gives `-1.0`, while negative capital is invalid.
 - OPEN rows add no point; their capital before, entry fees/notionals, and quantities do not adjust realized observations. The final OPEN trade remains unvalued. This path omits intratrade/unrealized losses and can understate full mark-to-market portfolio drawdown; it must not be presented as the strategy's full drawdown.
-- Defined future source-specific schema/finite real-capital validation, explicit gross/net API direction, a six-column observation path, and a small maximum summary. Decision 003's 16 metrics remain unchanged; drawdown will be a separate component. All 184 existing tests passed. Documentation only: existing decisions, production code, tests, notebooks, raw CSV, and dependencies remain unchanged. Implementation and BTC drawdown measurement await Stage 5.5 approval.
+- Stage 5.4 defined source-specific schema/finite real-capital validation, explicit gross/net API direction, a six-column observation path, and a small maximum summary. All 184 existing tests passed during that documentation-only milestone; implementation and BTC measurement were then pending Stage 5.5 approval.
+- Stage 5.5 implemented decision 004 unchanged in `src/trading_lab/analytics/drawdown.py`, with four pure public functions: `calculate_gross_realized_drawdown`, `calculate_net_realized_drawdown`, `summarize_gross_realized_drawdown`, and `summarize_net_realized_drawdown`. Summaries reuse their source-specific path; accounting is never reconstructed.
+- Added 32 synthetic tests in `tests/test_realized_drawdown.py` for schemas/dtypes, initial capital, source separation, peaks, empty/OPEN-only paths, zero capital, input validation/preservation/order, earliest tied minima, percentage-versus-currency minima, and integration with actual Stage 4 helpers. All 216 tests passed: 184 existing plus 32 new.
+- The offline BTC research check verified 77 CLOSED trades and 78 observations per path, known final realized capitals, independent scalar drawdown calculations, and identical paths/summaries after removing the final OPEN row. Results are recorded below; OPEN remains unvalued.
+- Stage 4 production code/tests, `trade_metrics.py` / `test_trade_metrics.py`, all decisions, notebooks 01/02/03, raw BTC CSV, and dependencies remain unchanged. The existing 16-metric summary gains no drawdown column. Notebook integration and Stage 5.6 have not started.
+
+## Reusable realized-capital drawdown
+
+Module: `src/trading_lab/analytics/drawdown.py`. All four functions take `(results: pd.DataFrame, initial_capital: float = 10_000.0)` and return a new `pd.DataFrame`:
+
+| Path function | Summary function | Required source columns | Canonical CLOSED capital |
+| --- | --- | --- | --- |
+| `calculate_gross_realized_drawdown` | `summarize_gross_realized_drawdown` | `status`, `capital_before`, `capital_after` | Stage 4.6 `capital_after` |
+| `calculate_net_realized_drawdown` | `summarize_net_realized_drawdown` | `status`, `capital_before`, `net_capital_after` | Stage 4.7 `net_capital_after` |
+
+Exact path columns, in order: `observation`, `closed_trade_number`, `capital`, `running_peak`, `drawdown`, `drawdown_amount`. The first two use int64; the other four use float64. Output has a RangeIndex. Observation 0 has both ordinals 0, capital/peak equal to explicit initial capital, and both drawdown fields `0.0`. Each CLOSED row adds one point in existing input order, so `N` CLOSED trades produce `N + 1` rows. `capital_before` is a schema guard, never the inferred initial value; callers supply the same initial capital as accounting.
+
+Exact summary columns, in order: `max_realized_drawdown`, `max_realized_drawdown_amount`, both float64. There is one row indexed `GROSS` or `NET`. Running peak is the maximum capital through the current observation; drawdown is `capital / running_peak - 1`, and amount is `capital - running_peak`. Maximum drawdown is the minimum negative decimal drawdown. Exact tied minima select the earliest observation; the reported amount belongs to that same point, which can differ from the minimum currency decline. No rounding, tolerance, or clamping changes the calculation.
+
+Validation requires a DataFrame, unique columns, the source-specific schema even for empty input, and statuses exactly CLOSED/OPEN. Initial capital is independently finite real numeric and strictly positive. CLOSED capital is finite real numeric and non-negative; missing values, bool/np.bool_, strings, complex, and non-finite values are rejected. Negative CLOSED capital is invalid; zero is valid and gives drawdown `-1.0` from a positive peak. Full ledger/capital consistency validation stays upstream. Optional columns do not affect results; no input rows, values, dtypes, columns, or index are modified, sorted, reset, or repaired.
+
+OPEN rows, their missing capital-after values, and entry costs add no point and do not alter realized capital. Empty/OPEN-only inputs contain exactly the initial point and have zero summaries, with no NaN. Flat/increasing capital has zero drawdown; recovery to an earlier peak does not remove historical declines. This is REALIZED-CAPITAL drawdown only: it omits intratrade/unrealized losses and can understate full mark-to-market portfolio drawdown. No notebook integration has been performed.
+
+## BTC realized-capital drawdown check
+
+The existing local 8,760-row BTCUSDT hourly snapshot ran through the unchanged EMA20/EMA50 pipeline (50 warm-up candles), ledger, and independent gross/net accounting, then the new drawdown paths/summaries. Initial capital was 10,000 USDT; NET used `fee_rate=0.001` and `slippage_rate=0.0005` as research assumptions only, not current Bybit fees. Drawdowns are negative decimal fractions; amounts/capital use USDT. Values below are rounded for display only.
+
+| Result | GROSS | NET |
+| --- | ---: | ---: |
+| CLOSED trades | 77 | 77 |
+| Path rows including initial capital | 78 | 78 |
+| `max_realized_drawdown` | -0.267234254550 | -0.371855332627 |
+| `max_realized_drawdown_amount` | -2,672.342545499 | -3,718.553326267 |
+| Minimum-drawdown observation | 33 | 66 |
+| Minimum-drawdown `closed_trade_number` | 33 | 66 |
+| Capital at that observation | 7,327.657454501 | 6,281.446673733 |
+| Running peak at that observation | 10,000.000000000 | 10,000.000000000 |
+| Final realized capital | 9,641.111388344 | 7,652.530163437 |
+
+The maxima are -26.723425% GROSS and -37.185533% NET on these realized-capital observations. Both final path capitals equal the known final CLOSED accounting values. Removing the final OPEN row leaves each full path and summary identical; that position remains unvalued. Inputs and the raw CSV hash were preserved. These sample-specific results do not establish general strategy quality or full portfolio drawdown.
 
 ## BTC CLOSED-trade performance summary
 
@@ -142,7 +181,7 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Stage 5.4 defines deterministic realized-capital drawdown conventions in decision 004, using the initial point and CLOSED-trade capital only. No drawdown code or BTC drawdown value has been introduced. Notebook 03 retains its completed Stage 5.3 review and all 184 existing unit tests pass; reusable drawdown implementation awaits approval.
+Stage 5.5 implements decision 004 as separate gross/net realized-capital paths and summaries with 32 new synthetic tests; all 216 tests pass. The BTC checks above preserve CLOSED accounting and exclude the unvalued OPEN trade. Notebook 03 retains its completed Stage 5.3 review without drawdown integration. Stage 5.6 awaits approval.
 
 ## Not implemented yet
 
@@ -150,7 +189,7 @@ Stage 5.4 defines deterministic realized-capital drawdown conventions in decisio
 - Full backtesting engine and candle-level portfolio/equity simulation.
 - Exchange-specific or variable transaction-cost models and unrealized/mark-to-market PnL.
 - Additional reusable strategies beyond the EMA crossover strategy.
-- Performance analytics beyond the 16 CLOSED-trade summary metrics, and strategy comparison.
+- Performance analytics beyond the 16 CLOSED-trade summary metrics and separate realized-capital drawdown, and strategy comparison.
 - Live/demo execution and exchange integration.
 - Multiple autonomous bot instances and order management.
 - Centralized risk engine.
@@ -160,7 +199,7 @@ Stage 5.4 defines deterministic realized-capital drawdown conventions in decisio
 
 ## Next milestone
 
-Proposed Stage 5.5 — Reusable Realized-Capital Drawdown Implementation: implement decision 004 in a small separate analytics component with explicit gross/net helpers and focused synthetic tests for initial capital, peaks/signs, empty/flat/zero-capital paths, OPEN exclusion, source validation, and preservation. Keep Stage 4 accounting and the Stage 5.2 16-metric summaries unchanged. Do not start Stage 5.5 until the owner approves it.
+Proposed Stage 5.6 — Realized-Capital Drawdown Notebook Integration: use the existing Stage 5.5 path and summary helpers in notebook 03, present independent gross/net results with clear REALIZED-CAPITAL labels, and explain the limitation versus mark-to-market drawdown. Keep accounting, drawdown formulas, and the 16-metric trade summary unchanged. Do not start Stage 5.6 until the owner approves it.
 
 No processed dataset or reusable preprocessing module is needed yet. Keep strategy generation and execution separate; no strategy classes or framework are needed.
 
@@ -200,7 +239,7 @@ Cost-aware accounting reuses the unchanged gross helper's ledger/capital validat
 
 The backtest review notebook observes the fixed EMA20/EMA50, 50-candle-warm-up sample without parameter optimization, out-of-sample testing, or walk-forward validation. Capital plots use completed trade number, not time; within-trade movements and the final OPEN position are not valued. Stage 5.3 adds presentation of existing summaries only. No general conclusion about strategy quality follows from this single sample.
 
-Decision 003 is now implemented by the Stage 5.2 summary helpers. Arithmetic average trade return is distinct from compounded strategy return. Quote-currency expectancy describes this sample, not future profit. NaN and +infinity are intentional for documented undefined/unbounded cases. These summaries aggregate existing accounting outputs; full ledger/capital consistency validation stays upstream. Decision 004 defines realized-capital drawdown, but implementation remains pending. Mark-to-market drawdown, duration/exposure, benchmarks, Sharpe/Sortino, volatility, annualization, equity/valuation, and strategy-validation methods remain deferred.
+Decision 003 is implemented by the Stage 5.2 summary helpers. Arithmetic average trade return is distinct from compounded strategy return. Quote-currency expectancy describes this sample, not future profit. NaN and +infinity are intentional for documented undefined/unbounded cases. These summaries aggregate existing accounting outputs; full ledger/capital consistency validation stays upstream. Decision 004 is implemented separately by the Stage 5.5 drawdown helpers, using only explicit initial capital and CLOSED capital-after observations. They can miss losses while trades are open and understate full mark-to-market drawdown. Notebook integration is pending; mark-to-market drawdown, duration/exposure, benchmarks, Sharpe/Sortino, volatility, annualization, equity/valuation, and strategy-validation methods remain deferred.
 
 ## Existing files preserved
 
