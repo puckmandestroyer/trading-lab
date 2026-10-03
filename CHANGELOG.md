@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-03 — Stage 5.3 performance summary notebook integration
+
+- Integrated the unchanged Stage 5.2 gross/net summary helpers into notebook 03 using its existing accounting outputs. Added a formatted 16-metric comparison, practical BTC explanations, and regression/OPEN-exclusion assertions without duplicating metric formulas.
+- Executed all 21 code cells successfully with sequential counts and no errors: 44 cells total, 23 Markdown, two retained plots. Both paths have 77 CLOSED trades (20 WIN/57 LOSS/no BREAKEVEN); gross/net expectancy is -4.660891060 / -30.486621254 USDT and profit factor 0.945165760246 / 0.675088667158. The final OPEN trade remains excluded and unvalued.
+- All 184 existing tests passed. Updated stage documentation; production code/tests, decision 003, raw CSV, notebooks 01/02, and dependencies remain unchanged. Stage 5.4 drawdown contract is recommended but not started.
+
 ## 2026-10-03 — Stage 5.2 reusable CLOSED-trade performance summary
 
 - Implemented decision 003 with explicit gross/net summary functions, a private shared calculation helper, exact 16-column one-row output, integer counts, return-based tolerance classification, and PnL-based expectancy/profit factor. Validation and source guards reject malformed CLOSED values and wrong accounting schemas; OPEN rows are excluded without valuation.
