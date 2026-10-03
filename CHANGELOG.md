@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-03 — Stage 5.4 realized-capital drawdown contract
+
+- Added decision 004 for independent gross/net capital paths with mandatory initial capital, CLOSED-only observations, running peaks, negative drawdown/amount conventions, maximum drawdown, edge cases, future validation/API/output direction, and the limitation versus mark-to-market portfolio drawdown. OPEN remains excluded and unvalued; the existing 16 metrics stay unchanged.
+- Updated current-stage documentation. All 184 existing tests passed; production code, tests, notebooks, raw CSV, dependencies, and earlier decisions remain unchanged. Drawdown implementation and BTC measurement await Stage 5.5 approval.
+
 ## 2026-10-03 — Stage 5.3 performance summary notebook integration
 
 - Integrated the unchanged Stage 5.2 gross/net summary helpers into notebook 03 using its existing accounting outputs. Added a formatted 16-metric comparison, practical BTC explanations, and regression/OPEN-exclusion assertions without duplicating metric formulas.
