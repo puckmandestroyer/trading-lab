@@ -6,7 +6,7 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 ## Current stage
 
-Stage 5.1 — CLOSED-Trade Performance Metric Contract (completed).
+Stage 5.2 — Reusable CLOSED-Trade Performance Summary (completed).
 
 ## Completed
 
@@ -86,7 +86,39 @@ Stage 5.1 — CLOSED-Trade Performance Metric Contract (completed).
 - Stage 5.1 recorded the CLOSED-trade metric contract in `decisions/003_closed_trade_performance_metrics.md`. It defines counts/rates, mean/median/winning/losing/best/worst returns, total realized PnL, quote-currency expectancy, and profit factor without implementing analytics functions.
 - Canonical GROSS source is Stage 4.6 `trade_return` / `gross_pnl`, with `capital_before` / `capital_after` context. Canonical NET source is Stage 4.7 `net_trade_return` / `net_pnl`, with `capital_before` / `net_capital_after` context. Stage 4.7 `gross_pnl` is not the canonical gross strategy simulation because it uses cost-aware quantity.
 - Return-based classification uses fixed dimensionless `BREAKEVEN_TOLERANCE = 1e-12`: WIN above +tolerance, LOSS below -tolerance, BREAKEVEN inside or on the boundaries. OPEN rows are excluded from every CLOSED statistic and never valued. Total PnL/expectancy retain source breakeven residuals; profit factor uses PnL only from return-classified WIN/LOSS subsets.
-- Recorded empty/subset cases, NaN/infinity profit-factor behavior, the 16-field future summary, and Stage 5.2 acceptance invariants. All 149 existing tests passed. No production code, new tests, notebooks, raw data, or dependencies were changed; implementation remains pending approval.
+- Recorded empty/subset cases, NaN/infinity profit-factor behavior, the 16-field future summary, and Stage 5.2 acceptance invariants. All 149 existing tests passed. No production code, new tests, notebooks, raw data, or dependencies were changed during Stage 5.1; implementation was pending at that milestone.
+
+- Stage 5.2 added `src/trading_lab/analytics/trade_metrics.py`, implementing decision 003 through two pure public functions: `summarize_gross_trade_performance(results: pd.DataFrame) -> pd.DataFrame` and `summarize_net_trade_performance(results: pd.DataFrame) -> pd.DataFrame`. A small private helper shares calculations; no classes/framework or accounting recalculation was added.
+- Each function returns one row indexed `GROSS` or `NET`, with exactly the 16 metric columns shown below in contract order. Counts are integers; other fields are float64. GROSS requires `status`, `trade_return`, `gross_pnl`, `capital_before`, `capital_after`; NET requires `status`, `net_trade_return`, `net_pnl`, `capital_before`, `net_capital_after`. Wrong Stage 4 accounting output fails clearly; capital columns guard source schema without repeating accounting validation.
+- Only CLOSED rows enter metrics. Fixed `BREAKEVEN_TOLERANCE = 1e-12` uses unrounded returns: WIN above +tolerance, LOSS below -tolerance, BREAKEVEN inside/on the boundaries. Source values are preserved. Profit factor uses selected-source PnL with WIN/LOSS return masks; breakeven residual PnL remains in totals/expectancy but not those aggregates. Profit-only gives +infinity, loss-only 0.0, and no eligible PnL NaN.
+- Empty/OPEN-only summaries have zero counts and total realized PnL, with NaN rates/statistics/expectancy/profit factor. Validation rejects non-DataFrames, duplicate/missing columns, invalid status, and missing/non-finite/non-real CLOSED financial values, including bools and strings. Inputs are never sorted, repaired, coerced from strings, or modified; optional columns are irrelevant.
+- Added 35 synthetic metric tests covering all decision 003 conventions, boundary/residual behavior, degenerate populations, source separation, validation, preservation, and real Stage 4 helper integration without the raw CSV. All 184 tests passed, including all 149 earlier tests. No Stage 5.3 metrics were added.
+- Local BTC research check ran the unchanged pipeline, ledger, gross accounting, and cost accounting before both summaries. Both retain 77 CLOSED trades; omitting the final OPEN row produces identical summaries. Independent standard-library arithmetic, count/rate/expectancy identities, total-PnL versus realized-capital changes, and input preservation passed. Stage 4 code/tests, all notebooks, raw CSV, decision 003, and dependencies remain unchanged.
+
+## Stage 5.2 BTC research summary
+
+Existing 8,760-row BTCUSDT hourly snapshot; EMA20/EMA50 with 50 warm-up candles and initial capital 10,000 USDT. NET rates are research assumptions only: 0.10% fee and 0.05% adverse slippage per side, not current Bybit fees. Return/rate values below are decimal fractions; PnL/expectancy use USDT. Values are rounded for display; implementation uses unrounded inputs.
+
+| Metric (exact output order) | GROSS | NET |
+| --- | ---: | ---: |
+| `closed_trade_count` | 77 | 77 |
+| `winning_trade_count` | 20 | 20 |
+| `losing_trade_count` | 57 | 57 |
+| `breakeven_trade_count` | 0 | 0 |
+| `win_rate` | 0.259740259740 | 0.259740259740 |
+| `loss_rate` | 0.740259740260 | 0.740259740260 |
+| `breakeven_rate` | 0.000000000000 | 0.000000000000 |
+| `average_trade_return` | 0.000070588288 | -0.002925128404 |
+| `median_trade_return` | -0.008735290732 | -0.011704629367 |
+| `average_win_return` | 0.038651616726 | 0.035540330361 |
+| `average_loss_return` | -0.013466614673 | -0.016421780603 |
+| `best_trade_return` | 0.224171061391 | 0.220504050556 |
+| `worst_trade_return` | -0.043755772679 | -0.046620207277 |
+| `total_realized_pnl` | -358.888611656 | -2,347.469836563 |
+| `expectancy_pnl` | -4.660891060 | -30.486621254 |
+| `profit_factor` | 0.945165760246 | 0.675088667158 |
+
+The final OPEN trade is excluded and unvalued. The positive gross arithmetic average return does not imply a positive compounded result; total PnL follows actual compounded capital. These metrics describe this sample and do not establish general strategy quality or future profit.
 
 ## Environment status
 
@@ -99,7 +131,7 @@ Stage 5.1 — CLOSED-Trade Performance Metric Contract (completed).
 
 ## Current focus
 
-Stage 5.1 defines deterministic CLOSED-trade performance conventions before implementation. Decision 003 separates Stage 4.6 gross and Stage 4.7 net sources, defines return-based classification and PnL-based profit factor/expectancy, and excludes OPEN trades. The Stage 4.8 research notebook remains unchanged; reusable metrics are not implemented yet.
+Stage 5.2 implements the 16 CLOSED-trade metrics from decision 003, with explicit Stage 4.6 gross and Stage 4.7 net sources. Synthetic tests and the BTC research check pass; OPEN trades are excluded and unvalued. Notebook 03 remains the unchanged Stage 4.8 review. Further analytics and notebook integration await approval.
 
 ## Not implemented yet
 
@@ -107,7 +139,7 @@ Stage 5.1 defines deterministic CLOSED-trade performance conventions before impl
 - Full backtesting engine and candle-level portfolio/equity simulation.
 - Exchange-specific or variable transaction-cost models and unrealized/mark-to-market PnL.
 - Additional reusable strategies beyond the EMA crossover strategy.
-- Reusable strategy-performance analytics and strategy comparison.
+- Performance analytics beyond the 16 CLOSED-trade summary metrics, and strategy comparison.
 - Live/demo execution and exchange integration.
 - Multiple autonomous bot instances and order management.
 - Centralized risk engine.
@@ -117,7 +149,7 @@ Stage 5.1 defines deterministic CLOSED-trade performance conventions before impl
 
 ## Next milestone
 
-Proposed Stage 5.2: implement a small reusable CLOSED-trade summary under `src/trading_lab/analytics/`, following decision 003 with explicit gross/net sources and focused tests for tolerance boundaries, empty/subset cases, OPEN exclusion, and accounting-source separation. Keep existing accounting functions unchanged. Do not start Stage 5.2 until the owner approves it.
+Proposed Stage 5.3: integrate the existing gross/net summaries into the research notebook with readable tables and explanations of return versus PnL, sample expectancy, and OPEN exclusion. Keep reusable metric definitions unchanged; add no new metrics without a separate agreed scope. Do not start Stage 5.3 until the owner approves it.
 
 No processed dataset or reusable preprocessing module is needed yet. Keep strategy generation and execution separate; no strategy classes or framework are needed.
 
@@ -157,7 +189,7 @@ Cost-aware accounting reuses the unchanged gross helper's ledger/capital validat
 
 The Stage 4.8 notebook observes the fixed EMA20/EMA50, 50-candle-warm-up sample without parameter optimization, out-of-sample testing, or walk-forward validation. Capital plots use completed trade number, not time; within-trade movements and the final OPEN position are not valued. No general conclusion about strategy quality follows from this single sample.
 
-Decision 003 is a contract, not implemented analytics. Arithmetic average trade return is distinct from compounded strategy return. Quote-currency expectancy describes this sample, not future profit. NaN and +infinity are intentional for documented undefined/unbounded cases; later metrics and strategy-validation methods remain outside Stage 5.1.
+Decision 003 is now implemented by the Stage 5.2 summary helpers. Arithmetic average trade return is distinct from compounded strategy return. Quote-currency expectancy describes this sample, not future profit. NaN and +infinity are intentional for documented undefined/unbounded cases. These summaries aggregate existing accounting outputs; full ledger/capital consistency validation stays upstream. Drawdown, duration/exposure, benchmarks, Sharpe/Sortino, volatility, annualization, equity/valuation, and strategy-validation methods remain deferred.
 
 ## Existing files preserved
 

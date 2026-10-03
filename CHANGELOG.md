@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-03 — Stage 5.2 reusable CLOSED-trade performance summary
+
+- Implemented decision 003 with explicit gross/net summary functions, a private shared calculation helper, exact 16-column one-row output, integer counts, return-based tolerance classification, and PnL-based expectancy/profit factor. Validation and source guards reject malformed CLOSED values and wrong accounting schemas; OPEN rows are excluded without valuation.
+- Added 35 synthetic tests; all 184 tests passed. BTC summaries both retain 77 CLOSED trades (20 WIN/57 LOSS/no BREAKEVEN). Gross/net total PnL is -358.888611656 / -2,347.469836563 USDT and profit factor 0.945165760246 / 0.675088667158; OPEN removal leaves every metric unchanged.
+- Updated stage documentation. Stage 4 code/tests, notebooks, raw CSV, decision 003, and dependencies remain unchanged. No Stage 5.3 or additional metrics were introduced.
+
 ## 2026-10-03 — Stage 5.1 CLOSED-trade performance metric contract
 
 - Added decision 003 defining CLOSED-only metric sources, counts/rates, return statistics, total realized PnL, sample expectancy, and profit factor. Gross uses Stage 4.6; net uses Stage 4.7, with independent return-based classification and a `1e-12` breakeven tolerance.
