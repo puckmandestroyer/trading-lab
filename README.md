@@ -6,7 +6,7 @@ The long-term goal is to support historical market data, multiple independent st
 
 ## Current stage
 
-**Stage 4.8 — Backtest Research Notebook (completed).**
+**Stage 5.1 — CLOSED-Trade Performance Metric Contract (completed).**
 
 - Stage 1 completed: reusable historical data collection and a validated BTCUSDT hourly snapshot.
 - Stage 2 completed: statistical market analysis of returns, volatility, volume, extreme movements, and BTC buy-and-hold drawdown in `notebooks/01_data_exploration.ipynb`.
@@ -20,6 +20,7 @@ The long-term goal is to support historical market data, multiple independent st
 - Stage 4.6 completed: `src/trading_lab/backtest/performance.py` provides `calculate_trade_results`, consuming the ledger to calculate quantity, CLOSED-trade returns, realized gross PnL, and compounded capital. Its 27 tests bring the passing suite to 128 tests.
 - Stage 4.7 completed: `src/trading_lab/backtest/costs.py` provides `calculate_trade_results_with_costs`, adding self-financing entry sizing, adverse slippage, effective-notional fees, and net compounding. Its 21 tests bring the passing suite to 149 tests. The gross helper remains unchanged.
 - Stage 4.8 completed: [`notebooks/03_backtest_review.ipynb`](notebooks/03_backtest_review.ipynb) runs the existing local loader → EMA/execution pipeline → ledger → independent gross/net accounting helpers. All 18 code cells execute in order; 38 total cells include comparison tables, first-trade/OPEN inspections, and two Matplotlib plots. All 149 existing tests pass; no reusable financial logic was added.
+- Stage 5.1 completed: [decision 003](decisions/003_closed_trade_performance_metrics.md) defines CLOSED-only performance metrics and their edge cases. Gross metrics use Stage 4.6 `trade_return` / `gross_pnl`; net metrics use Stage 4.7 `net_trade_return` / `net_pnl`. Classification uses return with a `1e-12` breakeven tolerance; profit factor and expectancy use PnL. OPEN trades are excluded. Analytics functions are not implemented yet.
 
 The reusable strategy preserves the notebook's first 50 initialization-only candles; signals become eligible on candle 51 and use only completed candle data. `desired_position` is research intent, and `signal_time` is the candle timestamp plus one hour. Snapshot results remain 78 bullish/78 bearish crossovers, 78 entries/77 exits, and final desired state 1. Both EMA notebook charts and inspection tables remain available.
 
@@ -39,7 +40,9 @@ With test assumptions of a 0.10% fee per side and 0.05% adverse slippage per sid
 
 The backtest review notebook makes these stages visible without duplicating their logic. Starting from 10,000 USDT, the gross/net realized returns are -3.588886% / -23.474698%. It displays dataset and execution checks, first/last ledger rows, accounting previews, descriptive CLOSED-trade costs, and the final OPEN entry. The two plots show realized capital after completed trades and accumulated modeled costs; neither values positions during candles. The notebook requires the existing local snapshot and never downloads or overwrites it.
 
-These results describe this historical sample under the stated assumptions and do not prove general strategy quality. EMA parameters were not optimized; no out-of-sample or walk-forward validation exists yet. Stage 5 performance analytics is the recommended next milestone and requires approval before work begins.
+These results describe this historical sample under the stated assumptions and do not prove general strategy quality. EMA parameters were not optimized; no out-of-sample or walk-forward validation exists yet. Stage 5.1 now records the metric conventions; Stage 5.2 implementation of a small CLOSED-trade summary is the recommended next milestone and requires approval before work begins.
+
+The contract classifies WIN/LOSS/BREAKEVEN using unrounded source returns. Return averages and best/worst trades compare normalized outcomes; total realized PnL, sample expectancy, and profit factor describe quote-currency outcomes on each independent sizing path. Stage 4.7 `gross_pnl` is not the canonical gross strategy result. Decision 003 documents zero-trade/subset cases and meaningful NaN/infinity values without adding an analytics framework.
 
 The platform currently uses no real money. Public data collection requires no API key. Exchange trading and demo trading integration will be added later.
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-03 — Stage 5.1 CLOSED-trade performance metric contract
+
+- Added decision 003 defining CLOSED-only metric sources, counts/rates, return statistics, total realized PnL, sample expectancy, and profit factor. Gross uses Stage 4.6; net uses Stage 4.7, with independent return-based classification and a `1e-12` breakeven tolerance.
+- Documented OPEN exclusion, residual handling, empty/subset cases, NaN/infinity profit-factor behavior, and Stage 5.2 validation invariants. Updated stage documentation; analytics implementation remains pending approval.
+- All 149 existing tests passed. Documentation only: no source, tests, notebooks, raw data, or dependencies changed.
+
 ## 2026-10-02 — Stage 4.8 backtest research notebook
 
 - Added and executed `notebooks/03_backtest_review.ipynb` end to end using the existing local loader, EMA/execution pipeline, trade ledger, and independent gross/net accounting helpers. All 18 code cells ran successfully; 38 total cells include comparison tables, first-trade/OPEN inspections, and two Matplotlib plots.

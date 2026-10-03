@@ -6,7 +6,7 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 ## Current stage
 
-Stage 4.8 — Backtest Research Notebook (completed).
+Stage 5.1 — CLOSED-Trade Performance Metric Contract (completed).
 
 ## Completed
 
@@ -83,6 +83,11 @@ Stage 4.8 — Backtest Research Notebook (completed).
 - First-trade walkthrough uses recorded/effective prices and existing accounting columns. Final OPEN trade entered at 2026-09-30 13:00 UTC; its net-scenario quantity is 0.0895852306473 BTC and entry fee 7.644885278 USDT. Exit and realized fields remain missing, with no mark-to-market valuation. The final realized-capital comparison is before this entry / after the last CLOSED trade.
 - All 149 existing unit tests passed. Notebook reference, zero-cost equivalence, and input/raw preservation checks passed; both plots were visually inspected. Existing reusable modules/tests, notebooks 01/02, raw CSV, dependencies, and architecture decisions remain unchanged. No new production financial logic, optimization, validation experiments, or Stage 5 analytics were introduced. Results describe this sample under stated assumptions, not general strategy quality; no out-of-sample or walk-forward validation exists yet.
 
+- Stage 5.1 recorded the CLOSED-trade metric contract in `decisions/003_closed_trade_performance_metrics.md`. It defines counts/rates, mean/median/winning/losing/best/worst returns, total realized PnL, quote-currency expectancy, and profit factor without implementing analytics functions.
+- Canonical GROSS source is Stage 4.6 `trade_return` / `gross_pnl`, with `capital_before` / `capital_after` context. Canonical NET source is Stage 4.7 `net_trade_return` / `net_pnl`, with `capital_before` / `net_capital_after` context. Stage 4.7 `gross_pnl` is not the canonical gross strategy simulation because it uses cost-aware quantity.
+- Return-based classification uses fixed dimensionless `BREAKEVEN_TOLERANCE = 1e-12`: WIN above +tolerance, LOSS below -tolerance, BREAKEVEN inside or on the boundaries. OPEN rows are excluded from every CLOSED statistic and never valued. Total PnL/expectancy retain source breakeven residuals; profit factor uses PnL only from return-classified WIN/LOSS subsets.
+- Recorded empty/subset cases, NaN/infinity profit-factor behavior, the 16-field future summary, and Stage 5.2 acceptance invariants. All 149 existing tests passed. No production code, new tests, notebooks, raw data, or dependencies were changed; implementation remains pending approval.
+
 ## Environment status
 
 - The parent workspace's `.venv/` uses Python 3.9.6. pandas 2.3.3, NumPy 2.0.2, and Matplotlib 3.9.4 were installed for this task. requests and JupyterLab were already available.
@@ -94,7 +99,7 @@ Stage 4.8 — Backtest Research Notebook (completed).
 
 ## Current focus
 
-Stage 4.8 reviews the existing end-to-end BTC EMA backtest in `notebooks/03_backtest_review.ipynb`, comparing independent gross and net accounting through tables and two plots. Final OPEN entry costs are visible, but the position remains unvalued. Stage 5 performance analytics awaits approval.
+Stage 5.1 defines deterministic CLOSED-trade performance conventions before implementation. Decision 003 separates Stage 4.6 gross and Stage 4.7 net sources, defines return-based classification and PnL-based profit factor/expectancy, and excludes OPEN trades. The Stage 4.8 research notebook remains unchanged; reusable metrics are not implemented yet.
 
 ## Not implemented yet
 
@@ -112,7 +117,7 @@ Stage 4.8 reviews the existing end-to-end BTC EMA backtest in `notebooks/03_back
 
 ## Next milestone
 
-Proposed Stage 5 — Performance Analytics: define CLOSED-trade metric conventions and add a small reusable summary for gross and net accounting outputs, with focused tests. Keep research observations separate from later out-of-sample strategy validation. Do not start Stage 5 until the owner approves it.
+Proposed Stage 5.2: implement a small reusable CLOSED-trade summary under `src/trading_lab/analytics/`, following decision 003 with explicit gross/net sources and focused tests for tolerance boundaries, empty/subset cases, OPEN exclusion, and accounting-source separation. Keep existing accounting functions unchanged. Do not start Stage 5.2 until the owner approves it.
 
 No processed dataset or reusable preprocessing module is needed yet. Keep strategy generation and execution separate; no strategy classes or framework are needed.
 
@@ -151,6 +156,8 @@ Accounting assumes consecutive trade IDs from 1, chronological non-overlapping t
 Cost-aware accounting reuses the unchanged gross helper's ledger/capital validation, including its numerical limits, then independently sizes and compounds net results. Rates must be finite real numbers in `[0, 1)`; bools are rejected. Effective prices, entry sizing, and calculated amounts must be representable as finite floats; depleted capital cannot finance another trade. Rates are fixed research assumptions, with no exchange-specific fee tiers, minimum order sizes, or rounding. Cost-aware `gross_pnl` uses recorded prices with the cost-sized quantity, so it is not the separate Stage 4.6 simulation. OPEN `total_fees` stays missing because the round trip is incomplete; its known entry fee is reported separately.
 
 The Stage 4.8 notebook observes the fixed EMA20/EMA50, 50-candle-warm-up sample without parameter optimization, out-of-sample testing, or walk-forward validation. Capital plots use completed trade number, not time; within-trade movements and the final OPEN position are not valued. No general conclusion about strategy quality follows from this single sample.
+
+Decision 003 is a contract, not implemented analytics. Arithmetic average trade return is distinct from compounded strategy return. Quote-currency expectancy describes this sample, not future profit. NaN and +infinity are intentional for documented undefined/unbounded cases; later metrics and strategy-validation methods remain outside Stage 5.1.
 
 ## Existing files preserved
 
