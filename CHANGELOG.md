@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-04 — Stage 5.6 realized-capital drawdown notebook integration
+
+- Integrated the four unchanged Stage 5.5 helpers into notebook 03 after its CLOSED-trade summary and before cost analysis. Added a separate Gross/Net drawdown table, beginner explanations, one drawdown plot with derived trough markers, and regression/OPEN-exclusion/preservation assertions. The 16-metric table and two existing plots are retained; no financial metric formulas or mark-to-market valuation were added.
+- Executed all 25 code cells successfully with sequential counts and no saved errors: 52 total cells, 27 Markdown, three visually inspected plots. Both paths have 78 observations for 77 CLOSED trades. GROSS/NET maximum realized drawdown remains -26.723425% / -37.185533%, at observations 33 / 66; final capital is 9,641.111388344 / 7,652.530163437 USDT. OPEN removal leaves both paths/summaries identical; accounting inputs and the raw-file hash are preserved.
+- All 216 existing tests passed; updated stage documentation. Production code/tests, including `drawdown.py` and `trade_metrics.py`, decisions, notebooks 01/02, raw BTC CSV, and dependencies remain unchanged. Stage 5.7 duration/exposure contract is recommended but not started.
+
 ## 2026-10-04 — Stage 5.5 reusable realized-capital drawdown
 
 - Implemented decision 004 unchanged with explicit gross/net path and summary functions, canonical CLOSED capital sources, the initial observation, negative drawdown/amount conventions, source-specific validation, and earliest-minimum associated amounts. OPEN remains excluded and unvalued; the 16-metric trade summary stays unchanged.
