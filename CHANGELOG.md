@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-04 — Stage 5.8 reusable trade duration and exposure
+
+- Implemented decision 005 unchanged in `analytics/trade_time.py` with `calculate_trade_time_breakdown` and `summarize_trade_time_metrics`, explicit observation boundaries, the exact six-column breakdown and 11-field TIME summary, and shared interval validation. CLOSED statistics exclude OPEN; its observed final interval contributes to binary exposure without a synthetic exit, valuation, or GROSS/NET split.
+- Added 41 synthetic tests, including fractional/DST elapsed time, boundaries, empty/OPEN-only/full exposure, order/overlap and timestamp validation, preservation, exact schemas/dtypes, and actual Stage 4 ledger integration. All 257 tests passed. The offline BTC ledger has 77 CLOSED / one OPEN over 8,760 hours: 4,078 CLOSED hours plus 11 OPEN hours gives 4,089 hours in market and exposure `0.46678082191780823`.
+- Updated stage documentation with full BTC time results and the single-position limitation. Stage 4 modules/tests, existing analytics/tests, decisions 001–005, notebooks 01/02/03, raw BTC CSV, and dependencies remain unchanged. Stage 5.9 notebook integration is recommended but not started.
+
 ## 2026-10-04 — Stage 5.7 trade duration and exposure contract
 
 - Added decision 005 defining ledger fill timestamps, half-open CLOSED durations, explicit market-window boundaries/denominator, and binary time-in-market exposure. The final OPEN interval contributes to exposure while completed-duration statistics exclude it; no GROSS/NET split is needed because current costs do not change fill timing.
