@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-04 — Stage 5.14 reusable candle-close portfolio drawdown
+
+- Added `analytics/portfolio_drawdown.py` with decision 007's four pure GROSS/NET path/summary functions, strict three-field validation, causal peaks, exact earliest-trough/latest-peak selection, and preserved input/schema semantics. Added 55 synthetic/integration tests; all 359 tests pass.
+- The unchanged BTC pipeline yields 8,761 drawdown rows per path: maximum GROSS -27.6794381422% / NET -37.9679609807%, with associated amounts -2,779.158887053809 / -3,806.4682385473616 USDT. Final OPEN marks are naturally included; separate 78-point realized drawdown remains -26.7234254550% / -37.1855332627%. Peak/trough details and final marks are documented in PROJECT_STATE/README.
+- Preserved existing production modules/tests, decisions 001–007, all notebooks, raw data, and dependencies. Scope remains candle-CLOSE; duration/recovery and further metrics are deferred. Stage 5.15 notebook integration is recommended but not started.
+
 ## 2026-10-04 — Stage 5.13 candle-close portfolio drawdown contract
 
 - Accepted decision 007: existing independent GROSS/NET equity paths, negative drawdown/amount formulas, exact six-column path/eight-field summary, earliest-trough/latest-peak selection, initial/zero-equity behavior, strict validation, and input preservation. Identical source schemas express caller intent through wrappers; final OPEN marks are naturally included.

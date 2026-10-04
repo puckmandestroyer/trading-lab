@@ -6,7 +6,7 @@ The long-term goal is to support historical market data, multiple independent st
 
 ## Current stage
 
-**Stage 5.13 — Candle-Close Portfolio Drawdown Contract (completed).**
+**Stage 5.14 — Reusable Candle-Close Portfolio Drawdown Implementation (completed).**
 
 - Stage 1 completed: reusable historical data collection and a validated BTCUSDT hourly snapshot.
 - Stage 2 completed: statistical market analysis of returns, volatility, volume, extreme movements, and BTC buy-and-hold drawdown in `notebooks/01_data_exploration.ipynb`.
@@ -33,6 +33,7 @@ The long-term goal is to support historical market data, multiple independent st
 - Stage 5.11 completed: `src/trading_lab/analytics/equity.py` implements the two pure functions under unchanged decision 006. Added 47 synthetic tests; all 304 tests pass. BTC produces 8,761 rows per path, values final OPEN trade 78, and reconciles all 77 CLOSED exits per path. That milestone preserved Stage 4, existing analytics/tests, decisions 001–006, all notebooks, raw data, and dependencies; notebook integration was then pending Stage 5.12 approval.
 - Stage 5.12 completed: notebook 03 calls both unchanged equity helpers on its existing candles/accounting, after realized drawdown and before TIME. Added compact previews, a realized-versus-marked table, final OPEN marks, regression/preservation checks, and exactly one time-axis MTM plot. All 33 code cells executed sequentially without errors: 68 total cells, 35 Markdown, four plots, with the three existing plot images unchanged. All 304 tests pass; production code/tests, decisions, notebooks 01/02, raw data, and dependencies are unchanged. No portfolio drawdown was calculated.
 - Stage 5.13 completed: [decision 007](decisions/007_candle_close_portfolio_drawdown.md) defines candle-close portfolio drawdown from existing GROSS/NET equity paths, exact path/summary outputs, earliest-trough/latest-peak ties, initial/zero-equity behavior, and final OPEN inclusion. All 304 existing tests pass; production code/tests, notebooks, raw data, dependencies, and decisions 001–006 remain unchanged. No portfolio drawdown implementation or BTC measurement was performed.
+- Stage 5.14 completed: `src/trading_lab/analytics/portfolio_drawdown.py` implements decision 007's four pure functions. Added 55 focused synthetic/integration tests; all 359 tests pass. BTC produces 8,761 drawdown observations per path, with maximum GROSS -27.6794381422% / NET -37.9679609807% and final OPEN marked equity naturally included. Existing production modules/tests, decisions 001–007, all notebooks, raw data, and dependencies remain unchanged. Stage 5.15 notebook integration has not started.
 
 The reusable strategy preserves the notebook's first 50 initialization-only candles; signals become eligible on candle 51 and use only completed candle data. `desired_position` is research intent, and `signal_time` is the candle timestamp plus one hour. Snapshot results remain 78 bullish/78 bearish crossovers, 78 entries/77 exits, and final desired state 1. Both EMA notebook charts and inspection tables remain available.
 
@@ -52,7 +53,7 @@ With test assumptions of a 0.10% fee per side and 0.05% adverse slippage per sid
 
 The backtest review notebook makes these stages visible without duplicating their logic. Starting from 10,000 USDT, the gross/net realized returns remain -3.588886% / -23.474698%. Its analytics flow is performance → realized-capital drawdown → candle-level MTM equity → trade duration/exposure → cost analysis → final OPEN → conclusions. It displays compact helper outputs, a realized-versus-marked table, final OPEN state, and regression/preservation checks. Formatting leaves full-precision values unchanged. Four plots show realized capital, realized-capital drawdown, time-axis GROSS/NET MTM equity, and accumulated modeled costs. The original three plots remain unchanged; only the new equity plot values holdings at each candle CLOSE, including observation 0 before any first-OPEN fill. The notebook requires the existing local snapshot and never downloads or overwrites it.
 
-These results describe this historical sample under the stated assumptions and do not prove general strategy quality. EMA parameters were not optimized; no out-of-sample or walk-forward validation exists yet. The recommended next milestone is Stage 5.14 — Reusable Candle-Close Portfolio Drawdown Implementation, following accepted decision 007. Stage 5.14 has not started and requires approval; no portfolio drawdown is implemented or calculated yet.
+These results describe this historical sample under the stated assumptions and do not prove general strategy quality. EMA parameters were not optimized; no out-of-sample or walk-forward validation exists yet. The recommended next milestone is Stage 5.15 — Candle-Close Portfolio Drawdown Notebook Integration, presenting the existing Stage 5.14 helpers. Stage 5.15 has not started and requires approval.
 
 The reusable equity helpers answer what the portfolio is worth after each completed candle, including while a position is OPEN. Their required explicit fixed interval defines a window from the first candle OPEN through the final candle CLOSE. N candles produce N + 1 rows: an initial flat point before any first-OPEN fill, then one row per CLOSE. At each OPEN, process actual EXIT then ENTRY; mark the remaining quantity at that candle's raw CLOSE and record at OPEN time plus interval. The preceding CLOSE row is recorded before next-OPEN fills at the same timestamp; no future price/exit is used.
 
@@ -66,11 +67,37 @@ The BTC check uses 8,760 candles, 77 CLOSED trades, one final OPEN trade, a one-
 
 Stage 5.12 now presents both 8,761-row paths in notebook 03 from the unchanged Stage 5.11 helpers, with a comparison of last CLOSED realized capital (GROSS 9,641.111388344 / NET 7,652.530163437 USDT) and final OPEN marked equity (9,451.485313939314 / 7,490.776562851941 USDT). Trade 78 stays OPEN at the final CLOSE of 83,616.2 USDT; no realized OPEN result or hypothetical exit is created. Representative exit checks for trades 1, 39, and 77 pass in both paths; input deep-copy and raw-hash checks pass. The notebook has 68 cells (33 code / 35 Markdown), four plots, sequential execution counts, and no saved errors.
 
-Decision 004's realized-capital drawdown stays unchanged. Decision 007 defines future drawdown from candle-CLOSE equity, which can see within-trade losses but still miss intrabar/tick lows; HIGH/LOW cannot reconstruct the full time path. Scope remains one asset, one long spot position, no leverage, all-in sizing, fixed NET costs, and fixed-interval CLOSE marks. Portfolio drawdown implementation, further risk/return metrics, and broader position models remain deferred. Candle-CLOSE valuation does not capture the exact path inside each hourly candle.
+Decision 004's realized-capital drawdown stays unchanged. Decision 007's implemented drawdown from candle-CLOSE equity can see within-trade losses but still miss intrabar/tick lows; HIGH/LOW cannot reconstruct the full time path. Scope remains one asset, one long spot position, no leverage, all-in sizing, fixed NET costs, and fixed-interval CLOSE marks. Portfolio drawdown notebook integration, further risk/return metrics, and broader position models remain deferred. Candle-CLOSE valuation does not capture the exact path inside each hourly candle.
 
-The new contract requires only `observation`, `valuation_time`, and `equity` from each existing equity path. GROSS and NET share the same schema and formula; separate wrappers express caller intent and summary labels. `running_peak` is the highest equity observed so far, `drawdown = equity / running_peak - 1`, and `drawdown_amount = equity - running_peak`. A 25% decline is `-0.25`. Keep initial observation 0 as the positive reference; later zero equity means `-1.0` drawdown. Final OPEN marked equity is already part of the path and needs no forced exit. Realized-capital drawdown instead observes initial capital and post-CLOSED capital only, excluding/unvaluing OPEN.
+The new module requires only `observation`, `valuation_time`, and `equity` from each existing equity path. GROSS and NET share the same schema and formula; separate wrappers express caller intent and summary labels. `running_peak` is the highest equity observed so far, `drawdown = equity / running_peak - 1`, and `drawdown_amount = equity - running_peak`. A 25% decline is `-0.25`. Initial observation 0 remains the positive reference; later zero equity means `-1.0` drawdown. Final OPEN marked equity is already part of the path and needs no forced exit. Realized-capital drawdown instead observes initial capital and post-CLOSED capital only, excluding/unvaluing OPEN.
 
-Future path columns, in order: `observation`, `valuation_time`, `equity`, `running_peak`, `drawdown`, `drawdown_amount`. Future one-row GROSS/NET summary fields: `max_portfolio_drawdown`, `max_portfolio_drawdown_amount`, `peak_observation`, `trough_observation`, `peak_valuation_time`, `trough_valuation_time`, `peak_equity`, `trough_equity`. Select the earliest exact minimum percentage-drawdown trough and the latest matching peak at or before it; the currency amount comes from that trough. Flat/increasing paths select initial observation 0 as both peak and trough. See decision 007 for dtypes, validation, and the four finalized future APIs in `analytics/portfolio_drawdown.py`; that module does not exist yet. Drawdown duration/recovery and other new metrics remain deferred.
+Exact path columns, in order: `observation`, `valuation_time`, `equity`, `running_peak`, `drawdown`, `drawdown_amount`. Exact one-row GROSS/NET summary fields: `max_portfolio_drawdown`, `max_portfolio_drawdown_amount`, `peak_observation`, `trough_observation`, `peak_valuation_time`, `trough_valuation_time`, `peak_equity`, `trough_equity`. Path outputs have a new RangeIndex with unchanged row count/order; financial fields are float64, observations int64, and timestamps preserve the coherent source clock. Select the earliest exact minimum percentage-drawdown trough and the latest matching peak at or before it; the currency amount comes from that trough. Flat/increasing paths select initial observation 0 as both peak and trough. No source mutation, rounding, tolerance, repair, time parsing/conversion, or equal-spacing requirement is introduced.
+
+Available APIs, each accepting only its equity-path DataFrame:
+
+```python
+calculate_gross_portfolio_drawdown(gross_equity_path)
+calculate_net_portfolio_drawdown(net_equity_path)
+summarize_gross_portfolio_drawdown(gross_equity_path)
+summarize_net_portfolio_drawdown(net_equity_path)
+```
+
+The BTC check feeds the unchanged Stage 5.11 equity paths directly to these helpers. It uses 10,000 USDT initial capital and NET test assumptions of 0.001 fee / 0.0005 adverse slippage per side. All 8,761 observations from 8,760 candles are retained per path. Amounts/equity below are USDT; times are UTC.
+
+| Result | GROSS | NET |
+| --- | ---: | ---: |
+| Maximum portfolio drawdown | -27.6794381422% | -37.9679609807% |
+| Associated drawdown amount | -2,779.158887053809 | -3,806.4682385473616 |
+| Peak observation | 308 | 308 |
+| Trough observation | 3,687 | 7,369 |
+| Peak valuation time | 2025-10-13 20:00 | 2025-10-13 20:00 |
+| Trough valuation time | 2026-03-03 15:00 | 2026-08-04 01:00 |
+| Peak equity | 10,040.517704060354 | 10,025.474479603712 |
+| Trough equity | 7,261.358817006545 | 6,219.0062410563505 |
+| Final drawdown | -7.6771641106% | -25.2825731282% |
+| Final running peak | 10,237.429583791658 | 10,025.474479603712 |
+
+The separate 78-point realized-capital paths remain GROSS -26.7234254550% / NET -37.1855332627% at their maximum declines. In this sample, the 8,761-point portfolio paths reveal deeper declines by 0.9560126872 / 0.7824277180 percentage points; this is measured, not a required ordering for every path. Final observation 8,760 at `2026-10-01 00:00 UTC` includes trade 78's OPEN equity (9,451.485313939314 / 7,490.776562851941 USDT) naturally, without inspecting status or creating an exit. Input deep-copy and raw-hash checks pass. The 55 new tests and all 359 total tests pass; existing tests/modules remain unchanged. Notebook integration, drawdown duration/recovery, and further metrics have not started.
 
 The reusable time module implements decision 005 using actual recorded entry/exit fills from `build_trade_ledger(...)`. It requires `trade_id`, `status`, `entry_time`, and `exit_time`, even for an empty ledger; optional prices/accounting/signal fields are irrelevant. A CLOSED trade occupies `[entry_time, exit_time)` and its strictly positive duration is `exit_time - entry_time`; hours express actual elapsed seconds divided by 3,600 without candle counts or rounding. An OPEN trade has NaN completed duration and is excluded from CLOSED duration statistics, but its observed `[entry_time, observation_end)` interval contributes to exposure. Its missing exit stays exactly as supplied; no exit or valuation is fabricated.
 
