@@ -6,7 +6,7 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 ## Current stage
 
-Stage 5.11 — Reusable Candle-Level Mark-to-Market Equity Implementation (completed).
+Stage 5.12 — Candle-Level Mark-to-Market Equity Notebook Integration (completed).
 
 ## Completed
 
@@ -140,7 +140,11 @@ Stage 5.11 — Reusable Candle-Level Mark-to-Market Equity Implementation (compl
 
 - Stage 5.11 implemented decision 006 unchanged in `src/trading_lab/analytics/equity.py` with independent GROSS/NET pure functions, initial-before-fill state, EXIT then ENTRY at OPEN, raw CLOSE marking, and N + 1 observations. Canonical quantities/actual exit capital are reused; incurred costs are not charged twice and no hypothetical liquidation costs are added.
 - Added 47 synthetic tests in `tests/test_mark_to_market_equity.py`; all 304 tests pass (257 existing + 47 new). Coverage includes exact schema/dtypes, initial losses, worked example, OPEN/final fills, shared-OPEN replacement, no lookahead, source guards, validation/timezones/DST, arithmetic reconciliation, and input preservation.
-- The unchanged BTC loader → EMA pipeline → ledger → independent accounting → equity check produced 8,761 rows per path from 8,760 candles, with 77 CLOSED / one final OPEN. Final marked equity is GROSS 9,451.485313939314 USDT / NET 7,490.776562851941 USDT; all 77 CLOSED exit observations reconcile per path. Stage 4, existing analytics/tests, decisions 001–006, all notebooks, raw data, and dependencies remain unchanged. Notebook integration is pending Stage 5.12 approval; no portfolio drawdown was implemented or calculated.
+- The unchanged BTC loader → EMA pipeline → ledger → independent accounting → equity check produced 8,761 rows per path from 8,760 candles, with 77 CLOSED / one final OPEN. Final marked equity is GROSS 9,451.485313939314 USDT / NET 7,490.776562851941 USDT; all 77 CLOSED exit observations reconcile per path. Stage 4, existing analytics/tests, decisions 001–006, all notebooks, raw data, and dependencies remained unchanged. Notebook integration was then pending Stage 5.12 approval; no portfolio drawdown was implemented or calculated.
+
+- Stage 5.12 integrated the two unchanged Stage 5.11 equity helpers into notebook 03 after realized-capital drawdown and before TIME. They consume its existing candles/GROSS/NET accounting with initial capital 10,000 USDT and an explicit one-hour interval; no equity formulas are duplicated.
+- Added compact initial/first-entry/final path previews, a last-realized-versus-final-marked table, one GROSS/NET time-axis MTM plot, final OPEN state display, and regression/input/path-preservation checks. Both paths have 8,761 observations from 8,760 candles. At final CLOSE 83,616.2 USDT, trade 78 remains OPEN, position 1, cash zero: GROSS marked equity 9,451.485313939314 / NET 7,490.776562851941 USDT, versus CLOSED realized capital 9,641.111388344 / 7,652.530163437 USDT.
+- Executed all 33 code cells in order with no saved errors: 68 cells total, 35 Markdown, four plots. All three original plot images and their generating code remain byte-identical; exactly one MTM plot was added. Representative exit checks passed for trades 1, 39, and 77 in both paths. All 304 tests pass; production code/tests, decisions 001–006, notebooks 01/02, raw data, and dependencies remain unchanged. No portfolio drawdown was calculated; Stage 5.13 contract awaits approval.
 
 ## Reusable candle-level portfolio equity
 
@@ -154,7 +158,7 @@ Both paths mark at the same raw market CLOSE. Current scope is one asset, long-o
 
 At an actual exit, set cash directly to GROSS `capital_after` / NET `net_capital_after`, clear position/active ID, and set quantity/value/unrealized PnL to zero. NET realized cash already includes actual exit costs. Do not re-sell quantity or subtract costs again. If the portfolio stays flat, that candle's CLOSE equity reconciles to canonical realized cash. With a replacement entry at the same OPEN, reconcile immediately after exit and then mark the new position; do not force its CLOSE equity to the old realized value.
 
-The final OPEN position is marked on every remaining CLOSE, including the last, without inventing exit time, realized PnL, or capital-after values. Marking creates no trade and charges no hypothetical exit fee/slippage, spread, or bid/ask adjustment. Final NET equity reflects only costs actually incurred, not hypothetical liquidation proceeds. Existing accounting/realized analytics retain their separate OPEN semantics, and notebook 03 still leaves OPEN unvalued until approved notebook integration.
+The final OPEN position is marked on every remaining CLOSE, including the last, without inventing exit time, realized PnL, or capital-after values. Marking creates no trade and charges no hypothetical exit fee/slippage, spread, or bid/ask adjustment. Final NET equity reflects only costs actually incurred, not hypothetical liquidation proceeds. Existing accounting/realized analytics retain their separate OPEN semantics; Stage 5.12 now presents the independent equity paths and final OPEN valuation in notebook 03.
 
 Exact columns, in order: `observation`, `candle_timestamp`, `valuation_time`, `mark_price`, `position`, `active_trade_id`, `cash`, `quantity`, `position_value`, `unrealized_pnl`, `equity`. Output has a RangeIndex; observation/position are int64, active ID nullable Int64, all six price/financial fields float64, and timestamps retain coherent datetime/timezone semantics. Initial row: `0`, `NaT`, `observation_start`, `NaN`, `0`, missing ID, `initial_capital`, `0.0`, `0.0`, `0.0`, `initial_capital` respectively. Each subsequent mark belongs to its source candle and is timed at its completion.
 
@@ -177,7 +181,7 @@ Used the existing local BTCUSDT snapshot through the unchanged loader, default E
 | Final marked equity, USDT | 9451.485313939314 | 7490.776562851941 |
 | CLOSED exit observations reconciled | 77 / 77 | 77 / 77 |
 
-The ledger has 77 CLOSED trades and one final OPEN trade. Final candle OPEN is `2026-09-30 23:00 UTC`, raw CLOSE is 83,616.2 USDT, and final valuation time is `2026-10-01 00:00 UTC`. Both paths end long with zero cash; trade 78 remains OPEN with missing exit/capital-after values. Its marked equity is not realized capital or hypothetical liquidation proceeds. Input deep-copy checks pass; outputs remain in memory, and notebook integration/portfolio drawdown have not started.
+The ledger has 77 CLOSED trades and one final OPEN trade. Final candle OPEN is `2026-09-30 23:00 UTC`, raw CLOSE is 83,616.2 USDT, and final valuation time is `2026-10-01 00:00 UTC`. Both paths end long with zero cash; trade 78 remains OPEN with missing exit/capital-after values. Its marked equity is not realized capital or hypothetical liquidation proceeds. Stage 5.12 presents these values in notebook 03 alongside a realized-versus-marked table, compact previews, and one time-axis equity plot. Input/path deep-copy and raw-hash checks pass; no dataset/report is exported and no portfolio drawdown is calculated.
 
 ## Reusable trade duration and exposure
 
@@ -295,14 +299,14 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Stage 5.11 completed decision 006's two reusable equity helpers and 47 synthetic tests; all 304 tests pass. The BTC check marks final OPEN trade 78 through the final CLOSE and reconciles all CLOSED exits to canonical accounting. Stage 5.12 notebook integration awaits approval. Notebook 03 retains its existing CLOSED metrics, realized drawdown, TIME summary, cost analysis, and three plots.
+Stage 5.12 completed notebook presentation of the unchanged Stage 5.11 equity helpers. Notebook 03 has 68 cells (33 code / 35 Markdown), sequential execution with no saved errors, and four plots. It distinguishes final OPEN marked equity from CLOSED realized capital and retains performance → realized drawdown → MTM equity → TIME → costs → final OPEN → conclusions. All 304 tests pass; Stage 5.13 candle-close portfolio drawdown contract awaits approval.
 
 ## Not implemented yet
 
 - Transformed datasets and reusable preprocessing workflows.
 - Full backtesting engine and broader portfolio allocation beyond the current all-in single-position model.
 - Exchange-specific or variable transaction-cost models.
-- Candle-level equity notebook integration and portfolio drawdown.
+- Candle-close portfolio drawdown and subsequent portfolio metrics.
 - Additional reusable strategies beyond the EMA crossover strategy.
 - Performance analytics beyond the 16 CLOSED-trade summary metrics, separate realized-capital drawdown, and ledger-based duration/exposure; strategy comparison.
 - Live/demo execution and exchange integration.
@@ -314,7 +318,7 @@ Stage 5.11 completed decision 006's two reusable equity helpers and 47 synthetic
 
 ## Next milestone
 
-Proposed Stage 5.12 — Candle-Level Mark-to-Market Equity Notebook Integration: present the existing independent GROSS/NET equity helpers, candle-close paths, and final OPEN marks in notebook 03 without duplicating financial logic. Portfolio drawdown remains separate future work. Do not start Stage 5.12 until the owner approves it.
+Proposed Stage 5.13 — Candle-Close Portfolio Drawdown Contract: define drawdown from the existing independent GROSS/NET `equity` paths, including initial observations, candle-close risk limitations, and separation from realized-capital drawdown. This is a future contract stage, not implementation. Do not start Stage 5.13 until the owner approves it.
 
 No processed dataset or reusable preprocessing module is needed yet. Keep strategy generation and execution separate; no strategy classes or framework are needed.
 
@@ -352,13 +356,13 @@ Accounting assumes consecutive trade IDs from 1, chronological non-overlapping t
 
 Cost-aware accounting reuses the unchanged gross helper's ledger/capital validation, including its numerical limits, then independently sizes and compounds net results. Rates must be finite real numbers in `[0, 1)`; bools are rejected. Effective prices, entry sizing, and calculated amounts must be representable as finite floats; depleted capital cannot finance another trade. Rates are fixed research assumptions, with no exchange-specific fee tiers, minimum order sizes, or rounding. Cost-aware `gross_pnl` uses recorded prices with the cost-sized quantity, so it is not the separate Stage 4.6 simulation. OPEN `total_fees` stays missing because the round trip is incomplete; its known entry fee is reported separately.
 
-The backtest review notebook observes the fixed EMA20/EMA50, 50-candle-warm-up sample without parameter optimization, out-of-sample testing, or walk-forward validation. Capital and drawdown plots use completed trade number, not time; within-trade movements and the final OPEN position are not valued. Stage 5.3 presented existing trade summaries; Stage 5.6 added drawdown presentation; Stage 5.9 adds ledger-based holding-time/exposure presentation without a new plot. No general conclusion about strategy quality follows from this single sample.
+The backtest review notebook observes the fixed EMA20/EMA50, 50-candle-warm-up sample without parameter optimization, out-of-sample testing, or walk-forward validation. Its realized-capital and realized-drawdown plots use completed trade number; the separate Stage 5.12 MTM plot uses valuation time and observes within-trade CLOSE movements, including final OPEN value. TIME remains ledger-based holding-time/exposure. No general conclusion about strategy quality follows from this single sample.
 
 Decision 003 is implemented by the Stage 5.2 summary helpers. Arithmetic average trade return is distinct from compounded strategy return. Quote-currency expectancy describes this sample, not future profit. NaN and +infinity are intentional for documented undefined/unbounded cases. These summaries aggregate existing accounting outputs; full ledger/capital consistency validation stays upstream. Decision 004 is implemented separately by the Stage 5.5 drawdown helpers, using only explicit initial capital and CLOSED capital-after observations, and presented in notebook 03 by Stage 5.6. They can miss losses while trades are open and understate full mark-to-market drawdown. Mark-to-market drawdown, benchmarks, Sharpe/Sortino, volatility, annualization, and strategy-validation methods remain deferred.
 
 Decision 005 is implemented by the Stage 5.8 ledger-based time helpers, independently of accounting, and presented in notebook 03 by Stage 5.9. OPEN exclusion from realized PnL/drawdown does not imply exclusion from observed time in market. Exposure is binary holding time for the current single-position, non-overlapping ledger. Overlapping/multi-position, leverage/size-weighted, gross/net, and short exposure remain outside this contract; no market-value risk metric is introduced.
 
-Decision 006 is implemented by `analytics/equity.py`; notebook integration remains pending. Its all-in long-only single-asset model excludes shorts, partial/multi-asset/multi-position allocation, leverage, funding/borrow interest, dynamic fees, liquidation value, and position-size-weighted exposure. Portfolio drawdown, equity-return metrics, Sharpe/Sortino, volatility, CAGR/Calmar, benchmarks/alpha/beta, intrabar MAE/MFE, out-of-sample testing, and walk-forward validation remain deferred. The CLOSE path can still miss intrabar risk; no continuous-time or tick-level drawdown claim is supported.
+Decision 006 is implemented by `analytics/equity.py` and presented in notebook 03 by Stage 5.12. Its all-in long-only single-asset model excludes shorts, partial/multi-asset/multi-position allocation, leverage, funding/borrow interest, dynamic fees, liquidation value, and position-size-weighted exposure. Portfolio drawdown, equity-return metrics, Sharpe/Sortino, volatility, CAGR/Calmar, benchmarks/alpha/beta, intrabar MAE/MFE, out-of-sample testing, and walk-forward validation remain deferred. The CLOSE path can still miss intrabar risk; no continuous-time or tick-level drawdown claim is supported.
 
 ## Existing files preserved
 

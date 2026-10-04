@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-04 — Stage 5.12 candle-level equity notebook integration
+
+- Integrated the two unchanged Stage 5.11 equity helpers into notebook 03 after realized drawdown and before TIME. Added compact initial/first-entry/final previews, a realized-versus-marked table, final OPEN state, one GROSS/NET time-axis equity plot, and regression/input/path-preservation checks; no equity formulas were duplicated.
+- Both paths have 8,761 observations from 8,760 candles. Trade 78 stays OPEN at final CLOSE 83,616.2 USDT: GROSS marked equity 9,451.485313939314 / NET 7,490.776562851941 USDT, distinct from CLOSED realized capital 9,641.111388344 / 7,652.530163437 USDT. Representative exits 1, 39, and 77 reconcile in both paths; no hypothetical liquidation costs or realized OPEN results are added.
+- Executed all 33 code cells sequentially without saved errors: 68 cells total, 35 Markdown, four plots, with all three original images/code unchanged. All 304 tests pass; production code/tests, decisions 001–006, notebooks 01/02, raw data, and dependencies are unchanged. No portfolio drawdown was calculated; Stage 5.13 contract is recommended but not started.
+
 ## 2026-10-04 — Stage 5.11 reusable candle-level mark-to-market equity
 
 - Implemented decision 006 in `analytics/equity.py` with independent pure GROSS/NET helpers, the exact 11-column N + 1 path, canonical accounting reuse, OPEN-before-CLOSE event ordering, and OPEN marking without hypothetical liquidation costs or duplicated paid fees.
