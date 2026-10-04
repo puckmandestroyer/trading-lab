@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-04 — Stage 5.15 candle-close portfolio drawdown notebook integration
+
+- Integrated the four unchanged Stage 5.14 helpers into notebook 03 after MTM equity and before TIME, using existing equity paths directly. Added compact GROSS/NET summary/comparison/episode previews, final OPEN explanation, exactly one time-axis drawdown plot with helper-selected troughs, and regression/preservation assertions; no financial formulas were duplicated.
+- Both paths retain 8,761 observations: maximum GROSS -27.6794381422% / NET -37.9679609807%, versus 78-point realized drawdowns -26.7234254550% / -37.1855332627%. Final OPEN marks participate naturally, with final drawdowns -7.6771641106% / -25.2825731282%. Peak/trough details remain documented in PROJECT_STATE/README and now appear in notebook tables.
+- Executed all 39 code cells sequentially without saved errors: 80 cells total, 41 Markdown, five plots, with all four original plot sources/images unchanged. All 359 tests pass; production code/tests, decisions 001–007, notebooks 01/02, raw data, and dependencies are unchanged. No benchmark, Sharpe/Sortino, or duration/recovery was added; Stage 5.16 — Benchmark Comparison is recommended but not started.
+
 ## 2026-10-04 — Stage 5.14 reusable candle-close portfolio drawdown
 
 - Added `analytics/portfolio_drawdown.py` with decision 007's four pure GROSS/NET path/summary functions, strict three-field validation, causal peaks, exact earliest-trough/latest-peak selection, and preserved input/schema semantics. Added 55 synthetic/integration tests; all 359 tests pass.
