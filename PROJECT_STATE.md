@@ -6,7 +6,7 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 ## Current stage
 
-Stage 5.6 — Realized-Capital Drawdown Notebook Integration (completed).
+Stage 5.7 — Trade Duration and Exposure Contract (completed).
 
 ## Completed
 
@@ -115,7 +115,38 @@ Stage 5.6 — Realized-Capital Drawdown Notebook Integration (completed).
 - Added one Matplotlib realized-capital drawdown plot using helper-provided `closed_trade_number` and `drawdown`, including observation 0 and trough markers derived from path/summary outputs. The existing realized-capital and accumulated-cost plots are retained. Notebook 03 now has 52 cells: 25 code, 27 Markdown, and three plots. All 25 code cells executed successfully with sequential counts 1–25 and no saved errors; all three plots were visually inspected.
 - Notebook regression assertions passed for 77 CLOSED trades / 78 observations per path, explicit initial capital, maximum drawdowns, trough observations 33 GROSS / 66 NET, trough capital/peaks, and final CLOSED capital. Removing the final OPEN row leaves both paths and summaries identical. Accounting inputs and the raw-file hash were preserved.
 - Beginner explanations and conclusions describe GROSS -26.723425% / NET -37.185533% realized-capital drawdown and the limitation versus mark-to-market portfolio drawdown. OPEN remains excluded and unvalued; intratrade/unrealized losses are not observed.
-- All 216 existing unit tests passed; no new unit tests or dependencies were needed. Production modules including `drawdown.py` and `trade_metrics.py`, all tests, decisions, notebooks 01/02, and raw BTC CSV remain byte-identical. No new financial metric formulas were introduced; Stage 5.7 has not started.
+- All 216 existing unit tests passed during Stage 5.6; no new unit tests or dependencies were needed. Production modules including `drawdown.py` and `trade_metrics.py`, all tests, decisions, notebooks 01/02, and raw BTC CSV remained byte-identical. No new financial metric formulas were introduced; Stage 5.7 was then pending approval.
+
+- Stage 5.7 recorded `decisions/005_trade_duration_and_exposure.md`, defining ledger-based CLOSED duration and simple binary observed time-in-market exposure. Canonical times are actual recorded `entry_time` / `exit_time` fills from `build_trade_ledger(...)`, independent of signal/position-state columns and accounting.
+- CLOSED positions occupy half-open `[entry_time, exit_time)` intervals with strictly positive elapsed duration. The final OPEN trade has no completed duration and stays out of CLOSED duration statistics, but its observed `[entry_time, observation_end)` interval must contribute to exposure. No exit or valuation is invented.
+- Defined the explicit market window `[observation_start, observation_end)`: first candle OPEN through the end of the final candle (last OPEN plus interval). The full denominator includes warm-up and flat time. Exposure is total non-overlapping observed position time divided by that window, a decimal fraction in `[0, 1]`.
+- Chose two future APIs, a six-column per-trade table, and a separate 11-field summary indexed `TIME`. There is no GROSS/NET split because current cost models do not change ledger fill timestamps. Timestamp/window/order/overlap validation, empty/OPEN-only/full-exposure cases, and UTC recommendations are documented below and in decision 005.
+- All 216 existing tests passed. Documentation only: production code, tests, all notebooks, raw BTC CSV, dependencies, and decisions 001–004 remain unchanged. No duration/exposure implementation, notebook integration, or BTC time-metric measurement was added; Stage 5.8 awaits approval.
+
+## Trade duration and exposure contract
+
+[Decision 005](decisions/005_trade_duration_and_exposure.md) is accepted; implementation is pending. Future helpers consume `trades`, the canonical executed ledger, requiring `trade_id`, `status`, `entry_time`, and `exit_time`. Price economics and optional accounting fields do not affect time analytics. Current fees/slippage change quantity/PnL/capital but not fill timestamps, so calculate once from the ledger. EMA, RSI, momentum, ML, and future rule-based strategies can share it if they produce that ledger.
+
+For CLOSED trades, `closed_trade_duration = exit_time - entry_time > 0` over `[entry_time, exit_time)`. Use actual elapsed timestamps, not candle counts or rounded hours. Hours are `duration.total_seconds() / 3600`. OPEN completed duration is NaN and excluded from all CLOSED descriptive statistics/totals. Its observed interval through `observation_end` still contributes to exposure, without changing its missing ledger exit.
+
+The caller supplies an explicit positive `[observation_start, observation_end)` window; boundaries are never inferred from trading activity. For candle research, start is the first candle OPEN and end is the final candle OPEN plus its interval. The current BTC hourly window is conceptually `[2025-10-01 00:00 UTC, 2026-10-01 00:00 UTC)`, including the final hour, warm-up, and flat periods. These dates will not be hardcoded into analytics.
+
+```text
+observation_window_duration = observation_end - observation_start
+total_time_in_market = sum(CLOSED exit_time - entry_time)
+                       + (observation_end - final OPEN entry_time, if present)
+exposure_ratio = total_time_in_market / observation_window_duration
+```
+
+Exposure is a decimal `[0, 1]`, without annualization or internal percentage conversion. Summing intervals relies on the current non-overlapping, single-position ledger. A ten-hour window with one three-hour CLOSED interval and one three-hour observed OPEN interval gives six hours / ten hours = 60% exposure; CLOSED descriptive durations contain only the completed trade. Using the first entry to shorten that window to nine hours would incorrectly report 66.67%.
+
+Future APIs: `calculate_trade_time_breakdown(trades, observation_start, observation_end)` and `summarize_trade_time_metrics(trades, observation_start, observation_end)`, both returning DataFrames. Exact per-trade columns: `trade_id`, `status`, `entry_time`, `exit_time`, `closed_duration_hours`, `observed_time_in_market_hours`. Preserve trade order/index and recorded times; duration fields use float64. No price, PnL, or capital fields are added.
+
+Exact separate summary columns, in order: `closed_trade_count`, `open_trade_count`, `average_closed_duration_hours`, `median_closed_duration_hours`, `minimum_closed_duration_hours`, `maximum_closed_duration_hours`, `total_closed_duration_hours`, `open_observed_duration_hours`, `total_time_in_market_hours`, `observation_window_hours`, `exposure_ratio`. One row is indexed `TIME`; counts are int64 and the other nine fields float64. The existing 16-metric summaries and drawdown component remain unchanged.
+
+With no trades, counts, aggregate holding times, and exposure are zero; the four CLOSED descriptive duration statistics are NaN and the explicit window remains positive. OPEN-only input also has NaN CLOSED descriptive statistics, but its observed time produces positive exposure. An entry at window start still OPEN through its end gives exposure `1.0`, without a completed duration.
+
+Future validation requires unique DataFrame columns, the schema even when empty, exact CLOSED/OPEN statuses, valid comparable timestamps, a positive window, entries within `[start, end)`, and CLOSED exits after entry and no later than end. OPEN exits must be missing; OPEN entry at end is invalid. Reject malformed order/overlap and multiple/non-final OPEN trades without sorting, clipping, or repair. Preserve inputs and keep full ledger validation upstream. UTC-aware timestamps are recommended; allow consistently naive inputs without assigning machine time, but reject aware/naive mixing and different aware timezones. Aware subtraction uses actual elapsed time; no silent localization/conversion is permitted.
 
 ## Reusable realized-capital drawdown
 
@@ -188,7 +219,7 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Stage 5.6 presents the existing Stage 5.5 gross/net realized-capital paths and summaries in notebook 03, with a separate comparison table, one new plot, beginner explanations, and integration assertions. All 25 notebook code cells and all 216 unit tests pass. Production financial logic is unchanged. Stage 5.7's duration/exposure contract awaits approval.
+Stage 5.7 defines duration/exposure conventions in decision 005 without implementation. Ledger fill times, explicit observation boundaries, and the final OPEN contribution to exposure are fixed before coding. Notebook 03 retains its completed Stage 5.6 review; all 216 existing unit tests pass. Stage 5.8 implementation awaits approval.
 
 ## Not implemented yet
 
@@ -197,6 +228,7 @@ Stage 5.6 presents the existing Stage 5.5 gross/net realized-capital paths and s
 - Exchange-specific or variable transaction-cost models and unrealized/mark-to-market PnL.
 - Additional reusable strategies beyond the EMA crossover strategy.
 - Performance analytics beyond the 16 CLOSED-trade summary metrics and separate realized-capital drawdown, and strategy comparison.
+- Trade duration/exposure implementation and notebook integration; decision 005 defines the contract only.
 - Live/demo execution and exchange integration.
 - Multiple autonomous bot instances and order management.
 - Centralized risk engine.
@@ -206,7 +238,7 @@ Stage 5.6 presents the existing Stage 5.5 gross/net realized-capital paths and s
 
 ## Next milestone
 
-Proposed Stage 5.7 — Trade Duration and Exposure Contract: define entry/exit timestamp conventions, treatment of the final OPEN position, the observation window, and the time-in-market denominator before implementation. No duration/exposure calculations or contract definitions have been added. Do not start Stage 5.7 until the owner approves it.
+Proposed Stage 5.8 — Reusable Trade Duration and Exposure Implementation: implement decision 005 with its two explicit ledger-based helpers and focused synthetic tests for elapsed duration, observation boundaries, denominator choice, OPEN contribution, degenerate cases, timezone/order/overlap validation, exact outputs, and input preservation. Keep accounting, existing analytics, and notebooks unchanged. Do not start Stage 5.8 until the owner approves it.
 
 No processed dataset or reusable preprocessing module is needed yet. Keep strategy generation and execution separate; no strategy classes or framework are needed.
 
@@ -247,6 +279,8 @@ Cost-aware accounting reuses the unchanged gross helper's ledger/capital validat
 The backtest review notebook observes the fixed EMA20/EMA50, 50-candle-warm-up sample without parameter optimization, out-of-sample testing, or walk-forward validation. Capital and drawdown plots use completed trade number, not time; within-trade movements and the final OPEN position are not valued. Stage 5.3 presented existing trade summaries; Stage 5.6 presents existing drawdown paths/summaries. No general conclusion about strategy quality follows from this single sample.
 
 Decision 003 is implemented by the Stage 5.2 summary helpers. Arithmetic average trade return is distinct from compounded strategy return. Quote-currency expectancy describes this sample, not future profit. NaN and +infinity are intentional for documented undefined/unbounded cases. These summaries aggregate existing accounting outputs; full ledger/capital consistency validation stays upstream. Decision 004 is implemented separately by the Stage 5.5 drawdown helpers, using only explicit initial capital and CLOSED capital-after observations, and presented in notebook 03 by Stage 5.6. They can miss losses while trades are open and understate full mark-to-market drawdown. Mark-to-market drawdown, duration/exposure, benchmarks, Sharpe/Sortino, volatility, annualization, equity/valuation, and strategy-validation methods remain deferred.
+
+Decision 005 defines duration and binary exposure directly from the ledger, but neither is implemented yet. OPEN exclusion from realized PnL/drawdown does not imply exclusion from observed time in market. Overlapping/multi-position, leverage/size-weighted, gross/net, and short exposure remain outside this contract; no market-value risk metric is introduced.
 
 ## Existing files preserved
 

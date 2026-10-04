@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-04 — Stage 5.7 trade duration and exposure contract
+
+- Added decision 005 defining ledger fill timestamps, half-open CLOSED durations, explicit market-window boundaries/denominator, and binary time-in-market exposure. The final OPEN interval contributes to exposure while completed-duration statistics exclude it; no GROSS/NET split is needed because current costs do not change fill timing.
+- Documented worked/denominator examples, empty/OPEN-only/full-exposure cases, timezone/window/order/overlap validation, two future APIs, a six-column per-trade table, and a separate 11-field `TIME` summary. Updated current-stage documentation; implementation remains pending approval.
+- All 216 existing tests passed. Documentation only: production code, tests, notebooks, raw BTC CSV, dependencies, and decisions 001–004 remain unchanged. Stage 5.8 implementation is recommended but not started.
+
 ## 2026-10-04 — Stage 5.6 realized-capital drawdown notebook integration
 
 - Integrated the four unchanged Stage 5.5 helpers into notebook 03 after its CLOSED-trade summary and before cost analysis. Added a separate Gross/Net drawdown table, beginner explanations, one drawdown plot with derived trough markers, and regression/OPEN-exclusion/preservation assertions. The 16-metric table and two existing plots are retained; no financial metric formulas or mark-to-market valuation were added.
