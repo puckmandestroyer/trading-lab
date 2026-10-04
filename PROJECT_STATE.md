@@ -6,7 +6,7 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 ## Current stage
 
-Stage 5.12 — Candle-Level Mark-to-Market Equity Notebook Integration (completed).
+Stage 5.13 — Candle-Close Portfolio Drawdown Contract (completed).
 
 ## Completed
 
@@ -144,7 +144,23 @@ Stage 5.12 — Candle-Level Mark-to-Market Equity Notebook Integration (complete
 
 - Stage 5.12 integrated the two unchanged Stage 5.11 equity helpers into notebook 03 after realized-capital drawdown and before TIME. They consume its existing candles/GROSS/NET accounting with initial capital 10,000 USDT and an explicit one-hour interval; no equity formulas are duplicated.
 - Added compact initial/first-entry/final path previews, a last-realized-versus-final-marked table, one GROSS/NET time-axis MTM plot, final OPEN state display, and regression/input/path-preservation checks. Both paths have 8,761 observations from 8,760 candles. At final CLOSE 83,616.2 USDT, trade 78 remains OPEN, position 1, cash zero: GROSS marked equity 9,451.485313939314 / NET 7,490.776562851941 USDT, versus CLOSED realized capital 9,641.111388344 / 7,652.530163437 USDT.
-- Executed all 33 code cells in order with no saved errors: 68 cells total, 35 Markdown, four plots. All three original plot images and their generating code remain byte-identical; exactly one MTM plot was added. Representative exit checks passed for trades 1, 39, and 77 in both paths. All 304 tests pass; production code/tests, decisions 001–006, notebooks 01/02, raw data, and dependencies remain unchanged. No portfolio drawdown was calculated; Stage 5.13 contract awaits approval.
+- Executed all 33 code cells in order with no saved errors: 68 cells total, 35 Markdown, four plots. All three original plot images and their generating code remain byte-identical; exactly one MTM plot was added. Representative exit checks passed for trades 1, 39, and 77 in both paths. All 304 tests pass; production code/tests, decisions 001–006, notebooks 01/02, raw data, and dependencies remain unchanged. No portfolio drawdown was calculated; Stage 5.13 contract was then pending approval.
+
+- Stage 5.13 accepted decision 007 for candle-close portfolio drawdown from the existing independent Stage 5.11 equity paths, with exact path/summary schemas, negative drawdown conventions, and deterministic earliest-trough/latest-peak selection.
+- Preserved the supplied initial reference, allowed later zero equity, and included final OPEN marked equity through the source path. Realized-capital drawdown stays separate and unchanged; candle-CLOSE observations still miss intrabar/tick losses.
+- All 304 existing tests pass. This documentation-only milestone preserved production code/tests, all notebooks, raw data, dependencies, and decisions 001–006. No portfolio drawdown implementation or BTC measurement was performed; Stage 5.14 awaits approval.
+
+## Candle-close portfolio drawdown contract
+
+[Decision 007](decisions/007_candle_close_portfolio_drawdown.md) is accepted; implementation has not started. Its sole input is a Stage 5.11 GROSS or NET equity path, requiring `observation`, `valuation_time`, and `equity`. Extra columns are ignored. Do not consume candles/accounting again or reconstruct equity. Both source schemas are identical: the GROSS/NET wrappers express caller intent and summary labels, not detectable provenance or different formulas.
+
+For each observation, `running_peak = max(equity observed so far)`, `drawdown = equity / running_peak - 1`, and `drawdown_amount = equity - running_peak`. Drawdown is a negative decimal; amount is non-positive quote currency. Keep the supplied positive initial observation 0 with zero drawdown/amount; accept later zero equity as `-1.0` drawdown. No new initial-capital parameter, synthetic row, sorting, repair, or lookahead is allowed.
+
+Exact path columns: `observation`, `valuation_time`, `equity`, `running_peak`, `drawdown`, `drawdown_amount`, on a new RangeIndex with unchanged row order/count. Exact summary fields: `max_portfolio_drawdown`, `max_portfolio_drawdown_amount`, `peak_observation`, `trough_observation`, `peak_valuation_time`, `trough_valuation_time`, `peak_equity`, `trough_equity`, in one row indexed GROSS or NET. Financial fields are float64, ordinals int64, and timestamps preserve a coherent source clock. Inputs remain unchanged.
+
+Select the earliest exact minimum percentage-drawdown trough, then the latest exact matching running-peak occurrence at or before it. The summary currency amount belongs to that trough, not an independent minimum amount. Flat/increasing and initial-only paths select initial observation 0 as both peak and trough. Final OPEN marks are naturally included through supplied equity, without status handling or forced closure.
+
+Future module `src/trading_lab/analytics/portfolio_drawdown.py` will expose `calculate_gross_portfolio_drawdown(gross_equity_path)`, `calculate_net_portfolio_drawdown(net_equity_path)`, `summarize_gross_portfolio_drawdown(gross_equity_path)`, and `summarize_net_portfolio_drawdown(net_equity_path)`. These functions do not exist yet. Decision 004 retains initial-plus-post-CLOSED observations and excludes/unvalues OPEN; decision 007 observes initial-plus-every-CLOSE equity. Neither candle-CLOSE observations nor HIGH/LOW reveal the full intrabar path. Duration, recovery, further risk/return metrics, and BTC portfolio drawdown measurement remain deferred.
 
 ## Reusable candle-level portfolio equity
 
@@ -164,7 +180,7 @@ Exact columns, in order: `observation`, `candle_timestamp`, `valuation_time`, `m
 
 Decision 006 specifies strict candle spacing/positive CLOSE validation, event-to-OPEN alignment, canonical source/status/order/non-overlap checks, capital/allocation reconciliation, finite arithmetic, coherent all-naive or matching-zone-aware timestamps, and input preservation without sorting, repair, parsing, or timezone conversion. UTC remains recommended. No future exit or next-candle price may influence a current mark. Zero trades still give N + 1 flat constant-equity observations with recorded candle marks. OPEN-only input is marked from entry onward; a final-OPEN entry gets a final CLOSE mark, while a final-OPEN exit leaves realized cash if flat. An unexecuted final-candle signal is not a fill.
 
-Decision 004 remains separate and unchanged: initial plus post-CLOSED realized-capital drawdown omits within-trade losses. Future portfolio drawdown will use the new initial-plus-every-CLOSE equity series, but still cannot observe intrabar/tick losses. A fall from prior-close equity 10,000 to an intrabar 7,000 followed by a 9,500 CLOSE records only 9,500. HIGH/LOW does not reconstruct that path; excursion/stress analytics and all portfolio metrics remain deferred. Decision 006's worked GROSS example now passes as a synthetic test: 1,000 → 1,100 → 900 → 1,200 versus realized 1,000 → 1,200.
+Decision 004 remains separate and unchanged: initial plus post-CLOSED realized-capital drawdown omits within-trade losses. Decision 007 now defines future drawdown from the initial-plus-every-CLOSE equity series; implementation remains pending. This still cannot observe intrabar/tick losses. A fall from prior-close equity 10,000 to an intrabar 7,000 followed by a 9,500 CLOSE records only 9,500. HIGH/LOW does not reconstruct that path; excursion/stress analytics and portfolio-metric implementations remain deferred. Decision 006's worked GROSS example now passes as a synthetic test: 1,000 → 1,100 → 900 → 1,200 versus realized 1,000 → 1,200.
 
 ## BTC candle-level equity check
 
@@ -299,14 +315,14 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Stage 5.12 completed notebook presentation of the unchanged Stage 5.11 equity helpers. Notebook 03 has 68 cells (33 code / 35 Markdown), sequential execution with no saved errors, and four plots. It distinguishes final OPEN marked equity from CLOSED realized capital and retains performance → realized drawdown → MTM equity → TIME → costs → final OPEN → conclusions. All 304 tests pass; Stage 5.13 candle-close portfolio drawdown contract awaits approval.
+Stage 5.13 completed the candle-close portfolio drawdown contract in decision 007. It defines independent GROSS/NET calculations from the existing equity paths, exact schemas, validation/preservation rules, deterministic peak/trough selection, and candle-CLOSE risk limitations. All 304 existing tests pass. Production code, tests, notebooks, raw data, and dependencies remain unchanged; no BTC portfolio drawdown was calculated. Stage 5.14 implementation awaits approval.
 
 ## Not implemented yet
 
 - Transformed datasets and reusable preprocessing workflows.
 - Full backtesting engine and broader portfolio allocation beyond the current all-in single-position model.
 - Exchange-specific or variable transaction-cost models.
-- Candle-close portfolio drawdown and subsequent portfolio metrics.
+- Candle-close portfolio drawdown implementation (decision 007 accepted) and subsequent portfolio metrics.
 - Additional reusable strategies beyond the EMA crossover strategy.
 - Performance analytics beyond the 16 CLOSED-trade summary metrics, separate realized-capital drawdown, and ledger-based duration/exposure; strategy comparison.
 - Live/demo execution and exchange integration.
@@ -318,7 +334,7 @@ Stage 5.12 completed notebook presentation of the unchanged Stage 5.11 equity he
 
 ## Next milestone
 
-Proposed Stage 5.13 — Candle-Close Portfolio Drawdown Contract: define drawdown from the existing independent GROSS/NET `equity` paths, including initial observations, candle-close risk limitations, and separation from realized-capital drawdown. This is a future contract stage, not implementation. Do not start Stage 5.13 until the owner approves it.
+Proposed Stage 5.14 — Reusable Candle-Close Portfolio Drawdown Implementation: implement decision 007's four pure functions in `analytics/portfolio_drawdown.py`, with focused synthetic tests and Stage 5.11 equity-path integration checks. Keep realized-capital drawdown unchanged. Implementation and BTC portfolio drawdown measurement have not started. Do not start Stage 5.14 until the owner approves it.
 
 No processed dataset or reusable preprocessing module is needed yet. Keep strategy generation and execution separate; no strategy classes or framework are needed.
 
@@ -362,7 +378,7 @@ Decision 003 is implemented by the Stage 5.2 summary helpers. Arithmetic average
 
 Decision 005 is implemented by the Stage 5.8 ledger-based time helpers, independently of accounting, and presented in notebook 03 by Stage 5.9. OPEN exclusion from realized PnL/drawdown does not imply exclusion from observed time in market. Exposure is binary holding time for the current single-position, non-overlapping ledger. Overlapping/multi-position, leverage/size-weighted, gross/net, and short exposure remain outside this contract; no market-value risk metric is introduced.
 
-Decision 006 is implemented by `analytics/equity.py` and presented in notebook 03 by Stage 5.12. Its all-in long-only single-asset model excludes shorts, partial/multi-asset/multi-position allocation, leverage, funding/borrow interest, dynamic fees, liquidation value, and position-size-weighted exposure. Portfolio drawdown, equity-return metrics, Sharpe/Sortino, volatility, CAGR/Calmar, benchmarks/alpha/beta, intrabar MAE/MFE, out-of-sample testing, and walk-forward validation remain deferred. The CLOSE path can still miss intrabar risk; no continuous-time or tick-level drawdown claim is supported.
+Decision 006 is implemented by `analytics/equity.py` and presented in notebook 03 by Stage 5.12. Its all-in long-only single-asset model excludes shorts, partial/multi-asset/multi-position allocation, leverage, funding/borrow interest, dynamic fees, liquidation value, and position-size-weighted exposure. Decision 007 defines candle-close portfolio drawdown; implementation and BTC measurement remain deferred, along with drawdown duration/recovery, equity-return metrics, Sharpe/Sortino, volatility, CAGR/Calmar, benchmarks/alpha/beta, intrabar MAE/MFE, out-of-sample testing, and walk-forward validation. The CLOSE path can still miss intrabar risk; no continuous-time or tick-level drawdown claim is supported.
 
 ## Existing files preserved
 

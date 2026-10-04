@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-04 — Stage 5.13 candle-close portfolio drawdown contract
+
+- Accepted decision 007: existing independent GROSS/NET equity paths, negative drawdown/amount formulas, exact six-column path/eight-field summary, earliest-trough/latest-peak selection, initial/zero-equity behavior, strict validation, and input preservation. Identical source schemas express caller intent through wrappers; final OPEN marks are naturally included.
+- Preserved decision 004's separate CLOSED-only realized observations and documented candle-CLOSE intrabar limitations. Finalized four future APIs; implementation, BTC portfolio drawdown measurement, duration/recovery, and further metrics remain deferred to approved future work.
+- Updated current-stage documentation; all 304 existing tests pass. Production code/tests, notebooks, raw data, dependencies, and decisions 001–006 remain unchanged. Stage 5.14 is recommended but not started.
+
 ## 2026-10-04 — Stage 5.12 candle-level equity notebook integration
 
 - Integrated the two unchanged Stage 5.11 equity helpers into notebook 03 after realized drawdown and before TIME. Added compact initial/first-entry/final previews, a realized-versus-marked table, final OPEN state, one GROSS/NET time-axis equity plot, and regression/input/path-preservation checks; no equity formulas were duplicated.
