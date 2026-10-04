@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-04 — Stage 5.18 final Stage 5 analytics report
+
+- Consolidated notebook 03 using existing outputs: setup, four-portfolio headline comparison, EMA behavior, integrated interpretation, limitations, and one final audit checking financial/risk/time references, raw data, and 31 report-source DataFrames.
+- Executed all 104 cells (51 code / 53 Markdown) sequentially without saved errors. All seven existing plot sources/images are unchanged; no plot was added. All 458 existing tests pass; no production code, tests, decisions, dependencies, financial formulas, or other notebooks changed, and no project files were created.
+- Stage 5 — Analytics completed. Review and commit Stage 5.18 first; Stage 6 awaits explicit owner approval and has not started.
+
 ## 2026-10-04 — Stage 5.17 float64 equity validation hardening
 
 - Reject unsafe nonzero-to-zero float64 equity underflow; genuine final zero remains valid. Added four regression tests: 61 Stage 5.17 tests and all 458 tests pass. Financial formulas, BTC metrics, and notebook are unchanged.

@@ -6,7 +6,7 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 ## Current stage
 
-Stage 5.17 — Time-Based Returns + Sharpe / Sortino (completed).
+Stage 5 — Analytics COMPLETED. Stage 5.18 — Final Stage 5 Analytics Notebook / Report completed.
 
 ## Completed
 
@@ -166,6 +166,17 @@ Stage 5.17 — Time-Based Returns + Sharpe / Sortino (completed).
 - Sharpe uses sample excess standard deviation (ddof=1); Sortino uses all-period downside RMS with zero from non-downside hours. Explicit hourly annualization is 8,760 periods/year, with zero per-period risk-free return and zero MAR. 61 Stage 5.17 tests pass; all 458 tests pass (397 earlier + 61 Stage 5.17).
 - Notebook 03 now presents eight-result/four-path summaries, compact return previews, interpretation, references/preservation checks, and exactly one NET hourly-return diagnostic. All 47 code cells executed sequentially without saved errors: 96 cells total, 49 Markdown, seven plots. All six previous plot sources/images remain byte-identical. Existing production modules/tests, decisions 001–008, notebooks 01/02, raw data, and dependencies are unchanged. No Stage 5.18 or Stage 6 work was started.
 
+- Stage 5.18 consolidated notebook 03 into the final Stage 5 report: research setup, four-portfolio headline comparison, EMA trade behavior, integrated interpretation, limitations, and one final regression/preservation audit. Tables and explanations reuse existing helper outputs; no financial formulas or production APIs changed.
+- All 51 code cells executed sequentially without saved errors: 104 total cells, 53 Markdown, seven plots. All seven existing plot sources/images remain byte-identical; no plot was added. All 458 existing tests pass; no new tests, production modules, decisions, dependencies, or project files were added. Stage 5 is complete; Stage 6 has not started.
+
+## Final Stage 5 analytics report
+
+Notebook 03 brings together CLOSED-trade performance, realized-capital drawdown, duration/exposure, candle-level MTM equity, candle-close portfolio drawdown, Buy-and-Hold comparison, time-based returns, volatility, and Sharpe/Sortino. Its final report reads existing outputs for setup, a seven-row/four-portfolio comparison, EMA behavior, costs, benchmark opportunity cost, drawdown, time, and risk-adjusted interpretation. Explicit limitations cover this single BTC sample, fixed modeled costs, hourly marks, final OPEN positions, and absent out-of-sample validation.
+
+The final audit checks the 8,760-candle snapshot, 78 executed entries / 77 exits, 77 CLOSED / one final OPEN trade, all four 8,761-observation equity paths and 8,760-return clocks, financial/risk/time references, raw CSV hash, and preservation of 31 report-source DataFrames. All seven existing plot sources/images and earlier calculations are preserved. The notebook has 104 cells (51 code / 53 Markdown), sequential execution, and no saved errors. All 458 existing tests pass; Stage 5.18 adds no tests or metric logic. Production code/tests, decisions, notebooks 01/02, raw data, and dependencies are unchanged.
+
+Stage 5 — Analytics is complete. Review and commit Stage 5.18 first; Stage 6 awaits explicit owner approval and has not started.
+
 ## Reusable time-based returns and risk-adjusted metrics
 
 [Decision 009](decisions/009_time_based_returns_and_risk_adjusted_metrics.md) is implemented by `src/trading_lab/analytics/risk_adjusted.py`:
@@ -200,7 +211,7 @@ Percentages label return/variability fields; Sharpe/Sortino are dimensionless ra
 
 Sharpe measures reward relative to total variability; Sortino measures reward relative to deviations below MAR. Signs here are relative to zero hourly return. EMA NET finishes with slightly more equity than NET Buy-and-Hold but has more negative ratios; compounded final wealth and arithmetic return relative to variability answer different questions. Results depend on interval, annualization, costs, exposure, and sample window, and establish neither general superiority nor statistical significance.
 
-Notebook 03 snapshots all four equity sources before calling the reusable helpers, displays one compact eight-row comparison and representative first/flat/invested/final return previews, and adds one transparent NET hourly-return scatter plot. Its 96 cells (47 code / 49 Markdown) executed sequentially without errors, with seven plots and all six prior plot sources/images unchanged. Assertions check all 8,760 periods, full clocks, spot formulas, cash zeros, final OPEN marks, actual summary references, all four equity sources, candles, and raw CSV hash. The 61 Stage 5.17 tests cover these contracts, synthetic conventions/degenerate cases, strict validation/DST/preservation/causal prefixes, and actual EMA/benchmark integration. All 458 tests pass. Existing production modules/tests, decisions 001–008, notebooks 01/02, raw data, and dependencies remain unchanged; Stage 5.18 and Stage 6 remain pending.
+Notebook 03 snapshots all four equity sources before calling the reusable helpers, displays one compact eight-row comparison and representative first/flat/invested/final return previews, and retains one transparent NET hourly-return scatter plot. Its final Stage 5.18 report brings the notebook to 104 cells (51 code / 53 Markdown), executed sequentially without errors, with seven plots and all seven prior plot sources/images unchanged. Assertions check all 8,760 periods, full clocks, spot formulas, cash zeros, final OPEN marks, actual summary references, all four equity sources, candles, and raw CSV hash. The 61 Stage 5.17 tests cover these contracts, synthetic conventions/degenerate cases, strict validation/DST/preservation/causal prefixes, and actual EMA/benchmark integration. All 458 tests pass. Stage 5.18 preserves production code/tests, decisions, notebooks 01/02, raw data, and dependencies; Stage 5 is complete and Stage 6 remains pending approval.
 
 ## Reusable Buy-and-Hold benchmark comparison
 
@@ -225,7 +236,7 @@ The unchanged BTC snapshot starts at `2025-10-01 00:00 UTC`, first OPEN 114,051.
 
 EMA minus benchmark final equity is GROSS +2,120.017226389085 USDT / NET +170.292861096195 USDT; total marked return differences are +21.2001722639 / +1.7029286110 percentage points. Whole-window return means `final equity / initial equity - 1`, not hourly returns or annualization. All four paths lose capital in this declining-BTC sample: EMA's relative advantage does not prove general superiority. Both benchmark paths finish OPEN; no liquidation is fabricated.
 
-Notebook 03 uses helper outputs for the tables and sole new equity-comparison plot, with reference assertions for rows, full valuation-time alignment, first-OPEN timing, final OPEN marks, benchmark drawdowns, unchanged EMA/candle inputs, and raw CSV hash. Stage 5.17 preserves the benchmark section and adds time-based analytics; the notebook now has 96 cells (47 code / 49 Markdown), seven plots, sequential execution, and no saved errors, with all six previous plot sources/images unchanged. The 38 new tests include exact schemas, delegated sizing/costs, paid-once/no-exit behavior, zero-cost equality, validation, input/output independence, causal prefixes, existing drawdown integration, and actual BTC alignment. All 454 tests pass, including these unchanged 38 benchmark tests. Decision 009 now supplies time-based returns and Sharpe/Sortino; Stage 6 remains unimplemented.
+Notebook 03 uses helper outputs for the tables and existing equity-comparison plot, with reference assertions for rows, full valuation-time alignment, first-OPEN timing, final OPEN marks, benchmark drawdowns, unchanged EMA/candle inputs, and raw CSV hash. The final Stage 5.18 report preserves the benchmark and time-based analytics sections: 104 cells (51 code / 53 Markdown), seven plots, sequential execution, no saved errors, and all seven prior plot sources/images unchanged. The 38 benchmark tests include exact schemas, delegated sizing/costs, paid-once/no-exit behavior, zero-cost equality, validation, input/output independence, causal prefixes, existing drawdown integration, and actual BTC alignment. All 458 tests pass, including these unchanged 38 benchmark tests. Decision 009 supplies time-based returns and Sharpe/Sortino; Stage 6 remains unimplemented.
 
 ## Reusable candle-close portfolio drawdown
 
@@ -239,9 +250,9 @@ Select the earliest exact minimum percentage-drawdown trough, then the latest ex
 
 Public APIs: `calculate_gross_portfolio_drawdown(gross_equity_path)`, `calculate_net_portfolio_drawdown(net_equity_path)`, `summarize_gross_portfolio_drawdown(gross_equity_path)`, and `summarize_net_portfolio_drawdown(net_equity_path)`. Each takes only its equity path and returns a new DataFrame. Validation covers unique/required columns, nonempty input, canonical integer ordinals, safely representable strictly increasing coherent datetimes, positive initial/non-negative later finite real equity, and finite float64 arithmetic. No interval/equal-spacing requirement, bool acceptance, parsing, sorting, repair, or timezone conversion is introduced.
 
-The 55 Stage 5.14 tests cover schemas/dtypes, initial-only/flat/increasing/full-loss/recovery paths, worked examples, exact trough/peak ties, associated currency amount, causal prefixes, malformed values/schema/order/clocks, DST, unequal time spacing, optional columns, duplicate indexes, deep-copy/output independence, actual Stage 5.11 integration, and final OPEN marks. All 454 tests pass, including these unchanged 55 tests; Stage 5.15 added no unit tests. Decision 004 retains initial-plus-post-CLOSED observations and excludes/unvalues OPEN; decision 007 observes initial-plus-every-CLOSE equity. Neither candle-CLOSE observations nor HIGH/LOW reveal the full intrabar path. Duration, recovery, and further risk/return metrics remain deferred. Decisions 008/009 now supply aligned Buy-and-Hold comparison, time-based returns, and Sharpe/Sortino.
+The 55 Stage 5.14 tests cover schemas/dtypes, initial-only/flat/increasing/full-loss/recovery paths, worked examples, exact trough/peak ties, associated currency amount, causal prefixes, malformed values/schema/order/clocks, DST, unequal time spacing, optional columns, duplicate indexes, deep-copy/output independence, actual Stage 5.11 integration, and final OPEN marks. All 458 tests pass, including these unchanged 55 tests; Stage 5.15 added no unit tests. Decision 004 retains initial-plus-post-CLOSED observations and excludes/unvalues OPEN; decision 007 observes initial-plus-every-CLOSE equity. Neither candle-CLOSE observations nor HIGH/LOW reveal the full intrabar path. Duration, recovery, and further risk/return metrics remain deferred. Decisions 008/009 now supply aligned Buy-and-Hold comparison, time-based returns, and Sharpe/Sortino.
 
-Stage 5.15 introduced these unchanged helpers in notebook 03 using existing equity paths, compact ten-result summaries, realized-versus-portfolio comparison, selected-episode previews, and one drawdown plot. Stage 5.16 preserves that section and adds benchmark comparison before TIME. The current flow is performance → realized-capital drawdown → MTM equity → candle-close portfolio drawdown → benchmark comparison → time-based returns and Sharpe/Sortino → TIME → costs → final OPEN → conclusions. Stage 5.17 adds risk-adjusted analytics before TIME. All 47 code cells executed sequentially without errors: 96 total cells, 49 Markdown, seven plots, with all six previous plot sources/images unchanged. All tables/plot coordinates come from helper outputs; fixed BTC values are regression assertions only.
+Stage 5.15 introduced these unchanged helpers in notebook 03 using existing equity paths, compact ten-result summaries, realized-versus-portfolio comparison, selected-episode previews, and one drawdown plot. The current flow is performance → realized-capital drawdown → MTM equity → candle-close portfolio drawdown → benchmark comparison → time-based returns and Sharpe/Sortino → TIME → costs → final OPEN → final integrated report → audit and limitations. Stage 5.18 preserves the earlier sections and all seven plot sources/images. All 51 code cells executed sequentially without errors: 104 total cells, 53 Markdown, seven plots. All tables/plot coordinates come from helper outputs; fixed BTC values are regression assertions only.
 
 ## BTC candle-close portfolio drawdown check
 
@@ -417,7 +428,7 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Stage 5.17 completed reusable simple time-based portfolio returns and sample-std Sharpe/all-period Sortino under decision 009. All four aligned equity paths produce 8,760 hourly returns, retaining cash zeros and final OPEN marks, with explicit 8,760 periods/year and zero rf/MAR. EMA GROSS/NET Sharpe are -0.0654209479 / -0.9029552504; Sortino -0.0955348305 / -1.3087247421. Buy-and-Hold GROSS/NET Sharpe are -0.4873945323 / -0.4908162375; Sortino -0.6833501112 / -0.6881424711. Notebook 03 has 96 cells (47 code / 49 Markdown), seven plots, sequential execution without errors, and all six prior plot sources/images unchanged. All 458 tests pass (397 earlier + 61 Stage 5.17). Unsafe nonzero-to-zero float64 equity underflow is rejected. Existing production modules/tests, decisions 001–008, notebooks 01/02, raw data, and dependencies are preserved. Stage 5.18 awaits approval; Stage 6 has not started.
+Stage 5 — Analytics is complete, including the Stage 5.18 final notebook/report. Notebook 03 consolidates the existing analytics into setup, portfolio and trade-behavior tables, integrated interpretation, limitations, and a final regression/preservation audit. All 104 cells (51 code / 53 Markdown) executed sequentially without errors; all seven existing plot sources/images and financial results are unchanged. All 458 existing tests pass, including 61 Stage 5.17 tests; no tests or metric logic were added. Unsafe nonzero-to-zero float64 equity underflow remains rejected. Production code/tests, decisions, notebooks 01/02, raw data, and dependencies are preserved. Review and commit Stage 5.18 first; Stage 6 awaits explicit owner approval and has not started.
 
 ## Not implemented yet
 
@@ -425,7 +436,6 @@ Stage 5.17 completed reusable simple time-based portfolio returns and sample-std
 - Full backtesting engine and broader portfolio allocation beyond the current all-in single-position model.
 - Exchange-specific or variable transaction-cost models.
 - Drawdown duration/recovery and subsequent portfolio metrics.
-- Final Stage 5 analytics consolidation/notebook/report (Stage 5.18).
 - Additional reusable strategies beyond the EMA crossover strategy.
 - Performance analytics beyond the 16 CLOSED-trade summary metrics, separate realized-capital drawdown, ledger-based duration/exposure, candle-level equity, candle-close portfolio drawdown, the aligned Buy-and-Hold comparison, and time-based returns/Sharpe/Sortino with support volatility/downside metrics; broader multi-strategy comparison.
 - Live/demo execution and exchange integration.
@@ -437,9 +447,9 @@ Stage 5.17 completed reusable simple time-based portfolio returns and sample-std
 
 ## Next milestone
 
-Recommended Stage 5.18 — Final Stage 5 Analytics Notebook / Report. Consolidate and review the existing Stage 5 analytics without another major financial metric family. It has not started; owner approval is required.
+Review and commit the completed Stage 5.18 notebook/report and documentation.
 
-Stage 6 begins only after Stage 5.18 is completed, reviewed, committed, and explicitly approved by the owner. Neither stage starts here.
+Stage 6 awaits explicit owner approval after that review and commit. It has not started; no Stage 6 files, implementation plans, or architecture assumptions are added here.
 
 No processed dataset or reusable preprocessing module is needed yet. Keep strategy generation and execution separate; no strategy classes or framework are needed.
 
