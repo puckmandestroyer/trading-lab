@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-04 — Stage 5.9 trade duration and exposure notebook integration
+
+- Integrated the two unchanged Stage 5.8 helpers into notebook 03 directly from its canonical ledger and explicit 8,760-hour candle window, after drawdown and before costs. Added one 11-field TIME table, a compact first/last preview, top-five CLOSED-duration inspection, explanations/conclusions, and regression/preservation assertions. No GROSS/NET time split, duplicated formulas, or new financial metrics.
+- BTC references pass: 77 CLOSED / one OPEN; average/median/minimum/maximum CLOSED durations 52.96103896103896 / 34 / 1 / 226 hours; total CLOSED 4,078 hours plus 11 observed final OPEN hours gives 4,089 hours in market and 46.678082% exposure. First CLOSED duration is 27 hours; longest is trade 68 / 226 hours. OPEN trade 78 entered at 2026-09-30 13:00 UTC; completed duration stays NaN and it remains unvalued.
+- Executed all 28 code cells sequentially with no saved errors: 58 total cells, 30 Markdown, three byte-identical existing plot images. Existing tables and ledger/raw preservation checks pass. All 257 tests pass; production analytics/Stage 4 code and tests, decisions 001–005, notebooks 01/02, raw CSV, and dependencies are unchanged. Updated documentation and fixed stale README analytics listings. Stage 5.10 equity/mark-to-market contract is recommended but not started.
+
 ## 2026-10-04 — Stage 5.8 reusable trade duration and exposure
 
 - Implemented decision 005 unchanged in `analytics/trade_time.py` with `calculate_trade_time_breakdown` and `summarize_trade_time_metrics`, explicit observation boundaries, the exact six-column breakdown and 11-field TIME summary, and shared interval validation. CLOSED statistics exclude OPEN; its observed final interval contributes to binary exposure without a synthetic exit, valuation, or GROSS/NET split.
