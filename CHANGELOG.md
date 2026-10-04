@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-04 — Stage 5.16 benchmark comparison
+
+- Accepted decision 008 and added two reusable Buy-and-Hold APIs in `analytics/benchmark.py`: first-OPEN purchase, independent Stage 4 GROSS/NET accounting, Stage 5.11 CLOSE equity, and existing portfolio-drawdown helpers. NET incurs one actual entry fee/slippage; no final exit is fabricated. Added 38 tests; all 397 pass (359 existing + 38 new).
+- Both BTC benchmark paths have 8,761 aligned observations. Final marked equity is GROSS 7,331.468087550229 / NET 7,320.483701755746 USDT; whole-window returns -26.6853191245% / -26.7951629824%, maximum drawdowns both -53.7338388920%. EMA ends ahead by 2,120.017226389085 / 170.292861096195 USDT, or 21.2001722639 / 1.7029286110 percentage points; all four paths lose capital in this sample.
+- Notebook 03 adds compact comparisons, explanation, assertions, and exactly one equity plot: 88 cells (43 code / 45 Markdown), six plots, sequential execution, no saved errors. All five previous plot sources/images, earlier production modules/tests, decisions 001–007, notebooks 01/02, raw data, and dependencies are preserved. No Sharpe/Sortino or Stage 6 work. Stage 5.17 — Time-Based Returns + Sharpe / Sortino is recommended but not started.
+
 ## 2026-10-04 — Stage 5.15 candle-close portfolio drawdown notebook integration
 
 - Integrated the four unchanged Stage 5.14 helpers into notebook 03 after MTM equity and before TIME, using existing equity paths directly. Added compact GROSS/NET summary/comparison/episode previews, final OPEN explanation, exactly one time-axis drawdown plot with helper-selected troughs, and regression/preservation assertions; no financial formulas were duplicated.

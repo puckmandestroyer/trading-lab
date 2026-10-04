@@ -6,7 +6,7 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 ## Current stage
 
-Stage 5.15 — Candle-Close Portfolio Drawdown Notebook Integration (completed).
+Stage 5.16 — Benchmark Comparison (completed).
 
 ## Completed
 
@@ -158,6 +158,35 @@ Stage 5.15 — Candle-Close Portfolio Drawdown Notebook Integration (completed).
 - Added a compact ten-result GROSS/NET table, realized-versus-portfolio comparison, initial/peak/trough/final path previews, exactly one time-axis drawdown plot with helper-selected trough markers, final OPEN explanation, and focused regression/preservation assertions. Both paths retain 8,761 rows; maximum drawdowns remain GROSS -27.6794381422% / NET -37.9679609807%, with final drawdowns -7.6771641106% / -25.2825731282%.
 - Executed every code cell sequentially without saved errors: 80 cells total, 39 code, 41 Markdown, five plots. All four original plot cells and saved images remain byte-identical. All 359 tests pass; production code/tests, decisions 001–007, notebooks 01/02, raw data, and dependencies are unchanged. Equity inputs and drawdown outputs are preserved. No benchmark, time-based returns, Sharpe/Sortino, duration/recovery, or later stage was implemented.
 
+- Stage 5.16 accepted decision 008 and added two reusable first-OPEN Buy-and-Hold APIs in `analytics/benchmark.py`. One synthetic OPEN trade delegates independent GROSS/NET sizing to Stage 4 accounting and CLOSE marking to Stage 5.11; no financial formulas, strategy signals, or exits are duplicated.
+- Added 38 focused tests (36 synthetic/delegation/validation checks and two local BTC/alignment checks). All 397 tests pass, including the unchanged 359 earlier tests. Both BTC benchmark paths have 8,761 observations; actual values and EMA comparisons are documented below.
+- Notebook 03 now calls the benchmark and existing portfolio-drawdown helpers, displays four-path and relative comparisons, explains absolute versus relative losses, and adds exactly one time-aligned equity plot. All 43 code cells executed sequentially without errors: 88 cells total, 45 Markdown, six plots. All five prior plot sources/images are byte-identical. Existing production modules/tests, decisions 001–007, notebooks 01/02, raw data, and dependencies are unchanged; no Sharpe/Sortino or Stage 6 work was added.
+
+## Reusable Buy-and-Hold benchmark comparison
+
+[Decision 008](decisions/008_buy_and_hold_benchmark.md) is implemented by `src/trading_lab/analytics/benchmark.py` with exactly two public APIs:
+
+- `calculate_gross_buy_and_hold_benchmark(candles: pd.DataFrame, candle_interval, initial_capital: float = 10_000.0) -> pd.DataFrame`
+- `calculate_net_buy_and_hold_benchmark(candles: pd.DataFrame, candle_interval, initial_capital: float = 10_000.0, fee_rate: float = 0.0, slippage_rate: float = 0.0) -> pd.DataFrame`
+
+Buy at the first raw OPEN, independent of EMA signals/execution: one canonical trade ID 1, status OPEN, with missing exit time/price. GROSS delegates to Stage 4.6; NET independently delegates to Stage 4.7 with self-financing entry sizing and one actual entry fee/adverse slippage. Both delegate to Stage 5.11 equity and return its exact 11-column schema. The initial flat point is immediately before purchase; N candles produce N + 1 observations, then remain long with ID 1 at each raw CLOSE timed at OPEN + interval. No forced exit or hypothetical exit fee/sell slippage is added; final marked equity is not liquidation proceeds. Zero-cost NET equals GROSS exactly.
+
+Entry guards check DataFrame, unique/required `timestamp`/`open`/`close` columns, nonempty input, usable positive real first OPEN, and an existing first datetime without parsing. Existing accounting/equity validators handle the remaining financial, interval, timestamp, and CLOSE rules. Inputs are unchanged; no sorting, repair, interpolation, framework, class, or new dependency is introduced. Benchmark drawdown reuses the Stage 5.14 calculate/summary helpers.
+
+The unchanged BTC snapshot starts at `2025-10-01 00:00 UTC`, first OPEN 114,051.1 USDT, and finishes at `2026-10-01 00:00 UTC`, marking the final CLOSE 83,616.2 USDT. Each path has initial equity 10,000 USDT and exactly 8,761 aligned observations. NET research assumptions remain `fee_rate=0.001`, `slippage_rate=0.0005`; the benchmark pays one entry, while EMA pays its actual turnover costs. These are modeled assumptions, not current exchange fees.
+
+| Measurement | EMA GROSS | Buy & Hold GROSS | EMA NET | Buy & Hold NET |
+| --- | ---: | ---: | ---: | ---: |
+| Initial equity (USDT) | 10,000 | 10,000 | 10,000 | 10,000 |
+| Final marked equity (USDT) | 9,451.485313939314 | 7,331.468087550229 | 7,490.776562851941 | 7,320.483701755746 |
+| Total marked return | -5.4851468606% | -26.6853191245% | -25.0922343715% | -26.7951629824% |
+| Maximum candle-close drawdown | -27.6794381422% | -53.7338388920% | -37.9679609807% | -53.7338388920% |
+| Observations | 8,761 | 8,761 | 8,761 | 8,761 |
+
+EMA minus benchmark final equity is GROSS +2,120.017226389085 USDT / NET +170.292861096195 USDT; total marked return differences are +21.2001722639 / +1.7029286110 percentage points. Whole-window return means `final equity / initial equity - 1`, not hourly returns or annualization. All four paths lose capital in this declining-BTC sample: EMA's relative advantage does not prove general superiority. Both benchmark paths finish OPEN; no liquidation is fabricated.
+
+Notebook 03 uses helper outputs for the tables and sole new equity-comparison plot, with reference assertions for rows, full valuation-time alignment, first-OPEN timing, final OPEN marks, benchmark drawdowns, unchanged EMA/candle inputs, and raw CSV hash. It has 88 cells (43 code / 45 Markdown), six plots, sequential execution, and no saved errors; all five previous plot sources/images are unchanged. The 38 new tests include exact schemas, delegated sizing/costs, paid-once/no-exit behavior, zero-cost equality, validation, input/output independence, causal prefixes, existing drawdown integration, and actual BTC alignment. All 397 tests pass. Time-based returns, Sharpe/Sortino, and Stage 6 remain unimplemented.
+
 ## Reusable candle-close portfolio drawdown
 
 [Decision 007](decisions/007_candle_close_portfolio_drawdown.md) is implemented by `src/trading_lab/analytics/portfolio_drawdown.py`. Its sole input is a Stage 5.11 GROSS or NET equity path, requiring `observation`, `valuation_time`, and `equity`. Extra columns are ignored. It never consumes candles/accounting again or reconstructs equity. Both source schemas are identical: the GROSS/NET wrappers express caller intent and summary labels, not detectable provenance or different formulas.
@@ -170,9 +199,9 @@ Select the earliest exact minimum percentage-drawdown trough, then the latest ex
 
 Public APIs: `calculate_gross_portfolio_drawdown(gross_equity_path)`, `calculate_net_portfolio_drawdown(net_equity_path)`, `summarize_gross_portfolio_drawdown(gross_equity_path)`, and `summarize_net_portfolio_drawdown(net_equity_path)`. Each takes only its equity path and returns a new DataFrame. Validation covers unique/required columns, nonempty input, canonical integer ordinals, safely representable strictly increasing coherent datetimes, positive initial/non-negative later finite real equity, and finite float64 arithmetic. No interval/equal-spacing requirement, bool acceptance, parsing, sorting, repair, or timezone conversion is introduced.
 
-The 55 Stage 5.14 tests cover schemas/dtypes, initial-only/flat/increasing/full-loss/recovery paths, worked examples, exact trough/peak ties, associated currency amount, causal prefixes, malformed values/schema/order/clocks, DST, unequal time spacing, optional columns, duplicate indexes, deep-copy/output independence, actual Stage 5.11 integration, and final OPEN marks. All 359 tests pass; Stage 5.15 added no unit tests. Decision 004 retains initial-plus-post-CLOSED observations and excludes/unvalues OPEN; decision 007 observes initial-plus-every-CLOSE equity. Neither candle-CLOSE observations nor HIGH/LOW reveal the full intrabar path. Duration, recovery, benchmarks, time-based returns, Sharpe/Sortino, and further risk/return metrics remain deferred.
+The 55 Stage 5.14 tests cover schemas/dtypes, initial-only/flat/increasing/full-loss/recovery paths, worked examples, exact trough/peak ties, associated currency amount, causal prefixes, malformed values/schema/order/clocks, DST, unequal time spacing, optional columns, duplicate indexes, deep-copy/output independence, actual Stage 5.11 integration, and final OPEN marks. All 397 tests pass, including these unchanged 55 tests; Stage 5.15 added no unit tests. Decision 004 retains initial-plus-post-CLOSED observations and excludes/unvalues OPEN; decision 007 observes initial-plus-every-CLOSE equity. Neither candle-CLOSE observations nor HIGH/LOW reveal the full intrabar path. Duration, recovery, time-based returns, Sharpe/Sortino, and further risk/return metrics remain deferred. Decision 008 now adds the aligned Buy-and-Hold comparison.
 
-Stage 5.15 presents these unchanged helpers in notebook 03 using existing equity paths, compact ten-result summaries, realized-versus-portfolio comparison, selected-episode previews, and one new drawdown plot. The research flow is performance → realized-capital drawdown → MTM equity → candle-close portfolio drawdown → TIME → costs → final OPEN → conclusions. All 39 code cells executed sequentially without errors: 80 total cells, 41 Markdown, five plots, with all four previous plot sources/images unchanged. All tables/plot coordinates come from helper outputs; fixed BTC values are regression assertions only.
+Stage 5.15 introduced these unchanged helpers in notebook 03 using existing equity paths, compact ten-result summaries, realized-versus-portfolio comparison, selected-episode previews, and one drawdown plot. Stage 5.16 preserves that section and adds benchmark comparison before TIME. The current flow is performance → realized-capital drawdown → MTM equity → candle-close portfolio drawdown → benchmark comparison → TIME → costs → final OPEN → conclusions. All 43 code cells executed sequentially without errors: 88 total cells, 45 Markdown, six plots, with all five previous plot sources/images unchanged. All tables/plot coordinates come from helper outputs; fixed BTC values are regression assertions only.
 
 ## BTC candle-close portfolio drawdown check
 
@@ -348,7 +377,7 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Stage 5.15 completed portfolio-drawdown notebook integration using the unchanged Stage 5.14 helpers and existing equity paths. Notebook 03 has 80 cells (39 code / 41 Markdown), sequential execution with no saved errors, and five plots; all four original plot cells/images remain unchanged. Both 8,761-row paths include final OPEN marked equity naturally, with GROSS maximum -27.6794381422% / NET -37.9679609807%. All 359 tests pass; production code/tests, decisions, notebooks 01/02, raw data, and dependencies remain unchanged. Stage 5.16 — Benchmark Comparison awaits approval.
+Stage 5.16 completed the aligned first-OPEN Buy-and-Hold comparison through existing independent accounting/equity/drawdown helpers. Both benchmark paths have 8,761 observations; final marked equity is GROSS 7,331.468087550229 / NET 7,320.483701755746 USDT, versus EMA 9,451.485313939314 / 7,490.776562851941 USDT. Notebook 03 has 88 cells (43 code / 45 Markdown), six plots, sequential execution, no saved errors, and all five prior plot sources/images unchanged. All 397 tests pass (359 existing + 38 new). Earlier production modules/tests, decisions 001–007, notebooks 01/02, raw data, and dependencies are unchanged. Stage 5.17 awaits approval; no Sharpe/Sortino or Stage 6 work has started.
 
 ## Not implemented yet
 
@@ -356,9 +385,9 @@ Stage 5.15 completed portfolio-drawdown notebook integration using the unchanged
 - Full backtesting engine and broader portfolio allocation beyond the current all-in single-position model.
 - Exchange-specific or variable transaction-cost models.
 - Drawdown duration/recovery and subsequent portfolio metrics.
-- Benchmark comparison, time-based returns, Sharpe/Sortino, and the final Stage 5 analytics notebook/report.
+- Time-based returns, Sharpe/Sortino, and the final Stage 5 analytics notebook/report.
 - Additional reusable strategies beyond the EMA crossover strategy.
-- Performance analytics beyond the 16 CLOSED-trade summary metrics, separate realized-capital drawdown, ledger-based duration/exposure, candle-level equity, and candle-close portfolio drawdown; strategy comparison.
+- Performance analytics beyond the 16 CLOSED-trade summary metrics, separate realized-capital drawdown, ledger-based duration/exposure, candle-level equity, candle-close portfolio drawdown, and the aligned Buy-and-Hold comparison; broader multi-strategy comparison.
 - Live/demo execution and exchange integration.
 - Multiple autonomous bot instances and order management.
 - Centralized risk engine.
@@ -368,9 +397,9 @@ Stage 5.15 completed portfolio-drawdown notebook integration using the unchanged
 
 ## Next milestone
 
-Proposed Stage 5.16 — Benchmark Comparison: compare the existing EMA strategy against a properly aligned BTC Buy-and-Hold benchmark using the same historical observation window and clearly defined capital/timing conventions. Stage 5.16 has not started. Do not start it until the owner approves it.
+Recommended Stage 5.17 — Time-Based Returns + Sharpe / Sortino: use the now time-aligned EMA and Buy-and-Hold equity paths. It has not started. Do not start it until the owner approves it.
 
-Planned remaining Stage 5 roadmap: Stage 5.16 — Benchmark Comparison → Stage 5.17 — Time-Based Returns + Sharpe / Sortino → Stage 5.18 — Final Stage 5 Analytics Notebook / Report. No later stage or Stage 6 work starts here.
+Remaining Stage 5 roadmap: Stage 5.17 — Time-Based Returns + Sharpe / Sortino → Stage 5.18 — Final Stage 5 Analytics Notebook / Report → Stage 5 complete. No Stage 6 work starts here.
 
 No processed dataset or reusable preprocessing module is needed yet. Keep strategy generation and execution separate; no strategy classes or framework are needed.
 
@@ -410,11 +439,11 @@ Cost-aware accounting reuses the unchanged gross helper's ledger/capital validat
 
 The backtest review notebook observes the fixed EMA20/EMA50, 50-candle-warm-up sample without parameter optimization, out-of-sample testing, or walk-forward validation. Its realized-capital and realized-drawdown plots use completed trade number; the separate Stage 5.12 MTM plot uses valuation time and observes within-trade CLOSE movements, including final OPEN value. TIME remains ledger-based holding-time/exposure. No general conclusion about strategy quality follows from this single sample.
 
-Decision 003 is implemented by the Stage 5.2 summary helpers. Arithmetic average trade return is distinct from compounded strategy return. Quote-currency expectancy describes this sample, not future profit. NaN and +infinity are intentional for documented undefined/unbounded cases. These summaries aggregate existing accounting outputs; full ledger/capital consistency validation stays upstream. Decision 004 is implemented separately by the Stage 5.5 drawdown helpers, using only explicit initial capital and CLOSED capital-after observations, and presented in notebook 03 by Stage 5.6. They can miss losses while trades are open and understate full mark-to-market drawdown. Mark-to-market drawdown, benchmarks, Sharpe/Sortino, volatility, annualization, and strategy-validation methods remain deferred.
+Decision 003 is implemented by the Stage 5.2 summary helpers. Arithmetic average trade return is distinct from compounded strategy return. Quote-currency expectancy describes this sample, not future profit. NaN and +infinity are intentional for documented undefined/unbounded cases. These summaries aggregate existing accounting outputs; full ledger/capital consistency validation stays upstream. Decision 004 is implemented separately by the Stage 5.5 drawdown helpers, using only explicit initial capital and CLOSED capital-after observations, and presented in notebook 03 by Stage 5.6. They can miss losses while trades are open and understate full mark-to-market drawdown. Candle-close portfolio drawdown and the Buy-and-Hold comparison are now available separately; Sharpe/Sortino, volatility, annualization, and strategy-validation methods remain deferred.
 
 Decision 005 is implemented by the Stage 5.8 ledger-based time helpers, independently of accounting, and presented in notebook 03 by Stage 5.9. OPEN exclusion from realized PnL/drawdown does not imply exclusion from observed time in market. Exposure is binary holding time for the current single-position, non-overlapping ledger. Overlapping/multi-position, leverage/size-weighted, gross/net, and short exposure remain outside this contract; no market-value risk metric is introduced.
 
-Decision 006 is implemented by `analytics/equity.py` and presented in notebook 03 by Stage 5.12. Its all-in long-only single-asset model excludes shorts, partial/multi-asset/multi-position allocation, leverage, funding/borrow interest, dynamic fees, liquidation value, and position-size-weighted exposure. Decision 007 is implemented by `analytics/portfolio_drawdown.py` and presented in notebook 03 by Stage 5.15. Drawdown duration/recovery, equity-return metrics, Sharpe/Sortino, volatility, CAGR/Calmar, benchmarks/alpha/beta, intrabar MAE/MFE, out-of-sample testing, and walk-forward validation remain deferred. The CLOSE path can still miss intrabar risk; no continuous-time or tick-level drawdown claim is supported.
+Decision 006 is implemented by `analytics/equity.py` and presented in notebook 03 by Stage 5.12. Its all-in long-only single-asset model excludes shorts, partial/multi-asset/multi-position allocation, leverage, funding/borrow interest, dynamic fees, liquidation value, and position-size-weighted exposure. Decision 007 is implemented by `analytics/portfolio_drawdown.py` and presented in notebook 03 by Stage 5.15. Drawdown duration/recovery, equity-return metrics, Sharpe/Sortino, volatility, CAGR/Calmar, alpha/beta, intrabar MAE/MFE, out-of-sample testing, and walk-forward validation remain deferred. The CLOSE path can still miss intrabar risk; no continuous-time or tick-level drawdown claim is supported.
 
 ## Existing files preserved
 
