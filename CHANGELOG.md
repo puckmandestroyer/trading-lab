@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-04 — Stage 5.10 candle-level portfolio equity contract
+
+- Added decision 006 defining an initial-before-fill point plus one raw CLOSE mark per candle, OPEN-fill-before-CLOSE ordering, shared-OPEN EXIT then ENTRY, independent canonical GROSS/NET sources, and incurred-cost semantics without hypothetical liquidation costs.
+- Finalized future pure APIs, the exact 11-column path/initial row, validation/timezone/no-lookahead rules, OPEN/final-fill cases, flat realized-capital reconciliation, a worked example, and the candle-close risk limitation. Updated stage documentation; implementation remains pending Stage 5.11 approval.
+- All 257 existing tests pass. Production code, tests, all notebooks, raw data, dependencies, and decisions 001–005 are unchanged. No equity/portfolio-drawdown code or BTC mark-to-market results were added; no commit made.
+
 ## 2026-10-04 — Stage 5.9 trade duration and exposure notebook integration
 
 - Integrated the two unchanged Stage 5.8 helpers into notebook 03 directly from its canonical ledger and explicit 8,760-hour candle window, after drawdown and before costs. Added one 11-field TIME table, a compact first/last preview, top-five CLOSED-duration inspection, explanations/conclusions, and regression/preservation assertions. No GROSS/NET time split, duplicated formulas, or new financial metrics.
