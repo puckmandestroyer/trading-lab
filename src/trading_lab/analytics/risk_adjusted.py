@@ -88,6 +88,9 @@ def _validated_equity(equity_path):
             elif elapsed != spacing:
                 raise ValueError("valuation_time must have equally spaced elapsed intervals.")
         amount = _number(raw_equity, "equity")
+        # An exact nonzero Real must not become a false zero-equity loss.
+        if amount == 0.0 and raw_equity != 0:
+            raise ValueError("Nonzero equity must not underflow to float64 zero.")
         if amount < 0 or (expected == 0 and amount == 0):
             raise ValueError("First equity must be positive; later equity must be non-negative.")
         times.append(stamp)

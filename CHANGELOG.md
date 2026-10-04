@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-04 — Stage 5.17 float64 equity validation hardening
+
+- Reject unsafe nonzero-to-zero float64 equity underflow; genuine final zero remains valid. Added four regression tests: 61 Stage 5.17 tests and all 458 tests pass. Financial formulas, BTC metrics, and notebook are unchanged.
+
 ## 2026-10-04 — Stage 5.17 time-based returns and Sharpe / Sortino
 
 - Accepted decision 009; added `analytics/risk_adjusted.py` with simple consecutive-equity returns and a summary that reuses them. All four paths retain 8,760 hourly periods from 8,761 observations, including cash zeros/final OPEN marks. Explicit conventions: 8,760 periods/year, zero hourly rf/MAR, sample-std Sharpe, all-period downside Sortino. Added 57 tests; all 454 pass (397 existing + 57 new).

@@ -1,6 +1,7 @@
 """Decision 009's portfolio-clock returns, formulas, validation, and integration."""
 
 from datetime import datetime, timezone
+from fractions import Fraction
 from pathlib import Path
 import unittest
 from unittest.mock import patch
@@ -92,6 +93,37 @@ class TimeBasedReturnTests(unittest.TestCase):
 
     def test_positive_to_zero_final_transition_is_total_loss(self):
         self.assertEqual(calculate_time_based_returns(equity([100, 150, 0])).period_return.tolist(), [.5, -1])
+
+    def test_nonzero_final_equity_underflow_is_rejected(self):
+        tiny_positive = Fraction(1, 10 ** 400)
+        self.assertGreater(tiny_positive, 0)
+        self.assertEqual(float(tiny_positive), 0.0)
+        for final_equity in [tiny_positive, -tiny_positive]:
+            with self.subTest(final_equity=final_equity):
+                with self.assertRaisesRegex(ValueError, 'underflow to float64 zero'):
+                    calculate_time_based_returns(equity([100.0, final_equity]))
+
+    def test_genuine_final_zero_still_returns_minus_one(self):
+        for genuine_zero in [0.0, Fraction(0)]:
+            with self.subTest(genuine_zero=genuine_zero):
+                result = calculate_time_based_returns(equity([100.0, genuine_zero]))
+                self.assertEqual(result.ending_equity.iloc[0], 0.0)
+                self.assertEqual(result.period_return.iloc[0], -1.0)
+
+    def test_nonzero_equity_underflow_at_initial_or_intermediate_observation_is_rejected(self):
+        tiny_positive = Fraction(1, 10 ** 400)
+        for values in [[tiny_positive, 100.0], [100.0, tiny_positive, 50.0]]:
+            with self.subTest(values=values):
+                with self.assertRaisesRegex(ValueError, 'underflow to float64 zero'):
+                    calculate_time_based_returns(equity(values))
+
+    def test_ordinary_positive_equity_values_keep_existing_returns(self):
+        for values in [[100, 150, 75], [100.0, 150.0, 75.0]]:
+            with self.subTest(values=values):
+                result = calculate_time_based_returns(equity(values))
+                self.assertEqual(result.period_return.tolist(), [.5, -.5])
+                self.assertEqual(result.starting_equity.tolist(), [100.0, 150.0])
+                self.assertEqual(result.ending_equity.tolist(), [150.0, 75.0])
 
     def test_zero_before_a_subsequent_observation_is_rejected(self):
         for values in [[100, 0, 0], [100, 0, 100], [0, 100]]:
