@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-04 — Stage 5.17 time-based returns and Sharpe / Sortino
+
+- Accepted decision 009; added `analytics/risk_adjusted.py` with simple consecutive-equity returns and a summary that reuses them. All four paths retain 8,760 hourly periods from 8,761 observations, including cash zeros/final OPEN marks. Explicit conventions: 8,760 periods/year, zero hourly rf/MAR, sample-std Sharpe, all-period downside Sortino. Added 57 tests; all 454 pass (397 existing + 57 new).
+- Actual BTC Sharpe/Sortino: EMA GROSS -0.0654209479 / -0.0955348305; EMA NET -0.9029552504 / -1.3087247421; Buy-and-Hold GROSS -0.4873945323 / -0.6833501112; NET -0.4908162375 / -0.6881424711. Support metrics are documented in PROJECT_STATE/README; no general superiority or statistical significance is claimed.
+- Notebook 03 adds compact summaries/previews, interpretation, assertions, and one NET hourly-return diagnostic: 96 cells (47 code / 49 Markdown), seven plots, sequential execution, no saved errors. All six previous plot sources/images, existing modules/tests, decisions 001–008, notebooks 01/02, raw data, and dependencies are unchanged. Stage 5.18 — Final Stage 5 Analytics Notebook / Report is recommended but not started; no Stage 6 work.
+
 ## 2026-10-04 — Stage 5.16 benchmark comparison
 
 - Accepted decision 008 and added two reusable Buy-and-Hold APIs in `analytics/benchmark.py`: first-OPEN purchase, independent Stage 4 GROSS/NET accounting, Stage 5.11 CLOSE equity, and existing portfolio-drawdown helpers. NET incurs one actual entry fee/slippage; no final exit is fabricated. Added 38 tests; all 397 pass (359 existing + 38 new).
