@@ -1,10 +1,16 @@
 # Changelog
 
+## 2026-10-04 — Stage 5.11 reusable candle-level mark-to-market equity
+
+- Implemented decision 006 in `analytics/equity.py` with independent pure GROSS/NET helpers, the exact 11-column N + 1 path, canonical accounting reuse, OPEN-before-CLOSE event ordering, and OPEN marking without hypothetical liquidation costs or duplicated paid fees.
+- Added 47 synthetic tests; all 304 tests pass. The unchanged 8,760-candle BTC flow produces 8,761 rows per path and marks final OPEN trade 78 at CLOSE 83,616.2 USDT: GROSS equity 9,451.485313939314 / NET 7,490.776562851941 USDT under the established research cost assumptions. All 77 CLOSED exits reconcile per path.
+- Updated current-stage documentation. Stage 4, existing analytics/tests, decisions 001–006, notebooks, raw data, and dependencies remain unchanged. Scope is candle-close, long-only, single-position, all-in accounting; portfolio drawdown and Stage 5.12 notebook integration remain deferred.
+
 ## 2026-10-04 — Stage 5.10 candle-level portfolio equity contract
 
 - Added decision 006 defining an initial-before-fill point plus one raw CLOSE mark per candle, OPEN-fill-before-CLOSE ordering, shared-OPEN EXIT then ENTRY, independent canonical GROSS/NET sources, and incurred-cost semantics without hypothetical liquidation costs.
 - Finalized future pure APIs, the exact 11-column path/initial row, validation/timezone/no-lookahead rules, OPEN/final-fill cases, flat realized-capital reconciliation, a worked example, and the candle-close risk limitation. Updated stage documentation; implementation remains pending Stage 5.11 approval.
-- All 257 existing tests pass. Production code, tests, all notebooks, raw data, dependencies, and decisions 001–005 are unchanged. No equity/portfolio-drawdown code or BTC mark-to-market results were added; no commit made.
+- All 257 existing tests pass. Production code, tests, all notebooks, raw data, dependencies, and decisions 001–005 are unchanged. No equity/portfolio-drawdown code or BTC mark-to-market results were added.
 
 ## 2026-10-04 — Stage 5.9 trade duration and exposure notebook integration
 
