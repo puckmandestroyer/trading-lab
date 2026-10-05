@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-05 — Stage 6.2 — Generic Strategy Signal Validation
+
+- Added `backtest/strategy_validation.py` with pure `validate_strategy_output(candles, strategy_output)`: decision 010 canonical fields, strict alignment, elapsed-hour availability, and integer/state-machine validation; returns an independent full output with diagnostics preserved.
+- Added 48 synthetic unittest methods covering contract/edge cases, EMA compatibility, DST, and preservation. All 506 tests pass (458 existing + 48 new). Pipeline, execution, EMA, existing tests, decisions, notebooks, dependencies, data, and Stage 5 financial logic remain unchanged. Stage 6.3 awaits approval and is not started; Stage 7 has not started.
+
 ## 2026-10-05 — Stage 6.1 — Generic Strategy / Backtest Contract
 
 - Accepted decision 010: canonical strategy fields, candle/index alignment, desired-state transitions, next-OPEN/final-candle rules, optional diagnostics, causality responsibilities, future acceptance cases, and frozen EMA regression references.
