@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-05 — Stage 6.5 — EMA Exact Regression / Compatibility
+
+- Added `tests/test_ema_generic_regression.py`: the frozen local BTC snapshot/hash passes exact legacy/generic EMA strategy, execution, ledger, GROSS/NET accounting, and MTM parity. Existing Stage 5 trade, drawdown, time/exposure, risk-adjusted, and benchmark references pass with unchanged tolerances; the final trade remains OPEN.
+- All 16 new regression methods ran with zero failures, errors, or skips; the full suite passed once with 562 tests (546 existing + 16 new). No production modules, old tests, decisions, notebooks, raw data, or dependencies changed; no download, notebook execution, or EMA wrapper migration. Stage 6.6 awaits approval and has not started; Stage 7 has not started.
+
 ## 2026-10-05 — Stage 6.4 — Generic End-to-End Backtest Integration
 
 - Added `run_backtest_pipeline(...)` in `backtest/pipeline.py`: call-order-only composition of generic execution, ledger, and independent GROSS/NET accounting, returning exactly `execution`, `trades`, `gross_results`, and `net_results`. Existing helpers own all schemas, validation, and financial mathematics; final no-fill/OPEN rules are preserved.
