@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-05 — Stage 6.3 — Generic Execution Pipeline
+
+- Added `run_execution_pipeline(candles, strategy_output)` in `backtest/pipeline.py`, delegating canonical validation and existing next-OPEN execution. Returns the exact six-column execution output, uses authoritative candle OPEN values, ignores diagnostics, preserves inputs, and checks composition postconditions.
+- Added 25 synthetic unittest methods; all 531 tests pass (506 existing + 25 new). Direct-helper parity, final no-fill rules, namespace collisions, delegation, preservation, and prefix behavior pass. Existing EMA pipeline/alignment helper, execution, validator, EMA strategy, old tests, decisions, notebooks, dependencies, data, and Stage 5 financial logic are unchanged. Stage 6.4 awaits approval and is not started; Stage 7 has not started.
+
 ## 2026-10-05 — Stage 6.2 — Generic Strategy Signal Validation
 
 - Added `backtest/strategy_validation.py` with pure `validate_strategy_output(candles, strategy_output)`: decision 010 canonical fields, strict alignment, elapsed-hour availability, and integer/state-machine validation; returns an independent full output with diagnostics preserved.

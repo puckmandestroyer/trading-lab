@@ -1,8 +1,9 @@
-"""Compose EMA strategy intent and next-open execution without financial fields."""
+"""Compose strategy intent and next-open execution without financial fields."""
 
 import pandas as pd
 
 from trading_lab.backtest.execution import apply_next_open_execution
+from trading_lab.backtest.strategy_validation import validate_strategy_output
 from trading_lab.strategies.ema_trend import generate_ema_signals
 
 
@@ -16,6 +17,40 @@ def _check_alignment(candles: pd.DataFrame, result: pd.DataFrame, layer: str) ->
         raise ValueError(f"{layer} output alignment error: timestamps differ from input.")
     if not result["timestamp"].is_monotonic_increasing:
         raise ValueError(f"{layer} output alignment error: timestamps must be chronological.")
+
+
+def run_execution_pipeline(
+    candles: pd.DataFrame,
+    strategy_output: pd.DataFrame,
+) -> pd.DataFrame:
+    """Validate supplied strategy intent and return next-OPEN execution only.
+
+    Decision 010 validation owns canonical fields, alignment, availability,
+    and desired state. The existing execution helper owns continuous hourly
+    timing, fill OPEN validation, executed state, and final-row no-fill rules.
+    Candles need timestamp/open; no close, indicators, or warm-up are required.
+
+    Return the helper's exact timestamp, open, signal, execution_time,
+    execution_price, executed_position schema with its dtypes and index.
+    Market OPEN always comes from candles. Only the validated strategy signal
+    is transferred; arbitrary diagnostics stay in the separate strategy frame.
+    Preserve both inputs and replace any candle signal only on a local copy.
+    No strategy generation, trade ledger, or financial calculation occurs.
+    """
+    validated = validate_strategy_output(candles, strategy_output)
+
+    # Keep market data authoritative, including when a strategy diagnostic is
+    # also named open. Missing OPEN is left to the execution helper to reject.
+    execution_input = candles.copy(deep=True)
+    execution_input["signal"] = validated["signal"]
+    execution = apply_next_open_execution(execution_input)
+
+    _check_alignment(candles, execution, "Execution")
+    if not execution["signal"].equals(validated["signal"]):
+        raise ValueError("Execution output changed strategy signals.")
+    if not execution["open"].equals(candles["open"]):
+        raise ValueError("Execution output changed market OPEN values.")
+    return execution
 
 
 def run_ema_execution_pipeline(
