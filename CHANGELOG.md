@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-05 — Stage 6.1 — Generic Strategy / Backtest Contract
+
+- Accepted decision 010: canonical strategy fields, candle/index alignment, desired-state transitions, next-OPEN/final-candle rules, optional diagnostics, causality responsibilities, future acceptance cases, and frozen EMA regression references.
+- Documentation only; production code, tests, notebooks, dependencies, data, and decisions 001–009 are unchanged. All 458 existing tests pass; no new tests. Stage 5 remains COMPLETE; Stage 6.2 awaits owner approval and is not started. Stage 7 has not started.
+
 ## 2026-10-04 — Stage 5.18 final Stage 5 analytics report
 
 - Consolidated notebook 03 using existing outputs: setup, four-portfolio headline comparison, EMA behavior, integrated interpretation, limitations, and one final audit checking financial/risk/time references, raw data, and 31 report-source DataFrames.

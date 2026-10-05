@@ -6,7 +6,11 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 ## Current stage
 
-Stage 5 — Analytics COMPLETED. Stage 5.18 — Final Stage 5 Analytics Notebook / Report completed.
+Stage 6 — Generic Backtesting Engine.
+
+Stage 6.1 — Generic Strategy / Backtest Contract completed (documentation only).
+
+Stage 5 — Analytics remains COMPLETE and frozen at `a3fde091be234fd78d216f6338752a810fa117f0` (`Complete Stage 5 analytics report`).
 
 ## Completed
 
@@ -169,13 +173,16 @@ Stage 5 — Analytics COMPLETED. Stage 5.18 — Final Stage 5 Analytics Notebook
 - Stage 5.18 consolidated notebook 03 into the final Stage 5 report: research setup, four-portfolio headline comparison, EMA trade behavior, integrated interpretation, limitations, and one final regression/preservation audit. Tables and explanations reuse existing helper outputs; no financial formulas or production APIs changed.
 - All 51 code cells executed sequentially without saved errors: 104 total cells, 53 Markdown, seven plots. All seven existing plot sources/images remain byte-identical; no plot was added. All 458 existing tests pass; no new tests, production modules, decisions, dependencies, or project files were added. Stage 5 is complete; Stage 6 has not started.
 
+- Stage 6.1 accepted [decision 010](decisions/010_generic_strategy_backtest_contract.md), defining canonical strategy fields, strict candle/index alignment, desired-state transitions, next-OPEN timing, optional diagnostics, causality responsibilities, and the frozen EMA regression gate.
+- This contract-only milestone changes no production code, tests, notebooks, dependencies, data, or decisions 001–009. The existing 458-test baseline is preserved. Stage 6.2 awaits owner approval; Stage 7 has not started.
+
 ## Final Stage 5 analytics report
 
 Notebook 03 brings together CLOSED-trade performance, realized-capital drawdown, duration/exposure, candle-level MTM equity, candle-close portfolio drawdown, Buy-and-Hold comparison, time-based returns, volatility, and Sharpe/Sortino. Its final report reads existing outputs for setup, a seven-row/four-portfolio comparison, EMA behavior, costs, benchmark opportunity cost, drawdown, time, and risk-adjusted interpretation. Explicit limitations cover this single BTC sample, fixed modeled costs, hourly marks, final OPEN positions, and absent out-of-sample validation.
 
 The final audit checks the 8,760-candle snapshot, 78 executed entries / 77 exits, 77 CLOSED / one final OPEN trade, all four 8,761-observation equity paths and 8,760-return clocks, financial/risk/time references, raw CSV hash, and preservation of 31 report-source DataFrames. All seven existing plot sources/images and earlier calculations are preserved. The notebook has 104 cells (51 code / 53 Markdown), sequential execution, and no saved errors. All 458 existing tests pass; Stage 5.18 adds no tests or metric logic. Production code/tests, decisions, notebooks 01/02, raw data, and dependencies are unchanged.
 
-Stage 5 — Analytics is complete. Review and commit Stage 5.18 first; Stage 6 awaits explicit owner approval and has not started.
+Stage 5 — Analytics remains complete and frozen at the committed Stage 5.18 baseline. Stage 6.1 now defines the generic strategy/backtest contract; Stage 6.2 awaits owner approval.
 
 ## Reusable time-based returns and risk-adjusted metrics
 
@@ -211,7 +218,7 @@ Percentages label return/variability fields; Sharpe/Sortino are dimensionless ra
 
 Sharpe measures reward relative to total variability; Sortino measures reward relative to deviations below MAR. Signs here are relative to zero hourly return. EMA NET finishes with slightly more equity than NET Buy-and-Hold but has more negative ratios; compounded final wealth and arithmetic return relative to variability answer different questions. Results depend on interval, annualization, costs, exposure, and sample window, and establish neither general superiority nor statistical significance.
 
-Notebook 03 snapshots all four equity sources before calling the reusable helpers, displays one compact eight-row comparison and representative first/flat/invested/final return previews, and retains one transparent NET hourly-return scatter plot. Its final Stage 5.18 report brings the notebook to 104 cells (51 code / 53 Markdown), executed sequentially without errors, with seven plots and all seven prior plot sources/images unchanged. Assertions check all 8,760 periods, full clocks, spot formulas, cash zeros, final OPEN marks, actual summary references, all four equity sources, candles, and raw CSV hash. The 61 Stage 5.17 tests cover these contracts, synthetic conventions/degenerate cases, strict validation/DST/preservation/causal prefixes, and actual EMA/benchmark integration. All 458 tests pass. Stage 5.18 preserves production code/tests, decisions, notebooks 01/02, raw data, and dependencies; Stage 5 is complete and Stage 6 remains pending approval.
+Notebook 03 snapshots all four equity sources before calling the reusable helpers, displays one compact eight-row comparison and representative first/flat/invested/final return previews, and retains one transparent NET hourly-return scatter plot. Its final Stage 5.18 report brings the notebook to 104 cells (51 code / 53 Markdown), executed sequentially without errors, with seven plots and all seven prior plot sources/images unchanged. Assertions check all 8,760 periods, full clocks, spot formulas, cash zeros, final OPEN marks, actual summary references, all four equity sources, candles, and raw CSV hash. The 61 Stage 5.17 tests cover these contracts, synthetic conventions/degenerate cases, strict validation/DST/preservation/causal prefixes, and actual EMA/benchmark integration. All 458 tests pass. Stage 5.18 preserves production code/tests, decisions, notebooks 01/02, raw data, and dependencies; Stage 5 remains complete; Stage 6.1 is contract-only and Stage 6.2 remains pending approval.
 
 ## Reusable Buy-and-Hold benchmark comparison
 
@@ -236,7 +243,7 @@ The unchanged BTC snapshot starts at `2025-10-01 00:00 UTC`, first OPEN 114,051.
 
 EMA minus benchmark final equity is GROSS +2,120.017226389085 USDT / NET +170.292861096195 USDT; total marked return differences are +21.2001722639 / +1.7029286110 percentage points. Whole-window return means `final equity / initial equity - 1`, not hourly returns or annualization. All four paths lose capital in this declining-BTC sample: EMA's relative advantage does not prove general superiority. Both benchmark paths finish OPEN; no liquidation is fabricated.
 
-Notebook 03 uses helper outputs for the tables and existing equity-comparison plot, with reference assertions for rows, full valuation-time alignment, first-OPEN timing, final OPEN marks, benchmark drawdowns, unchanged EMA/candle inputs, and raw CSV hash. The final Stage 5.18 report preserves the benchmark and time-based analytics sections: 104 cells (51 code / 53 Markdown), seven plots, sequential execution, no saved errors, and all seven prior plot sources/images unchanged. The 38 benchmark tests include exact schemas, delegated sizing/costs, paid-once/no-exit behavior, zero-cost equality, validation, input/output independence, causal prefixes, existing drawdown integration, and actual BTC alignment. All 458 tests pass, including these unchanged 38 benchmark tests. Decision 009 supplies time-based returns and Sharpe/Sortino; Stage 6 remains unimplemented.
+Notebook 03 uses helper outputs for the tables and existing equity-comparison plot, with reference assertions for rows, full valuation-time alignment, first-OPEN timing, final OPEN marks, benchmark drawdowns, unchanged EMA/candle inputs, and raw CSV hash. The final Stage 5.18 report preserves the benchmark and time-based analytics sections: 104 cells (51 code / 53 Markdown), seven plots, sequential execution, no saved errors, and all seven prior plot sources/images unchanged. The 38 benchmark tests include exact schemas, delegated sizing/costs, paid-once/no-exit behavior, zero-cost equality, validation, input/output independence, causal prefixes, existing drawdown integration, and actual BTC alignment. All 458 tests pass, including these unchanged 38 benchmark tests. Decision 009 supplies time-based returns and Sharpe/Sortino; Stage 6.1 defines the contract only; generic execution implementation remains deferred.
 
 ## Reusable candle-close portfolio drawdown
 
@@ -428,7 +435,9 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Stage 5 — Analytics is complete, including the Stage 5.18 final notebook/report. Notebook 03 consolidates the existing analytics into setup, portfolio and trade-behavior tables, integrated interpretation, limitations, and a final regression/preservation audit. All 104 cells (51 code / 53 Markdown) executed sequentially without errors; all seven existing plot sources/images and financial results are unchanged. All 458 existing tests pass, including 61 Stage 5.17 tests; no tests or metric logic were added. Unsafe nonzero-to-zero float64 equity underflow remains rejected. Production code/tests, decisions, notebooks 01/02, raw data, and dependencies are preserved. Review and commit Stage 5.18 first; Stage 6 awaits explicit owner approval and has not started.
+Stage 6.1 completed [decision 010](decisions/010_generic_strategy_backtest_contract.md). The canonical strategy fields are `timestamp`, `signal_time`, `signal`, and `desired_position`; execution remains long-only, spot, single-position, and next-candle-OPEN. Strategy diagnostics and warm-up stay strategy-specific. No validator, pipeline refactor, compatibility wrapper, or new strategy is implemented.
+
+Stage 5 is COMPLETE and remains the frozen EMA regression baseline: 458 tests and notebook 03 with 104 cells (51 code / 53 Markdown), seven plots, sequential execution, and no saved errors. Production code, tests, notebooks, dependencies, data, and decisions 001–009 are unchanged. Stage 6.2 — Generic Strategy Signal Validation awaits owner approval and has not started. Stage 7 has not started.
 
 ## Not implemented yet
 
@@ -447,11 +456,9 @@ Stage 5 — Analytics is complete, including the Stage 5.18 final notebook/repor
 
 ## Next milestone
 
-Review and commit the completed Stage 5.18 notebook/report and documentation.
+Stage 6.2 — Generic Strategy Signal Validation, after explicit owner approval. Implement only the canonical-field, alignment, availability, and desired-state validation specified in decision 010, with focused synthetic cases and input preservation.
 
-Stage 6 awaits explicit owner approval after that review and commit. It has not started; no Stage 6 files, implementation plans, or architecture assumptions are added here.
-
-No processed dataset or reusable preprocessing module is needed yet. Keep strategy generation and execution separate; no strategy classes or framework are needed.
+Stage 6.2 has not started. Pipeline refactoring and later Stage 6 milestones remain deferred; Stage 7 has not started.
 
 ## Backtesting execution contract
 
