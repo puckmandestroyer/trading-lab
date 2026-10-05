@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-05 — Stage 6.7 — Final Stage 6 Audit + Docs
+
+- Stage 6 is COMPLETE. Final contract/API, architecture, linear commit-chain, and exact 12-file scope audits passed. All 104 Stage 6 methods and the full 562-test suite passed with zero failures, errors, or skips; real BTC exact EMA regression and frozen Stage 5 implementation/references are preserved.
+- Audited committed notebook 04's saved state: 23 cells, counts 1–11, zero errors, one image. Neither notebook 03 nor 04 was re-executed. Corrected stale current-state documentation; no production code, test, notebook, decision, dependency, data, or financial-formula changes. Stage 7 — Risk Manager + Position Sizing has not started and awaits explicit owner approval.
+
 ## 2026-10-05 — Stage 6.6 — Generic Backtest Notebook
 
 - Added and executed `notebooks/04_generic_backtest_engine.ipynb`: 23 cells (11 code / 12 Markdown), sequential counts 1–11, zero saved errors, and one embedded equity plot. Demonstrates existing EMA intent → generic execution/ledger/independent GROSS/NET accounting, separate equity helpers, and a tiny synthetic non-EMA contract example; frozen sanity and preservation checks pass.
