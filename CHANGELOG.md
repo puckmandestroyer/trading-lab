@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-05 — Stage 6.6 — Generic Backtest Notebook
+
+- Added and executed `notebooks/04_generic_backtest_engine.ipynb`: 23 cells (11 code / 12 Markdown), sequential counts 1–11, zero saved errors, and one embedded equity plot. Demonstrates existing EMA intent → generic execution/ledger/independent GROSS/NET accounting, separate equity helpers, and a tiny synthetic non-EMA contract example; frozen sanity and preservation checks pass.
+- Updated notebook/project documentation. All 562 existing tests passed once; no new tests, production modules, dependencies, or financial formulas. Earlier notebooks including frozen notebook 03, `.py` placeholders, old tests, decisions, and raw data are unchanged. Only notebook 04 was executed; no download or external API call. Stage 6.7 awaits approval and has not started; Stage 7 has not started.
+
 ## 2026-10-05 — Stage 6.5 — EMA Exact Regression / Compatibility
 
 - Added `tests/test_ema_generic_regression.py`: the frozen local BTC snapshot/hash passes exact legacy/generic EMA strategy, execution, ledger, GROSS/NET accounting, and MTM parity. Existing Stage 5 trade, drawdown, time/exposure, risk-adjusted, and benchmark references pass with unchanged tolerances; the final trade remains OPEN.

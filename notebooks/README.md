@@ -10,4 +10,8 @@ Read original datasets from `../data/raw/` and save cleaned copies to `../data/p
 
 When experimental code becomes stable and reusable, move it into `src/trading_lab/`. Notebook checkpoints are ignored by Git. Review notebook outputs for secrets before saving or sharing them.
 
+`04_generic_backtest_engine.ipynb` demonstrates the generic strategy → validation/execution → ledger → independent GROSS/NET accounting architecture. It uses the existing EMA20/50 strategy plus a tiny synthetic, contract-only non-EMA example; existing equity helpers compose downstream. It contains 23 cells (11 code / 12 Markdown), compact previews/summaries, and one candle-close GROSS/NET equity plot. All code cells execute sequentially without saved errors.
+
+Notebook 04 reads only the frozen local `data/raw/BTCUSDT_1h.csv` through the existing loader and stops clearly if it is missing; it never downloads replacement data. It checks frozen references and input/raw-file preservation. Notebook 03 remains the frozen Stage 5 analytics report and was neither modified nor executed during Stage 6.6.
+
 The five existing `.py` research placeholders are preserved unchanged. Their filenames do not indicate implemented strategies or comparison functionality.
