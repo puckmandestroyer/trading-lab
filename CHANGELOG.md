@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-05 — Stage 6.4 — Generic End-to-End Backtest Integration
+
+- Added `run_backtest_pipeline(...)` in `backtest/pipeline.py`: call-order-only composition of generic execution, ledger, and independent GROSS/NET accounting, returning exactly `execution`, `trades`, `gross_results`, and `net_results`. Existing helpers own all schemas, validation, and financial mathematics; final no-fill/OPEN rules are preserved.
+- Added 15 synthetic unittest methods; the full suite passed once with 546 tests (531 existing + 15 new). Non-EMA intent, exact helper parity, costs/compounding, diagnostics, error propagation, preservation, and index/timezone cases pass. Existing pipeline functions, lower layers, EMA, analytics, old tests, decisions, notebooks, dependencies, data, and Stage 5 logic are unchanged. No new BTC scenario or notebook execution. Stage 6.5 awaits approval and has not started; Stage 7 has not started.
+
 ## 2026-10-05 — Stage 6.3 — Generic Execution Pipeline
 
 - Added `run_execution_pipeline(candles, strategy_output)` in `backtest/pipeline.py`, delegating canonical validation and existing next-OPEN execution. Returns the exact six-column execution output, uses authoritative candle OPEN values, ignores diagnostics, preserves inputs, and checks composition postconditions.

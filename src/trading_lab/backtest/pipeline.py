@@ -1,9 +1,12 @@
-"""Compose strategy intent and next-open execution without financial fields."""
+"""Compose strategy intent, execution, and existing trade-accounting helpers."""
 
 import pandas as pd
 
+from trading_lab.backtest.costs import calculate_trade_results_with_costs
 from trading_lab.backtest.execution import apply_next_open_execution
+from trading_lab.backtest.performance import calculate_trade_results
 from trading_lab.backtest.strategy_validation import validate_strategy_output
+from trading_lab.backtest.trades import build_trade_ledger
 from trading_lab.strategies.ema_trend import generate_ema_signals
 
 
@@ -51,6 +54,42 @@ def run_execution_pipeline(
     if not execution["open"].equals(candles["open"]):
         raise ValueError("Execution output changed market OPEN values.")
     return execution
+
+
+def run_backtest_pipeline(
+    candles: pd.DataFrame,
+    strategy_output: pd.DataFrame,
+    initial_capital: float = 10_000.0,
+    fee_rate: float = 0.0,
+    slippage_rate: float = 0.0,
+) -> dict:
+    """Compose supplied strategy intent through independent GROSS/NET accounting.
+
+    Own call order only: generic execution, trade ledger, gross accounting,
+    then cost-aware net accounting. Pass parameters unchanged; existing helpers
+    own all validation, schemas, timing, pairing, and financial calculations.
+    Return their exact outputs as execution, trades, gross_results, net_results.
+
+    Preserve inputs and ignore strategy diagnostics through generic execution.
+    Final unexecuted signals create no fills; executed positions may remain
+    OPEN with entry-only accounting. No terminal close, valuation, analytics,
+    or strategy generation occurs. Lower-layer ValueErrors propagate directly.
+    """
+    execution = run_execution_pipeline(candles, strategy_output)
+    trades = build_trade_ledger(execution)
+    gross_results = calculate_trade_results(trades, initial_capital=initial_capital)
+    net_results = calculate_trade_results_with_costs(
+        trades,
+        initial_capital=initial_capital,
+        fee_rate=fee_rate,
+        slippage_rate=slippage_rate,
+    )
+    return {
+        "execution": execution,
+        "trades": trades,
+        "gross_results": gross_results,
+        "net_results": net_results,
+    }
 
 
 def run_ema_execution_pipeline(
