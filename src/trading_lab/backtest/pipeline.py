@@ -62,6 +62,7 @@ def run_backtest_pipeline(
     initial_capital: float = 10_000.0,
     fee_rate: float = 0.0,
     slippage_rate: float = 0.0,
+    position_fraction=1.0,
 ) -> dict:
     """Compose supplied strategy intent through independent GROSS/NET accounting.
 
@@ -70,6 +71,11 @@ def run_backtest_pipeline(
     own all validation, schemas, timing, pairing, and financial calculations.
     Return their exact outputs as execution, trades, gross_results, net_results.
 
+    position_fraction is a run-level capital-allocation parameter forwarded
+    unchanged to both independent accounting paths; default 1.0 preserves
+    full allocation. Strategy intent, execution, and the ledger are unaffected.
+    Equity and analytics remain downstream, outside the four-key return.
+
     Preserve inputs and ignore strategy diagnostics through generic execution.
     Final unexecuted signals create no fills; executed positions may remain
     OPEN with entry-only accounting. No terminal close, valuation, analytics,
@@ -77,12 +83,15 @@ def run_backtest_pipeline(
     """
     execution = run_execution_pipeline(candles, strategy_output)
     trades = build_trade_ledger(execution)
-    gross_results = calculate_trade_results(trades, initial_capital=initial_capital)
+    gross_results = calculate_trade_results(
+        trades, initial_capital=initial_capital, position_fraction=position_fraction,
+    )
     net_results = calculate_trade_results_with_costs(
         trades,
         initial_capital=initial_capital,
         fee_rate=fee_rate,
         slippage_rate=slippage_rate,
+        position_fraction=position_fraction,
     )
     return {
         "execution": execution,

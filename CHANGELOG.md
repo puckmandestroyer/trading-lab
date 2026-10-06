@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-06 — Stage 7.6 — Generic Backtest Integration
+
+- Added final positional-or-keyword `position_fraction=1.0` to the generic pipeline, always forwarding the same value unchanged to independent GROSS/NET accounting. The pipeline remains call-order-only, with no risk import, sizing, or fraction validation. Strategy/execution/ledger behavior, four return keys, schemas, and exact default compatibility are preserved; reserve-aware equity remains optional downstream.
+- All 24 new synthetic pipeline tests, 15 retained generic pipeline tests, 25 GROSS sizing tests, 33 NET sizing tests, and 31 partial-equity tests pass; the full suite passed once with 710 tests (686 existing + 24 new), zero failures, errors, or skips. Frozen Stage 6 references/tolerances, lower production layers, decisions, notebooks, dependencies, and data are unchanged; no notebook execution. Stage 7.7 — Exact Regression + Analytics Compatibility awaits explicit owner approval and has not started. The broad partial analytics audit and Stage 7 notebook remain pending.
+
 ## 2026-10-06 — Stage 7.5 — MTM Equity / Reserve Cash
 
 - Made candle-CLOSE GROSS/NET equity reserve-aware using canonical quantity, basis, and total capital. GROSS spend is quantity times entry price; NET spend includes effective entry value and the paid entry fee. Reserve stays cash while LONG; actual exit capital remains authoritative. Existing public APIs, eleven-column schema, dtypes, timing, unrealized semantics, and exact all-in compatibility are preserved; no hypothetical liquidation costs.

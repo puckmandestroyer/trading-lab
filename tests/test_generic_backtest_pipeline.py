@@ -37,14 +37,17 @@ def closed_example(**kwargs):
 
 
 def direct_composition(candles, strategy, initial_capital=10_000.0,
-                       fee_rate=0.0, slippage_rate=0.0):
+                       fee_rate=0.0, slippage_rate=0.0, position_fraction=1.0):
     """Independent helper calls are the authoritative expected DataFrames."""
     execution = run_execution_pipeline(candles, strategy)
     trades = build_trade_ledger(execution)
-    gross = calculate_trade_results(trades, initial_capital=initial_capital)
+    gross = calculate_trade_results(
+        trades, initial_capital=initial_capital, position_fraction=position_fraction,
+    )
     net = calculate_trade_results_with_costs(
         trades, initial_capital=initial_capital,
         fee_rate=fee_rate, slippage_rate=slippage_rate,
+        position_fraction=position_fraction,
     )
     return dict(execution=execution, trades=trades, gross_results=gross, net_results=net)
 
@@ -210,7 +213,7 @@ class GenericBacktestPipelineTests(unittest.TestCase):
         trades = pd.DataFrame({"ledger_helper": [2]})
         gross = pd.DataFrame({"gross_helper": [3]})
         net = pd.DataFrame({"net_helper": [4]})
-        capital, fee, slippage = 1234, 0.001, 0.0005
+        capital, fee, slippage, fraction = 1234, 0.001, 0.0005, 0.37
         calls = []
 
         def execute(market, intent):
@@ -224,25 +227,27 @@ class GenericBacktestPipelineTests(unittest.TestCase):
             self.assertIs(rows, execution)
             return trades
 
-        def account_gross(rows, *, initial_capital):
+        def account_gross(rows, *, initial_capital, position_fraction):
             calls.append("gross_results")
             self.assertIs(rows, trades)
             self.assertIs(initial_capital, capital)
+            self.assertIs(position_fraction, fraction)
             return gross
 
-        def account_net(rows, *, initial_capital, fee_rate, slippage_rate):
+        def account_net(rows, *, initial_capital, fee_rate, slippage_rate, position_fraction):
             calls.append("net_results")
             self.assertIs(rows, trades)
             self.assertIs(initial_capital, capital)
             self.assertIs(fee_rate, fee)
             self.assertIs(slippage_rate, slippage)
+            self.assertIs(position_fraction, fraction)
             return net
 
         with patch("trading_lab.backtest.pipeline.run_execution_pipeline", side_effect=execute) as executor, \
              patch("trading_lab.backtest.pipeline.build_trade_ledger", side_effect=pair) as ledger, \
              patch("trading_lab.backtest.pipeline.calculate_trade_results", side_effect=account_gross) as gross_helper, \
              patch("trading_lab.backtest.pipeline.calculate_trade_results_with_costs", side_effect=account_net) as net_helper:
-            result = run_backtest_pipeline(candles, strategy, capital, fee, slippage)
+            result = run_backtest_pipeline(candles, strategy, capital, fee, slippage, fraction)
             for helper in (executor, ledger, gross_helper, net_helper):
                 helper.assert_called_once()
         self.assertEqual(calls, RESULT_KEYS)
