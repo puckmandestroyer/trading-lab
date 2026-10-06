@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-06 — Stage 7.2 — Position Sizing Core
+
+- Added `risk/position_sizing.py` with `calculate_position_budget(capital_before, position_fraction=1.0) -> float`: current-capital budgeting, fraction `(0, 1]`, default 1.0, and a positive finite Python float result. Rejects bools, non-scalars, invalid numeric values, unsafe conversion overflow/underflow, and zero-underflow products without coercion or clamping.
+- Added 35 synthetic scalar unittest methods; targeted tests and the full 597-test suite (562 existing + 35 new) passed with zero failures, errors, or skips. No accounting/pipeline/equity integration, existing production/test/decision/notebook/dependency/data changes, or notebook execution. Stage 7.3 — GROSS Accounting Integration awaits explicit owner approval and has not started.
+
 ## 2026-10-06 — Stage 7.1 — Risk & Position Sizing Contract
 
 - Accepted Decision 011: a fixed current-capital allocation fraction in `(0, 1]`, default 1.0, reserve-cash/OPEN semantics, and an exact Stage 6 compatibility requirement. Strategy owns intent, risk returns a budget, execution owns fills, and accounting calculates quantity/costs/PnL; equity must retain reserve cash.
