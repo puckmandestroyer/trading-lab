@@ -1,9 +1,11 @@
-"""Sequential closed-trade accounting with full allocation and no trading costs."""
+"""Sequential closed-trade accounting with fixed allocation and no trading costs."""
 
 from math import isfinite
 from numbers import Integral, Real
 
 import pandas as pd
+
+from trading_lab.risk.position_sizing import calculate_position_budget
 
 
 def _positive_number(value, label: str) -> float:
@@ -22,6 +24,7 @@ def _positive_number(value, label: str) -> float:
 def calculate_trade_results(
     trades: pd.DataFrame,
     initial_capital: float = 10_000.0,
+    position_fraction=1.0,
 ) -> pd.DataFrame:
     """Append realized accounting to the Stage 4.5 ledger without changing it.
 
@@ -34,16 +37,20 @@ def calculate_trade_results(
     trade_return, gross_pnl, capital_after. Preserve input context and index;
     omit optional columns. Financial fields are float64, including empty output.
 
-    Model: one long spot trade at a time, allocating 100% of current capital,
-    with no leverage, borrowing, fees, commissions, slippage, or lot rounding.
-    quantity = capital_before / entry_price. For CLOSED trades:
-    trade_return = exit_price / entry_price - 1 (a decimal, not percent);
+    Model: one long spot trade at a time, allocating position_fraction of
+    current total capital; default 1.0 preserves all-in behavior. No leverage,
+    borrowing, fees, commissions, slippage, or lot rounding. The risk helper
+    validates the fraction and returns the budget; quantity = budget / entry_price.
+    Unallocated cash is derived as capital_before - quantity * entry_price,
+    not stored as a new column. For CLOSED trades:
+    trade_return = exit_price / entry_price - 1 (raw position return, not scaled);
     gross_pnl = quantity * (exit_price - entry_price);
     capital_after = capital_before + gross_pnl, then compound into the next trade.
 
     OPEN trades receive capital_before and quantity only; the three realized
-    fields stay NaN. capital_before describes funds BEFORE entering, not cash
-    remaining after allocation. No open-trade valuation or equity curve exists.
+    fields stay NaN. capital_before describes TOTAL funds BEFORE entering,
+    not the budget or remaining cash. No open-trade valuation or equity curve
+    is calculated here.
     Prices/capital use quote-currency units; quantity uses base-asset units.
     No strategy, execution, pairing, files, APIs, or persistence are involved.
     """
@@ -73,6 +80,8 @@ def calculate_trade_results(
     result = trades[required].copy()
     financial_columns = ["capital_before", "quantity", "trade_return", "gross_pnl", "capital_after"]
     if trades.empty:
+        # Public sizing parameters must be valid even when there are no entries.
+        calculate_position_budget(capital, position_fraction)
         # An empty ledger may have unspecified object dtypes. Return a stable
         # schema while retaining datetime/timezone dtypes when supplied.
         result["trade_id"] = result["trade_id"].astype("int64")
@@ -113,7 +122,8 @@ def calculate_trade_results(
             raise ValueError("CLOSED trades must have both exit_time and exit_price.")
 
         capital_before = capital
-        quantity = capital_before / entry_price
+        position_budget = calculate_position_budget(capital_before, position_fraction)
+        quantity = position_budget / entry_price
         if not isfinite(quantity) or quantity < 0 or (capital_before > 0 and quantity == 0):
             raise ValueError("Calculated quantity is non-finite, negative, or underflows to zero.")
         if row.status == "OPEN":

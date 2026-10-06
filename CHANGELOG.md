@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-06 — Stage 7.3 — GROSS Accounting Integration
+
+- Added trailing `position_fraction=1.0` to `calculate_trade_results(...)`, delegating current-capital budgets to the unchanged sizing helper, including empty-ledger validation. Partial quantities/PnL compound total capital; raw position-return semantics, eleven-column schema, derived reserve, and OPEN behavior are preserved.
+- All 25 new synthetic tests, 27 unchanged GROSS tests, and 35 sizing-core tests pass; the full suite passed once with 622 tests (597 existing + 25 new), zero failures, errors, or skips. Exact default/full-allocation parity and frozen Stage 6 EMA regression remain green without tolerance changes. NET, equity, pipeline, risk core, execution/ledger, old tests, decisions, notebooks, dependencies, and data are unchanged; no notebook execution. End-to-end partial allocation remains pending. Stage 7.4 — NET Accounting Integration awaits explicit owner approval and has not started.
+
 ## 2026-10-06 — Stage 7.2 — Position Sizing Core
 
 - Added `risk/position_sizing.py` with `calculate_position_budget(capital_before, position_fraction=1.0) -> float`: current-capital budgeting, fraction `(0, 1]`, default 1.0, and a positive finite Python float result. Rejects bools, non-scalars, invalid numeric values, unsafe conversion overflow/underflow, and zero-underflow products without coercion or clamping.
