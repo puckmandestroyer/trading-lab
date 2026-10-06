@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-06 — Stage 7.7 — Exact Regression + Analytics Compatibility
+
+- Preserved the complete frozen full-allocation Stage 5/6 regression and added canonical real-BTC 50%/25% analytics snapshots. Execution/ledger, duration/exposure, and benchmark paths remain fraction-independent; reserve-aware partial equity works with existing trade, drawdown, hourly-return, and Sharpe/Sortino analytics. No production code, analytics API/formula, old test, decision, notebook, dependency, or data changes; no download or notebook execution.
+- All 37 new regression methods and every required targeted module pass; the full suite passed once with 747 tests (710 existing + 37 new), zero failures, errors, or skips. Existing references and tolerances are unchanged. Stage 7.8 — Position Sizing Notebook awaits explicit owner approval and has not started.
+
 ## 2026-10-06 — Stage 7.6 — Generic Backtest Integration
 
 - Added final positional-or-keyword `position_fraction=1.0` to the generic pipeline, always forwarding the same value unchanged to independent GROSS/NET accounting. The pipeline remains call-order-only, with no risk import, sizing, or fraction validation. Strategy/execution/ledger behavior, four return keys, schemas, and exact default compatibility are preserved; reserve-aware equity remains optional downstream.
