@@ -1,9 +1,13 @@
-"""Candle-CLOSE portfolio equity under decision 006's all-in long spot model.
+"""Candle-CLOSE portfolio equity from canonical long spot accounting.
 
-Accounting supplies quantities and actual exit capital; this module only carries
-cash/holdings and marks them. NET marks include costs already incurred, never a
-hypothetical future sale. A CLOSE observation precedes next-OPEN fills even when
-the two phases share a timestamp. No input is modified or accounting rerun.
+Accounting supplies quantities and total capital. Unallocated capital stays cash:
+GROSS spend is quantity * entry_price; NET spend is quantity * effective entry
+price + entry_fee. Reserve is total entry capital minus that canonical spend and
+stays cash while LONG. Equity is cash plus the raw-CLOSE marked position; actual
+exit capital remains authoritative. NET never charges entry fees again or adds
+hypothetical liquidation costs. Full allocation stays exactly compatible. A CLOSE
+observation precedes next-OPEN fills even when the phases share a timestamp.
+No input is modified, quantity resized, or risk/accounting policy rerun.
 """
 
 from datetime import datetime, timedelta
@@ -165,10 +169,18 @@ def _events(results, label, basis_column, capital_column, candles, clock, initia
         entry_value = quantity * basis
         if not isfinite(entry_value) or entry_value <= 0:
             raise ValueError("Canonical entry allocation must be finite and positive.")
-        if not isclose(entry_value + entry_fee, capital, rel_tol=1e-12, abs_tol=0.0):
-            raise ValueError("Canonical quantity, entry basis, and entry fee must reconcile with all-in capital.")
+        entry_spend = entry_value + entry_fee
+        if not isfinite(entry_spend):
+            raise ValueError("Canonical entry spend must be finite and positive.")
+        if isclose(entry_spend, capital, rel_tol=1e-12, abs_tol=0.0):
+            # Preserve exact all-in paths despite self-financing arithmetic dust.
+            reserve = 0.0
+        elif entry_spend > capital:
+            raise ValueError("Canonical entry spend must reconcile without exceeding capital_before.")
+        else:
+            reserve = capital - entry_spend
 
-        entries[entry.value] = (int(trade_id), quantity, basis)
+        entries[entry.value] = (int(trade_id), quantity, basis, reserve)
         if status == "OPEN":
             if not pd.isna(raw_exit) or not pd.isna(raw_after):
                 raise ValueError(f"OPEN exit_time and {capital_column} must remain missing.")
@@ -203,8 +215,7 @@ def _calculate_equity(candles, results, candle_interval, initial_capital, label)
             cash = exits[stamp.value]
             quantity, basis, active_id = 0.0, 0.0, None
         if stamp.value in entries:
-            active_id, quantity, basis = entries[stamp.value]
-            cash = 0.0
+            active_id, quantity, basis, cash = entries[stamp.value]
         position = int(active_id is not None)
         value = quantity * mark if position else 0.0
         unrealized = quantity * (mark - basis) if position else 0.0
@@ -234,7 +245,9 @@ def calculate_gross_mark_to_market_equity(
 
     Require timestamp/close candles and canonical trade_id, status, entry_time,
     entry_price, exit_time, capital_before, quantity, capital_after. Reuse entry
-    quantity and actual exit cash; mark OPEN holdings at raw CLOSE with no sale.
+    quantity and actual exit cash; derive reserve from capital_before minus
+    quantity * entry_price. Retain that cash and mark OPEN holdings at raw CLOSE
+    with no sale. Full allocation preserves exact zero reserve.
     Fills must match supplied OPENs. Return decision 006's exact 11 columns on a
     RangeIndex, preserving inputs and a coherent naive or same-zone-aware clock.
     """
@@ -252,6 +265,8 @@ def calculate_net_mark_to_market_equity(
     Require trade_id, status, entry_time, exit_time, capital_before, quantity,
     effective_entry_price, entry_fee, net_capital_after. Entry fee is already
     paid through canonical sizing; unrealized PnL is price-based, excluding it.
+    Derive reserve from capital_before minus quantity * effective_entry_price
+    minus entry_fee; retain that cash while marking the canonical quantity.
     Use canonical actual exit cash, never hypothetical liquidation costs or a
     GROSS-minus-costs approximation. Schema, timing, and purity match GROSS.
     """

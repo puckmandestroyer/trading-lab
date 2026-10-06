@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-06 — Stage 7.5 — MTM Equity / Reserve Cash
+
+- Made candle-CLOSE GROSS/NET equity reserve-aware using canonical quantity, basis, and total capital. GROSS spend is quantity times entry price; NET spend includes effective entry value and the paid entry fee. Reserve stays cash while LONG; actual exit capital remains authoritative. Existing public APIs, eleven-column schema, dtypes, timing, unrealized semantics, and exact all-in compatibility are preserved; no hypothetical liquidation costs.
+- All 31 new synthetic partial-equity tests, 47 unchanged equity tests, 25 GROSS sizing tests, and 33 NET sizing tests pass; the full suite passed once with 686 tests (655 existing + 31 new), zero failures, errors, or skips. Frozen Stage 6 MTM references are unchanged. Accounting, risk, pipeline, other analytics, old tests, decisions, notebooks, dependencies, and data are unchanged; no notebook execution. Generic fraction forwarding and the broad partial analytics audit remain pending. Stage 7.6 — Generic Backtest Integration awaits explicit owner approval and has not started.
+
 ## 2026-10-06 — Stage 7.4 — NET Accounting Integration
 
 - Added trailing `position_fraction=1.0` to `calculate_trade_results_with_costs(...)`, delegating current NET capital budgets to the unchanged sizing helper, including empty-ledger validation. Entry notional plus entry fee equals the budget; reserve is derived outside the position and total NET capital compounds independently. Existing costs, return meanings, twenty-column schema, and OPEN behavior are preserved.
