@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-06 — Stage 7.1 — Risk & Position Sizing Contract
+
+- Accepted Decision 011: a fixed current-capital allocation fraction in `(0, 1]`, default 1.0, reserve-cash/OPEN semantics, and an exact Stage 6 compatibility requirement. Strategy owns intent, risk returns a budget, execution owns fills, and accounting calculates quantity/costs/PnL; equity must retain reserve cash.
+- Recorded the accepted 7.1–7.9 roadmap and updated current project documentation. No production, test, notebook, decisions 001–010, dependency, or data changes; no notebook execution. Stage 7.2 — Position Sizing Core awaits explicit owner approval and has not started.
+
 ## 2026-10-05 — Stage 6.7 — Final Stage 6 Audit + Docs
 
 - Stage 6 is COMPLETE. Final contract/API, architecture, linear commit-chain, and exact 12-file scope audits passed. All 104 Stage 6 methods and the full 562-test suite passed with zero failures, errors, or skips; real BTC exact EMA regression and frozen Stage 5 implementation/references are preserved.
