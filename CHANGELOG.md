@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-06 — Stage 7.4 — NET Accounting Integration
+
+- Added trailing `position_fraction=1.0` to `calculate_trade_results_with_costs(...)`, delegating current NET capital budgets to the unchanged sizing helper, including empty-ledger validation. Entry notional plus entry fee equals the budget; reserve is derived outside the position and total NET capital compounds independently. Existing costs, return meanings, twenty-column schema, and OPEN behavior are preserved.
+- All 33 new synthetic tests, 21 unchanged transaction-cost tests, 25 GROSS sizing tests, and 35 sizing-core tests pass; the full suite passed once with 655 tests (622 existing + 33 new), zero failures, errors, or skips. Exact default/full-allocation parity and frozen Stage 6 EMA regression remain green without tolerance changes. GROSS, risk core, equity, pipeline, execution/ledger, old tests, decisions, notebooks, dependencies, and data are unchanged; no notebook execution. End-to-end partial-allocation analytics remain pending. Stage 7.5 — MTM Equity / Reserve Cash awaits explicit owner approval and has not started.
+
 ## 2026-10-06 — Stage 7.3 — GROSS Accounting Integration
 
 - Added trailing `position_fraction=1.0` to `calculate_trade_results(...)`, delegating current-capital budgets to the unchanged sizing helper, including empty-ledger validation. Partial quantities/PnL compound total capital; raw position-return semantics, eleven-column schema, derived reserve, and OPEN behavior are preserved.
