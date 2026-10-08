@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-08 — Stage 8.2 — Time Split / OOS Evaluation Core
+
+- Added the focused `trading_lab.robustness` package with default 70/30 chronological splitting, a generic cold-start segment evaluator, and independent train/OOS orchestration. Reuses existing pipeline/equity APIs with the same initial capital/settings per segment, no state/capital/trade carry, no cross-boundary fill, and no terminal liquidation.
+- Added 56 methods covering split validation/preservation, exact composition, delegation/error propagation, boundary/state isolation, and local frozen BTC cold starts: 6,132 IS / 2,628 OOS, first OOS `2026-06-13 12:00 UTC`. Targeted robustness (56), generic sizing pipeline (24), partial equity (31), and frozen EMA regression (16) pass. Full suite passed once: 803 tests (747 existing + 56 new), zero failures/errors/skips; `git diff --check` passes.
+- Existing production/test files, backtest/analytics formulas, frozen references/tolerances, decisions, notebooks, dependencies, data, and results are preserved. No parameter grid, walk-forward, summary analytics, or optimization. Stage 8 remains incomplete; Stage 8.3 — Parameter Sensitivity Engine awaits explicit owner approval and has not started.
+
 ## 2026-10-08 — Stage 8.1 — Strategy Robustness Contract
 
 - Accepted Decision 012: chronological IS/OOS, no look-ahead, cold-start/warm-up inside every independent segment, sensitivity rather than optimization, and fixed-parameter walk-forward research. Isolated peaks warn of fragility; no automatic deployment or magic score. Existing BTC data is already-seen research data.

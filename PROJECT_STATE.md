@@ -8,6 +8,8 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 Stage 8 — Strategy Robustness has STARTED.
 
+Stage 8.2 — Time Split / OOS Evaluation Core is COMPLETE. Stage 8 remains incomplete.
+
 Stage 8.1 — Robustness Contract is COMPLETE; Decision 012 is Accepted.
 
 Stage 7 — Risk Manager + Position Sizing is COMPLETE.
@@ -242,6 +244,8 @@ Milestone entries retain the status and test totals recorded at their completion
 
 - Stage 8.1 accepted [Decision 012 — Strategy Robustness Contract](decisions/012_strategy_robustness.md) and the 8.1–8.8 roadmap. Documentation/architecture only; no production, test, notebook, dependency, or data changes. The full existing suite passed once: 747 tests, zero failures, errors, or skips. Stage 8.2 awaits explicit owner approval and has not started.
 
+- Stage 8.2 added the focused `trading_lab.robustness` package: chronological splitting, generic cold-start segment evaluation, and independent IS/OOS orchestration using existing pipeline/equity APIs. The 56 new methods and all 803 suite tests pass with zero failures, errors, or skips; frozen Stage 5–7 references/tolerances, existing modules/tests, decisions, notebooks, dependencies, and data are unchanged. Stage 8.3 awaits explicit owner approval and has not started.
+
 ## Strategy robustness contract
 
 [Decision 012](decisions/012_strategy_robustness.md) is Accepted. Stage 8 evaluates stability across chronological periods and nearby strategy parameters; it does not optimize profit, choose one best EMA pair, or deploy parameters automatically. Splits use predefined chronological half-open windows, never random splitting or shuffled candles, with no look-ahead. EMA20/50 with 50 warm-up candles remains the existing research baseline, not an optimal or validated strategy.
@@ -250,20 +254,53 @@ Every independent IS/OOS/walk-forward segment cold-starts FLAT with its own init
 
 Sensitivity uses a predefined valid finite grid with consistent window/cost/sizing assumptions; isolated peaks are robustness warnings. Normally hold the accepted fixed `position_fraction` constant while varying time or strategy parameters. Fixed-parameter walk-forward supports the initial research; adaptive selection is not required, and no magic robustness score is introduced. Independent windows do not imply continuous compounded equity. Existing undefined metrics remain honest. The BTC snapshot is already-seen research data; chronological OOS checks within it are methodological evidence, not pristine unseen validation.
 
-Stage 8.1 adds no code, API, package, tests, notebooks, or dependencies. Stage 7 remains COMPLETE and Stage 5 analytics remains frozen. Current suite: 747 tests, zero failures, errors, or skips; `git diff --check` passes. Only Decision 012 and project documentation change.
+Stage 8.1 was documentation/architecture only; Stage 8.2 now implements the split/evaluation core below. Stage 7 remains COMPLETE and Stage 5 analytics remains frozen. Current suite: 803 tests, zero failures, errors, or skips; `git diff --check` passes. Decision 012 remains unchanged; parameter sensitivity, walk-forward, and summary diagnostics are not implemented yet.
 
 ## Accepted Stage 8 roadmap
 
 | Milestone | Status |
 | --- | --- |
 | 8.1 — Robustness Contract | Complete; Decision 012 Accepted, documentation/architecture only. |
-| 8.2 — Time Split / OOS Evaluation Core | Awaits explicit owner approval; not started. |
-| 8.3 — Parameter Sensitivity Engine | Planned; not started. |
+| 8.2 — Time Split / OOS Evaluation Core | Complete; chronological split and independent cold-start evaluation. |
+| 8.3 — Parameter Sensitivity Engine | Awaits explicit owner approval; not started. |
 | 8.4 — Parameter Stability Analysis | Planned; not started. |
 | 8.5 — Walk-Forward Evaluation | Planned; not started. |
 | 8.6 — Robustness Summary / Diagnostics | Planned; not started. |
 | 8.7 — Strategy Robustness Notebook | Planned; not started. |
 | 8.8 — Final Stage 8 Audit + Docs | Planned; not started. |
+
+## Chronological split / OOS evaluation core
+
+Stage 8.2 exposes exactly three helpers from `trading_lab.robustness`, implemented in `src/trading_lab/robustness/evaluation.py`:
+
+```python
+chronological_split(
+    candles: pd.DataFrame, train_fraction: float = 0.70,
+) -> tuple[pd.DataFrame, pd.DataFrame]
+
+evaluate_strategy_segment(
+    candles: pd.DataFrame, strategy_generator, *, candle_interval,
+    strategy_kwargs=None, initial_capital: float = 10_000.0,
+    fee_rate: float = 0.0, slippage_rate: float = 0.0, position_fraction=1.0,
+) -> dict
+
+evaluate_train_test_split(
+    candles: pd.DataFrame, strategy_generator, *, candle_interval,
+    train_fraction: float = 0.70, strategy_kwargs=None,
+    initial_capital: float = 10_000.0, fee_rate: float = 0.0,
+    slippage_rate: float = 0.0, position_fraction=1.0,
+) -> dict
+```
+
+The default is a chronological 70/30 row-count split, with IS size `int(len(candles) * validated_fraction)`. It validates strictly increasing datetime timestamps and a finite real fraction in `(0, 1)` producing two non-empty sides. There is no overlap, gap, sorting, shuffling, or index reset; copies retain all columns, dtypes, timezone, values, and original labels. The frozen local 8,760-row BTC snapshot splits into **6,132 IS / 2,628 OOS** rows; the first OOS timestamp is **2026-06-13 12:00 UTC**. This is a research default, not a universal financial standard.
+
+The generic strategy callable receives only an independent copy of its supplied segment and unchanged keyword settings. EMA initializes from that segment's first CLOSE and performs its own 50-candle warm-up inside the observation window. The evaluator delegates to the existing generic pipeline and reserve-aware GROSS/NET equity; financial validation, formulas, and schemas remain authoritative downstream. It returns exactly `strategy_output`, `execution`, `trades`, `gross_results`, `net_results`, `gross_equity`, `net_equity`, in that order, without summary analytics or added financial-frame metadata.
+
+Train/OOS orchestration returns exactly `split_index`, `split_timestamp`, `in_sample`, `out_of_sample`, in that order. Both evaluations receive the same strategy, interval, kwargs, initial capital, fees, slippage, and fraction. Each starts independently from the configured initial capital; no desired/executed state, signal, OPEN trade, ledger, or capital carries across. A final IS signal cannot use the first OOS OPEN. Segment-end OPEN positions remain unliquidated with missing realized exits and existing final-CLOSE equity marks.
+
+All 56 new `tests/test_robustness_oos.py` methods pass: 18 split, 23 segment, 11 train/OOS, and four local BTC integration cases. They cover exact composition/schema parity, arguments/validation/error propagation, copy preservation, boundary fills, independent state/capital, and exact seven-frame invariance when only the other segment's prices change. The BTC integration verifies cold-start EMA and deterministic local-only composition without downloading data or claiming profitability/robustness. Compatibility gates pass: generic sizing pipeline 24, partial equity 31, frozen EMA regression 16. The full suite passed once: **803 tests (747 existing + 56 new), zero failures, errors, or skips**. Existing files/data and all frozen references/tolerances are preserved; no notebooks were executed.
+
+No parameter grid/ranking, optimization, stability analysis, walk-forward windows, benchmark/summary diagnostics, or robustness score is implemented. Stage 8.2 is complete; Stage 8.3 requires explicit owner approval and has not started.
 
 ## Risk and position-sizing contract
 
@@ -275,7 +312,7 @@ Reserve belongs to the same portfolio. Stage 7.5 MTM equity now includes reserve
 
 Default fraction 1.0 must reproduce Stage 6 exactly, including quantities, independent GROSS/NET accounting, equity, and downstream analytics, without loosening existing tolerances. Frozen BTC reference values are recorded in Decision 011. Prefer existing accounting schemas and derive reserve safely from canonical entry accounting; any necessary new field requires an explicit reviewed decision.
 
-The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Production code, tests, decisions 001–011, notebooks 01–04, dependencies, and data are preserved; the current full suite remains 747 tests.
+The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Production code, tests, decisions 001–011, notebooks 01–04, dependencies, and data are preserved; the current full suite passes with 803 tests.
 
 ## Position sizing core
 
@@ -408,7 +445,7 @@ Default/explicit 1.0 exact-frame compatibility and all frozen Stage 5/6 referenc
 
 Every required targeted module and the full suite passed with zero failures, errors, or skips. No tests were added in Stage 7.9. Committed notebook 05 validates as JSON with 32 cells (15 code / 17 Markdown), sequential counts 1–15, zero saved errors, and two embedded plots; its accepted Stage 7.8 execution was inspected without re-execution or modification. It demonstrates local-only fixed-allocation budgeting, compounding, reserve-aware GROSS/NET equity, drawdown, Sharpe/Sortino, and unchanged time exposure through production APIs. Source/test/decision/notebook/dependency bytes and all data/result files were preserved during this audit; `git diff --check` passes. Closure changes only the allowed documentation.
 
-The completed scope remains single-asset LONG/FLAT fixed allocation: no leverage, shorts, dynamic sizing, stop-based sizing, multi-asset or multi-bot allocation. Stage 8 has started with the accepted Stage 8.1 contract; Stage 8.2 awaits explicit owner approval and has not started.
+The completed scope remains single-asset LONG/FLAT fixed allocation: no leverage, shorts, dynamic sizing, stop-based sizing, multi-asset or multi-bot allocation. Stage 8.2 is complete under the accepted Stage 8.1 contract; Stage 8.3 awaits explicit owner approval and has not started.
 
 ## Final Stage 6 audit
 
@@ -755,9 +792,9 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Stage 8.1 — Robustness Contract is COMPLETE / Accepted. Current focus: Stage 8.2 — Time Split / OOS Evaluation Core, awaiting explicit owner approval; not started.
+Stage 8.2 — Time Split / OOS Evaluation Core is COMPLETE. Current focus: Stage 8.3 — Parameter Sensitivity Engine, awaiting explicit owner approval; not started.
 
-Decision 012 and the accepted 8.1–8.8 roadmap govern the next work. Stage 7 fixed allocation, reserve-aware equity, analytics regression, and notebook 05 remain the completed baseline. No Stage 8 code, tests, or notebooks have been created.
+Decision 012 and the accepted 8.1–8.8 roadmap govern the next work. Stage 7 remains COMPLETE; its fixed allocation, reserve-aware equity, analytics regression, and notebook 05 are preserved. Stage 8.2 adds only the focused robustness package and tests; no Stage 8 notebook exists yet.
 
 ## Not implemented yet
 
@@ -776,9 +813,9 @@ Decision 012 and the accepted 8.1–8.8 roadmap govern the next work. Stage 7 fi
 
 ## Next milestone
 
-Stage 8.2 — Time Split / OOS Evaluation Core, only after explicit owner approval. Implement self-contained chronological evaluation under Decision 012, reusing the existing backtest and analytics layers.
+Stage 8.3 — Parameter Sensitivity Engine, only after explicit owner approval, under Decision 012's predefined-grid descriptive research contract.
 
-Stage 8.2 has not started.
+Stage 8.3 has not started.
 
 ## Backtesting execution contract
 
@@ -816,11 +853,11 @@ Cost-aware accounting reuses the unchanged gross helper's ledger/capital validat
 
 The backtest review notebook observes the fixed EMA20/EMA50, 50-candle-warm-up sample without parameter optimization, out-of-sample testing, or walk-forward validation. Its realized-capital and realized-drawdown plots use completed trade number; the separate Stage 5.12 MTM plot uses valuation time and observes within-trade CLOSE movements, including final OPEN value. TIME remains ledger-based holding-time/exposure. No general conclusion about strategy quality follows from this single sample.
 
-Decision 003 is implemented by the Stage 5.2 summary helpers. Arithmetic average trade return is distinct from compounded strategy return. Quote-currency expectancy describes this sample, not future profit. NaN and +infinity are intentional for documented undefined/unbounded cases. These summaries aggregate existing accounting outputs; full ledger/capital consistency validation stays upstream. Decision 004 is implemented separately by the Stage 5.5 drawdown helpers, using only explicit initial capital and CLOSED capital-after observations, and presented in notebook 03 by Stage 5.6. They can miss losses while trades are open and understate full mark-to-market drawdown. Candle-close portfolio drawdown, Buy-and-Hold comparison, and decision 009 time-based returns/Sharpe/Sortino with explicit support volatility/annualization are now available separately. Decision-010 strategy-output validation is implemented; statistical strategy validation, including out-of-sample and walk-forward methods, remains deferred.
+Decision 003 is implemented by the Stage 5.2 summary helpers. Arithmetic average trade return is distinct from compounded strategy return. Quote-currency expectancy describes this sample, not future profit. NaN and +infinity are intentional for documented undefined/unbounded cases. These summaries aggregate existing accounting outputs; full ledger/capital consistency validation stays upstream. Decision 004 is implemented separately by the Stage 5.5 drawdown helpers, using only explicit initial capital and CLOSED capital-after observations, and presented in notebook 03 by Stage 5.6. They can miss losses while trades are open and understate full mark-to-market drawdown. Candle-close portfolio drawdown, Buy-and-Hold comparison, and decision 009 time-based returns/Sharpe/Sortino with explicit support volatility/annualization are now available separately. Decision-010 strategy-output validation is implemented; Stage 8.2 now provides independent IS/OOS composition; parameter stability, walk-forward evaluation, and statistical robustness conclusions remain deferred.
 
 Decision 005 is implemented by the Stage 5.8 ledger-based time helpers, independently of accounting, and presented in notebook 03 by Stage 5.9. OPEN exclusion from realized PnL/drawdown does not imply exclusion from observed time in market. Exposure is binary holding time for the current single-position, non-overlapping ledger. Overlapping/multi-position, leverage/size-weighted, gross/net, and short exposure remain outside this contract; no market-value risk metric is introduced.
 
-Decision 006 is implemented by `analytics/equity.py` and presented in notebook 03 by Stage 5.12. Stage 7 extends its original all-in model with fixed partial allocation and reserve cash. The long-only single-asset model still excludes shorts, multi-asset/multi-position allocation, leverage, funding/borrow interest, dynamic fees, liquidation value, and position-size-weighted exposure. Decision 007 is implemented by `analytics/portfolio_drawdown.py` and presented in notebook 03 by Stage 5.15. Decision 009 now supplies time-based equity returns, Sharpe/Sortino, and their support volatility/downside measures. Drawdown duration/recovery, further equity-return metrics, CAGR/Calmar, alpha/beta, intrabar MAE/MFE, out-of-sample testing, and walk-forward validation remain deferred. The CLOSE path can still miss intrabar risk; no continuous-time or tick-level drawdown claim is supported.
+Decision 006 is implemented by `analytics/equity.py` and presented in notebook 03 by Stage 5.12. Stage 7 extends its original all-in model with fixed partial allocation and reserve cash. The long-only single-asset model still excludes shorts, multi-asset/multi-position allocation, leverage, funding/borrow interest, dynamic fees, liquidation value, and position-size-weighted exposure. Decision 007 is implemented by `analytics/portfolio_drawdown.py` and presented in notebook 03 by Stage 5.15. Decision 009 now supplies time-based equity returns, Sharpe/Sortino, and their support volatility/downside measures. Drawdown duration/recovery, further equity-return metrics, CAGR/Calmar, alpha/beta, intrabar MAE/MFE, further robustness diagnostics, and walk-forward validation remain deferred. Independent IS/OOS composition is available through Stage 8.2. The CLOSE path can still miss intrabar risk; no continuous-time or tick-level drawdown claim is supported.
 
 ## Existing files preserved
 
