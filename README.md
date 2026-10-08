@@ -6,7 +6,7 @@ The long-term goal is to support historical market data, multiple independent st
 
 ## Current stage
 
-**Stage 8 — Strategy Robustness is in progress. Stage 8.3 — Parameter Sensitivity Engine is complete; Stage 8 remains incomplete. Stage 8.1 remains Accepted as [Decision 012](decisions/012_strategy_robustness.md).**
+**Stage 8 — Strategy Robustness is in progress. Stage 8.4 — Parameter Stability Analysis is complete; Stage 8 remains incomplete. Stage 8.1 remains Accepted as [Decision 012](decisions/012_strategy_robustness.md).**
 
 **Stage 7 — Risk Manager + Position Sizing is COMPLETE after Stage 7.9 — Final Stage 7 Audit + Docs.**
 
@@ -20,9 +20,13 @@ Stage 8.2 provides `chronological_split(...)`, `evaluate_strategy_segment(...)`,
 
 Stage 8.3 adds `from trading_lab.robustness import evaluate_parameter_sensitivity`. It evaluates a caller-supplied Mapping of ordered candidate sequences through the same cold-start IS/OOS engine, sequentially preserving Cartesian input order. One descriptive row per combination reports canonical trade counts, exposure, final marked equity, portfolio drawdown, Sharpe, and Sortino through existing analytics; NaN/infinite metrics stay unchanged. Common window, cost, sizing, and analytics settings stay fixed across the grid. The existing wildcard-import exports remain unchanged for compatibility.
 
-Canonical BTC research uses fast spans [10, 15, 20, 25, 30] × slow spans [40, 50, 60, 70, 80]: **5 × 5 = 25 EMA combinations**, common warm-up 50, including EMA20/50. This explicit research grid is descriptive: no ranking or best pair is selected, production EMA defaults are unchanged, and no optimizer exists. Every row uses 6,132 IS / 2,628 OOS candles, first OOS `2026-06-13 12:00 UTC`; the EMA20/50 row matches direct evaluation. The 36 new tests and full **839-test** suite pass with zero failures, errors, or skips. Stability analysis, walk-forward, broader summary diagnostics, and a robustness score remain unimplemented.
+Canonical BTC research uses fast spans [10, 15, 20, 25, 30] × slow spans [40, 50, 60, 70, 80]: **5 × 5 = 25 EMA combinations**, common warm-up 50, including EMA20/50. This explicit research grid is descriptive: no ranking or best pair is selected, production EMA defaults are unchanged, and no optimizer exists. Every row uses 6,132 IS / 2,628 OOS candles, first OOS `2026-06-13 12:00 UTC`; the EMA20/50 row matches direct evaluation. All 36 Stage 8.3 tests remain green.
 
-Next focus: **Stage 8.4 — Parameter Stability Analysis**, which will study stability of the sensitivity surface. It awaits explicit owner approval and has not started. Milestone entries below retain their original status and test totals.
+Stage 8.4 adds `from trading_lab.robustness import analyze_parameter_stability`. It consumes the existing sensitivity result for one numeric metric on a complete **two-dimensional** grid, without rerunning backtests. Each cell is compared with adjacent cells in supplied level order, including diagonals, without numeric-distance weighting or edge wraparound. Neighbor counts, finite mean/sample standard deviation/min/max, absolute deltas, and local range prepare later visualization of broad plateaus and sharp local variation. NaN/infinities and every source cell remain in the surface; finite statistics exclude non-finite values. No ranking, classification threshold, magic score, parameter recommendation, or EMA default change is introduced.
+
+Canonical BTC checks cover OOS NET equity, Sharpe, and portfolio drawdown: 10/40 has three neighbors, 10/50 five, and EMA20/50 eight. All 39 new tests and the full **878-test** suite pass with zero failures, errors, or skips. Walk-forward, broader summary diagnostics, visualization, and a robustness score remain unimplemented.
+
+Next focus: **Stage 8.5 — Walk-Forward Evaluation**, awaiting explicit owner approval; not started. Milestone entries below retain their original status and test totals.
 
 - Stage 1 completed: reusable historical data collection and a validated BTCUSDT hourly snapshot.
 - Stage 2 completed: statistical market analysis of returns, volatility, volume, extreme movements, and BTC buy-and-hold drawdown in `notebooks/01_data_exploration.ipynb`.
@@ -89,6 +93,8 @@ Next focus: **Stage 8.4 — Parameter Stability Analysis**, which will study sta
 - Stage 8.2 completed: a generic chronological split/evaluation core composes independent cold-start IS/OOS through existing pipeline/equity APIs, protecting segment boundaries without state/capital carry or terminal liquidation. The frozen BTC default splits 8,760 candles into 6,132 IS / 2,628 OOS, first OOS `2026-06-13 12:00 UTC`. The 56 new methods and full 803-test suite pass; existing modules/tests, decisions, notebooks, dependencies, data, and frozen references are unchanged. Stage 8.3 awaits approval and has not started.
 
 - Stage 8.3 completed: generic deterministic parameter-grid sensitivity composes the unchanged IS/OOS core and existing analytics. Canonical BTC integration covers 25 EMA combinations and direct EMA20/50 parity without ranking, selection, or optimization. The 36 new methods and full 839-test suite pass; Stage 8.4 awaits approval and has not started.
+
+- Stage 8.4 completed: downstream-only two-dimensional local variation analysis of the sensitivity table, with supplied-order Moore adjacency, finite neighborhood statistics, preserved non-finite cells, and canonical BTC geometry. The 39 new methods and full 878-test suite pass; no ranking, classification, or score. Stage 8.5 awaits approval and has not started.
 
 Stage 7 follows accepted Decision 011: strategy decides intent, risk decides the allowed capital budget, execution owns fills, and accounting converts that budget into quantity/PnL. Direct GROSS and NET accounting now both support fixed partial allocation through the unchanged budget helper and trailing `position_fraction=1.0`. Budgets use each path's current total capital independently. NET's budget includes the entry fee; reserve stays outside the position and is derived, not stored. Schemas and return meanings are unchanged: GROSS `trade_return` is raw position return, while NET `net_trade_return` is `net_pnl / capital_before`. At zero costs and fraction 0.50, a 100 → 110 trade returns 10% on the position and 5% on portfolio capital. Default 1.0 preserves the frozen Stage 6 path. Only EMA20/50 is currently a production strategy.
 
@@ -270,7 +276,7 @@ Trading Lab/
 │   ├── strategies/        # Strategy signal generation
 │   ├── backtest/          # Fill timing, trade ledger, gross/net accounting
 │   ├── analytics/         # Trade metrics, realized drawdown, time, CLOSE equity
-│   ├── robustness/        # Cold-start IS/OOS evaluation and descriptive grids
+│   ├── robustness/        # IS/OOS, descriptive grids, and local variation
 │   ├── exchange/          # Future exchange-specific adapters
 │   ├── execution/         # Future order and execution management
 │   ├── risk/              # Future centralized risk checks
@@ -283,7 +289,7 @@ Trading Lab/
 └── scripts/               # Future small command-line utilities
 ```
 
-The data package contains `market_data.py`, the exchange package contains the public HTTP adapter `bybit_market_data.py`, the strategies package contains `ema_trend.py`, the backtest package contains `execution.py`, `pipeline.py`, `trades.py`, `performance.py`, and `costs.py`, and the analytics package contains `trade_metrics.py`, `drawdown.py`, `trade_time.py`, and `equity.py`. The robustness package contains `evaluation.py` for cold-start IS/OOS and `sensitivity.py` for descriptive parameter grids. Other application packages remain placeholders. Existing `.py` files in `notebooks/` and the top-level `strategies/` are preserved. New reusable strategy code belongs in `src/trading_lab/strategies/`.
+The data package contains `market_data.py`, the exchange package contains the public HTTP adapter `bybit_market_data.py`, the strategies package contains `ema_trend.py`, the backtest package contains `execution.py`, `pipeline.py`, `trades.py`, `performance.py`, and `costs.py`, and the analytics package contains `trade_metrics.py`, `drawdown.py`, `trade_time.py`, and `equity.py`. The robustness package contains `evaluation.py` for cold-start IS/OOS, `sensitivity.py` for descriptive parameter grids, and `stability.py` for downstream local variation. Other application packages remain placeholders. Existing `.py` files in `notebooks/` and the top-level `strategies/` are preserved. New reusable strategy code belongs in `src/trading_lab/strategies/`.
 
 ## Research and reusable code
 

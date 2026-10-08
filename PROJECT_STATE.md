@@ -8,7 +8,9 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 Stage 8 — Strategy Robustness has STARTED.
 
-Stage 8.3 — Parameter Sensitivity Engine is COMPLETE. Stage 8 remains incomplete.
+Stage 8.4 — Parameter Stability Analysis is COMPLETE. Stage 8 remains incomplete.
+
+Stage 8.3 — Parameter Sensitivity Engine remains COMPLETE and unchanged.
 
 Stage 8.2 — Time Split / OOS Evaluation Core remains COMPLETE and unchanged.
 
@@ -250,6 +252,8 @@ Milestone entries retain the status and test totals recorded at their completion
 
 - Stage 8.3 added a generic deterministic parameter-grid evaluator through the unchanged Stage 8.2 core and existing analytics. The 36 new methods and full 839-test suite pass with zero failures, errors, or skips, including the canonical 25-combination BTC research grid and direct EMA20/50 parity. No ranking, selection, optimization, or default parameter changes. Stage 8.4 awaits explicit owner approval and has not started.
 
+- Stage 8.4 added downstream-only two-dimensional parameter stability diagnostics on the existing sensitivity table, using supplied-order radius-one Moore adjacency and finite local statistics. The 39 new methods and full 878-test suite pass with zero failures, errors, or skips, including canonical BTC geometry for three OOS NET metrics. No backtest reruns, ranking, classification, threshold, or score. Stage 8.5 awaits explicit owner approval and has not started.
+
 ## Strategy robustness contract
 
 [Decision 012](decisions/012_strategy_robustness.md) is Accepted. Stage 8 evaluates stability across chronological periods and nearby strategy parameters; it does not optimize profit, choose one best EMA pair, or deploy parameters automatically. Splits use predefined chronological half-open windows, never random splitting or shuffled candles, with no look-ahead. EMA20/50 with 50 warm-up candles remains the existing research baseline, not an optimal or validated strategy.
@@ -258,7 +262,7 @@ Every independent IS/OOS/walk-forward segment cold-starts FLAT with its own init
 
 Sensitivity uses a predefined valid finite grid with consistent window/cost/sizing assumptions; isolated peaks are robustness warnings. Normally hold the accepted fixed `position_fraction` constant while varying time or strategy parameters. Fixed-parameter walk-forward supports the initial research; adaptive selection is not required, and no magic robustness score is introduced. Independent windows do not imply continuous compounded equity. Existing undefined metrics remain honest. The BTC snapshot is already-seen research data; chronological OOS checks within it are methodological evidence, not pristine unseen validation.
 
-Stage 8.1 was documentation/architecture only; Stage 8.2 implements the split/evaluation core and Stage 8.3 adds descriptive parameter sensitivity below. Stage 7 remains COMPLETE and Stage 5 analytics remains frozen. Current suite: 839 tests, zero failures, errors, or skips; `git diff --check` passes. Decision 012 remains unchanged; parameter stability, walk-forward, and broader summary diagnostics are not implemented yet.
+Stage 8.1 was documentation/architecture only; Stage 8.2 implements the split/evaluation core, Stage 8.3 adds descriptive parameter sensitivity, and Stage 8.4 analyzes local surface variation below. Stage 7 remains COMPLETE and Stage 5 analytics remains frozen. Current suite: 878 tests, zero failures, errors, or skips; `git diff --check` passes. Decision 012 remains unchanged; walk-forward and broader summary diagnostics are not implemented yet.
 
 ## Accepted Stage 8 roadmap
 
@@ -267,8 +271,8 @@ Stage 8.1 was documentation/architecture only; Stage 8.2 implements the split/ev
 | 8.1 — Robustness Contract | Complete; Decision 012 Accepted, documentation/architecture only. |
 | 8.2 — Time Split / OOS Evaluation Core | Complete; chronological split and independent cold-start evaluation. |
 | 8.3 — Parameter Sensitivity Engine | Complete; deterministic descriptive grid through the existing IS/OOS core. |
-| 8.4 — Parameter Stability Analysis | Awaits explicit owner approval; not started. |
-| 8.5 — Walk-Forward Evaluation | Planned; not started. |
+| 8.4 — Parameter Stability Analysis | Complete; downstream-only two-dimensional local variation diagnostics. |
+| 8.5 — Walk-Forward Evaluation | Awaits explicit owner approval; not started. |
 | 8.6 — Robustness Summary / Diagnostics | Planned; not started. |
 | 8.7 — Strategy Robustness Notebook | Planned; not started. |
 | 8.8 — Final Stage 8 Audit + Docs | Planned; not started. |
@@ -304,7 +308,7 @@ Train/OOS orchestration returns exactly `split_index`, `split_timestamp`, `in_sa
 
 All 56 new `tests/test_robustness_oos.py` methods pass: 18 split, 23 segment, 11 train/OOS, and four local BTC integration cases. They cover exact composition/schema parity, arguments/validation/error propagation, copy preservation, boundary fills, independent state/capital, and exact seven-frame invariance when only the other segment's prices change. The BTC integration verifies cold-start EMA and deterministic local-only composition without downloading data or claiming profitability/robustness. Compatibility gates pass: generic sizing pipeline 24, partial equity 31, frozen EMA regression 16. The full suite passed once: **803 tests (747 existing + 56 new), zero failures, errors, or skips**. Existing files/data and all frozen references/tolerances are preserved; no notebooks were executed.
 
-Stage 8.2 remains complete and frozen. Stage 8.3 composes it for the descriptive grid below; stability analysis, walk-forward windows, broader benchmark/summary diagnostics, and a robustness score remain unimplemented.
+Stage 8.2 remains complete and frozen. Stage 8.3 composes it for the descriptive grid, and Stage 8.4 analyzes that table downstream. Walk-forward windows, broader benchmark/summary diagnostics, and a robustness score remain unimplemented.
 
 ## Parameter sensitivity engine
 
@@ -344,7 +348,36 @@ Counts are int64; other fixed metrics are float64; parameter columns retain pand
 
 The predefined canonical research grid is fast spans **[10, 15, 20, 25, 30]** × slow spans **[40, 50, 60, 70, 80]** = **25 combinations**, with common warm-up 50 and EMA20/50 included. It is explicitly caller-supplied, never an implicit production default or recommendation. The frozen local BTC snapshot has 8,760 rows; every combination uses **6,132 IS / 2,628 OOS**, first OOS **2026-06-13 12:00 UTC**. Assumptions: initial capital 10,000, fee 0.001, slippage 0.0005, fraction 1.0, periods/year 8760, per-period risk-free/MAR zero. Costs are research assumptions, not current exchange settings. The EMA20/50 row exactly matches direct Stage 8.2 evaluation plus the same analytics.
 
-All **36 new methods** (32 synthetic/contract and four focused local BTC integration cases) pass. Compatibility gates: Stage 8.2 **56**, Stage 7 analytics regression **37**, frozen EMA regression **16**. Full suite passed once: **839 tests (803 existing + 36 new), zero failures, errors, or skips**; `git diff --check` passes. Evaluation/backtest/analytics/strategy modules, existing tests, decisions, notebooks, dependencies, data/results, and frozen references/tolerances are unchanged. Stage 7 remains COMPLETE; Stage 8 remains INCOMPLETE. Stage 8.4 — Parameter Stability Analysis awaits explicit owner approval and has not started.
+All **36 new methods** (32 synthetic/contract and four focused local BTC integration cases) pass. Compatibility gates: Stage 8.2 **56**, Stage 7 analytics regression **37**, frozen EMA regression **16**. Full suite passed once: **839 tests (803 existing + 36 new), zero failures, errors, or skips**; `git diff --check` passes. Evaluation/backtest/analytics/strategy modules, existing tests, decisions, notebooks, dependencies, data/results, and frozen references/tolerances are unchanged. Stage 8.3 remains complete and frozen; Stage 8.4 consumes its output below.
+
+## Parameter stability analysis
+
+Stage 8.4 — Parameter Stability Analysis is **COMPLETE**. The downstream-only `src/trading_lab/robustness/stability.py` API is explicitly importable from `trading_lab.robustness`:
+
+```python
+analyze_parameter_stability(sensitivity_result, metric: str) -> dict
+```
+
+It consumes an existing Stage 8.3 result with the four canonical fields, without calling sensitivity, IS/OOS evaluation, a strategy, or a backtest. This milestone requires exactly two distinct non-empty parameter names in a tuple and a non-empty DataFrame with unique columns and RangeIndex 0..N-1. Both parameter columns and one non-parameter real numeric metric must exist. Boolean/complex metrics, missing/unhashable parameter labels, and parameter names colliding with diagnostic columns are rejected. Each parameter pair must occur exactly once in a complete rectangular Cartesian grid; no missing/duplicate cells are repaired.
+
+Parameter levels are recovered in first-occurrence order, never sorted numerically or converted to strings. Adjacency means one step in each supplied axis, including diagonals: a radius-one Moore neighborhood, excluding the center and without wraparound or numeric-distance weighting. Ordinary two-dimensional corners, non-corner edges, and interiors have **3 / 5 / 8** neighbors; smaller axes retain only the cells that exist. Every source row is retained in its original order.
+
+Return keys are exactly `parameter_names`, `metric`, `parameter_levels`, `surface`, `local_stability`, in that order. `parameter_levels` maps the two names to ordered tuples. The fresh unpivoted `surface` has exactly the two parameter columns followed by the original metric. The fresh `local_stability` has the two parameter columns followed by:
+
+```text
+metric_value, neighbor_count, finite_neighbor_count,
+neighbor_mean, neighbor_std, neighbor_min, neighbor_max,
+mean_absolute_delta, max_absolute_delta,
+local_min, local_max, local_range
+```
+
+`neighbor_count` includes every geometric neighbor; `finite_neighbor_count` uses `np.isfinite`. Counts are int64, all metric/diagnostic values float64, and parameter columns retain their source dtypes. Neighbor statistics exclude the center and non-finite neighbors; standard deviation uses **ddof=1**, remaining NaN with fewer than two finite neighbors. Mean/min/max are NaN with zero finite neighbors. Absolute deltas use finite neighbors only when the center is finite; otherwise, or with no finite neighbors, they are NaN. Local min/max/range uses the finite center plus finite neighbors, or finite neighbors alone when the center is non-finite; an empty finite region yields NaN. All quantities stay in the metric's own units.
+
+Original NaN, +infinity, and -infinity remain in the surface and `metric_value`; no grid cell is dropped or filled. Inputs are preserved and repeated analysis is exact and deterministic. These diagnostics describe local similarity/variation without deciding performance direction, classifying robust/fragile regions, applying universal thresholds, ranking/selecting parameters, or creating a stability/robustness score. EMA defaults remain unchanged. Broad plateaus versus isolated variation can be interpreted later; no winner or parameter recommendation is recorded.
+
+The hash-checked local BTC integration generates the accepted Stage 8.3 **25-cell** research grid through its production API, with the unchanged fast/slow levels, warm-up 50, default 70/30 split, capital/cost/allocation/annualization assumptions above. It analyzes **OOS NET final equity, Sharpe, and maximum portfolio drawdown**. All three retain every cell; **10/40 has three neighbors, 10/50 five, and EMA20/50 eight**. EMA20/50's exact neighbors are 15/40, 15/50, 15/60, 20/40, 20/60, 25/40, 25/50, and 25/60. Across the 5×5 geometry: four corners with 3, twelve edges with 5, nine interiors with 8. No performance preference is asserted.
+
+All **39 new methods** (35 synthetic/contract, four focused BTC integration cases) pass. Unchanged compatibility gates: sensitivity **36**, OOS **56**, Stage 7 analytics regression **37**, frozen EMA regression **16**. Full suite passed once: **878 tests (839 existing + 39 new), zero failures, errors, or skips**; `git diff --check` passes. Existing evaluation/sensitivity/backtest/analytics/strategy modules, tests, decisions, notebooks, dependencies, data/results, and frozen references/tolerances are preserved. The three-name wildcard export contract stays unchanged. Stage 7 remains COMPLETE; Stage 8 remains INCOMPLETE. Stage 8.5 — Walk-Forward Evaluation awaits explicit owner approval and has not started.
 
 ## Risk and position-sizing contract
 
@@ -356,7 +389,7 @@ Reserve belongs to the same portfolio. Stage 7.5 MTM equity now includes reserve
 
 Default fraction 1.0 must reproduce Stage 6 exactly, including quantities, independent GROSS/NET accounting, equity, and downstream analytics, without loosening existing tolerances. Frozen BTC reference values are recorded in Decision 011. Prefer existing accounting schemas and derive reserve safely from canonical entry accounting; any necessary new field requires an explicit reviewed decision.
 
-The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Production code, tests, decisions 001–011, notebooks 01–04, dependencies, and data are preserved; the current full suite passes with 839 tests.
+The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Production code, tests, decisions 001–011, notebooks 01–04, dependencies, and data are preserved; the current full suite passes with 878 tests.
 
 ## Position sizing core
 
@@ -489,7 +522,7 @@ Default/explicit 1.0 exact-frame compatibility and all frozen Stage 5/6 referenc
 
 Every required targeted module and the full suite passed with zero failures, errors, or skips. No tests were added in Stage 7.9. Committed notebook 05 validates as JSON with 32 cells (15 code / 17 Markdown), sequential counts 1–15, zero saved errors, and two embedded plots; its accepted Stage 7.8 execution was inspected without re-execution or modification. It demonstrates local-only fixed-allocation budgeting, compounding, reserve-aware GROSS/NET equity, drawdown, Sharpe/Sortino, and unchanged time exposure through production APIs. Source/test/decision/notebook/dependency bytes and all data/result files were preserved during this audit; `git diff --check` passes. Closure changes only the allowed documentation.
 
-The completed scope remains single-asset LONG/FLAT fixed allocation: no leverage, shorts, dynamic sizing, stop-based sizing, multi-asset or multi-bot allocation. Stages 8.2 and 8.3 are complete under the accepted Stage 8.1 contract; Stage 8.4 awaits explicit owner approval and has not started.
+The completed scope remains single-asset LONG/FLAT fixed allocation: no leverage, shorts, dynamic sizing, stop-based sizing, multi-asset or multi-bot allocation. Stages 8.2–8.4 are complete under the accepted Stage 8.1 contract; Stage 8.5 awaits explicit owner approval and has not started.
 
 ## Final Stage 6 audit
 
@@ -836,9 +869,9 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Stage 8.3 — Parameter Sensitivity Engine is COMPLETE. Current focus: Stage 8.4 — Parameter Stability Analysis, awaiting explicit owner approval; not started.
+Stage 8.4 — Parameter Stability Analysis is COMPLETE. Current focus: Stage 8.5 — Walk-Forward Evaluation, awaiting explicit owner approval; not started.
 
-Decision 012 and the accepted 8.1–8.8 roadmap govern the next work. Stage 7 remains COMPLETE; its fixed allocation, reserve-aware equity, analytics regression, and notebook 05 are preserved. Stage 8.3 adds only descriptive grid evaluation through the Stage 8.2 core and existing analytics; no Stage 8 notebook exists yet.
+Decision 012 and the accepted 8.1–8.8 roadmap govern the next work. Stage 7 remains COMPLETE; its fixed allocation, reserve-aware equity, analytics regression, and notebook 05 are preserved. Stage 8.4 adds only local variation diagnostics downstream of the Stage 8.3 table, without backtest reruns; no Stage 8 notebook exists yet.
 
 ## Not implemented yet
 
@@ -857,9 +890,9 @@ Decision 012 and the accepted 8.1–8.8 roadmap govern the next work. Stage 7 re
 
 ## Next milestone
 
-Stage 8.4 — Parameter Stability Analysis, only after explicit owner approval, under Decision 012's stability-of-nearby-parameters research contract.
+Stage 8.5 — Walk-Forward Evaluation, only after explicit owner approval, under Decision 012's independent chronological-window research contract.
 
-Stage 8.4 has not started.
+Stage 8.5 has not started.
 
 ## Backtesting execution contract
 

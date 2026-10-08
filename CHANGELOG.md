@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-09 — Stage 8.4 — Parameter Stability Analysis
+
+- Added downstream-only analysis of one numeric metric in an existing Stage 8.3 complete two-parameter sensitivity table. Supplied-order radius-one Moore adjacency provides geometric/finite neighbor counts, mean/sample std/min/max, absolute deltas, and local min/max/range. Preserves surface NaN/infinities and all cells; no backtest reruns, ranking, selection, optimization, classification thresholds, or score.
+- Added 39 methods (35 synthetic/contract, four local BTC integration), validating exact manual neighbors and canonical EMA geometry for OOS NET equity/Sharpe/portfolio drawdown: 10/40 = 3, 10/50 = 5, 20/50 = 8 neighbors. Stability (39), sensitivity (36), OOS (56), Stage 7 analytics regression (37), and frozen EMA regression (16) pass. Full suite passed once: 878 tests (839 existing + 39 new), zero failures/errors/skips; `git diff --check` passes.
+- Explicit package import added with the existing wildcard contract preserved. Evaluation/sensitivity/backtest/analytics/strategy modules, existing tests, decisions, notebooks, dependencies, data/results, and frozen references/tolerances are unchanged. Stage 7 remains COMPLETE; Stage 8 remains incomplete. Stage 8.5 — Walk-Forward Evaluation awaits explicit owner approval and has not started.
+
 ## 2026-10-09 — Stage 8.3 — Parameter Sensitivity Engine
 
 - Added generic deterministic caller-supplied Cartesian grid evaluation through the unchanged Stage 8.2 cold-start IS/OOS core. Preserves input order, reconciles common split metadata, forwards common assumptions, and reuses canonical exposure, marked equity, portfolio drawdown, Sharpe/Sortino analytics with undefined values unchanged. No ranking, selection, optimization, or EMA default changes.
