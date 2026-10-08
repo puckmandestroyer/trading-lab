@@ -6,7 +6,7 @@ The long-term goal is to support historical market data, multiple independent st
 
 ## Current stage
 
-**Stage 8 — Strategy Robustness is in progress. Stage 8.2 — Time Split / OOS Evaluation Core is complete; Stage 8 remains incomplete. Stage 8.1 remains Accepted as [Decision 012](decisions/012_strategy_robustness.md).**
+**Stage 8 — Strategy Robustness is in progress. Stage 8.3 — Parameter Sensitivity Engine is complete; Stage 8 remains incomplete. Stage 8.1 remains Accepted as [Decision 012](decisions/012_strategy_robustness.md).**
 
 **Stage 7 — Risk Manager + Position Sizing is COMPLETE after Stage 7.9 — Final Stage 7 Audit + Docs.**
 
@@ -16,9 +16,13 @@ Stage 5 — Analytics remains COMPLETE and frozen as the existing EMA regression
 
 Stage 8 evaluates stability across chronological periods and nearby strategy parameters without turning Trading Lab into an optimizer. Decision 012 requires no look-ahead and self-contained cold-start segments with warm-up inside each window, reusing existing backtest/accounting/equity/analytics. Sensitivity and fixed-parameter walk-forward are research diagnostics; no automatic best-parameter deployment or magic robustness score is introduced. The existing BTC sample has already been seen, so its OOS checks are methodological research rather than pristine unseen validation. Stage 8.1 adds documentation only.
 
-Stage 8.2 now provides `chronological_split(...)`, `evaluate_strategy_segment(...)`, and `evaluate_train_test_split(...)` through `trading_lab.robustness`. The default 70/30 chronological row-count split preserves indices and returns independent copies. Each strategy is generated only on its own segment, with warm-up inside it; IS/OOS start independently from the same configured initial capital and carry no positions, signals, trades, or capital across the boundary. Existing generic backtest and GROSS/NET equity APIs supply unchanged financial outputs. There is no parameter optimization, walk-forward, summary analytics, or robustness score yet. All 56 new tests and the full 803-test suite pass with zero failures, errors, or skips.
+Stage 8.2 provides `chronological_split(...)`, `evaluate_strategy_segment(...)`, and `evaluate_train_test_split(...)` through `trading_lab.robustness`. The default 70/30 chronological row-count split preserves indices and returns independent copies. Each strategy is generated only on its own segment, with warm-up inside it; IS/OOS start independently from the same configured initial capital and carry no positions, signals, trades, or capital across the boundary. Existing generic backtest and GROSS/NET equity APIs supply unchanged financial outputs. All 56 Stage 8.2 tests remain green.
 
-Next focus: **Stage 8.3 — Parameter Sensitivity Engine**, awaiting explicit owner approval; not started. Milestone entries below retain their original status and test totals.
+Stage 8.3 adds `from trading_lab.robustness import evaluate_parameter_sensitivity`. It evaluates a caller-supplied Mapping of ordered candidate sequences through the same cold-start IS/OOS engine, sequentially preserving Cartesian input order. One descriptive row per combination reports canonical trade counts, exposure, final marked equity, portfolio drawdown, Sharpe, and Sortino through existing analytics; NaN/infinite metrics stay unchanged. Common window, cost, sizing, and analytics settings stay fixed across the grid. The existing wildcard-import exports remain unchanged for compatibility.
+
+Canonical BTC research uses fast spans [10, 15, 20, 25, 30] × slow spans [40, 50, 60, 70, 80]: **5 × 5 = 25 EMA combinations**, common warm-up 50, including EMA20/50. This explicit research grid is descriptive: no ranking or best pair is selected, production EMA defaults are unchanged, and no optimizer exists. Every row uses 6,132 IS / 2,628 OOS candles, first OOS `2026-06-13 12:00 UTC`; the EMA20/50 row matches direct evaluation. The 36 new tests and full **839-test** suite pass with zero failures, errors, or skips. Stability analysis, walk-forward, broader summary diagnostics, and a robustness score remain unimplemented.
+
+Next focus: **Stage 8.4 — Parameter Stability Analysis**, which will study stability of the sensitivity surface. It awaits explicit owner approval and has not started. Milestone entries below retain their original status and test totals.
 
 - Stage 1 completed: reusable historical data collection and a validated BTCUSDT hourly snapshot.
 - Stage 2 completed: statistical market analysis of returns, volatility, volume, extreme movements, and BTC buy-and-hold drawdown in `notebooks/01_data_exploration.ipynb`.
@@ -83,6 +87,8 @@ Next focus: **Stage 8.3 — Parameter Sensitivity Engine**, awaiting explicit ow
 - Stage 8.1 completed: [Decision 012](decisions/012_strategy_robustness.md) accepts the chronological/cold-start robustness contract and 8.1–8.8 roadmap. No production, test, notebook, dependency, or data changes; the unchanged full suite passes with 747 tests and zero failures, errors, or skips. Stage 8.2 awaits approval and has not started.
 
 - Stage 8.2 completed: a generic chronological split/evaluation core composes independent cold-start IS/OOS through existing pipeline/equity APIs, protecting segment boundaries without state/capital carry or terminal liquidation. The frozen BTC default splits 8,760 candles into 6,132 IS / 2,628 OOS, first OOS `2026-06-13 12:00 UTC`. The 56 new methods and full 803-test suite pass; existing modules/tests, decisions, notebooks, dependencies, data, and frozen references are unchanged. Stage 8.3 awaits approval and has not started.
+
+- Stage 8.3 completed: generic deterministic parameter-grid sensitivity composes the unchanged IS/OOS core and existing analytics. Canonical BTC integration covers 25 EMA combinations and direct EMA20/50 parity without ranking, selection, or optimization. The 36 new methods and full 839-test suite pass; Stage 8.4 awaits approval and has not started.
 
 Stage 7 follows accepted Decision 011: strategy decides intent, risk decides the allowed capital budget, execution owns fills, and accounting converts that budget into quantity/PnL. Direct GROSS and NET accounting now both support fixed partial allocation through the unchanged budget helper and trailing `position_fraction=1.0`. Budgets use each path's current total capital independently. NET's budget includes the entry fee; reserve stays outside the position and is derived, not stored. Schemas and return meanings are unchanged: GROSS `trade_return` is raw position return, while NET `net_trade_return` is `net_pnl / capital_before`. At zero costs and fraction 0.50, a 100 → 110 trade returns 10% on the position and 5% on portfolio capital. Default 1.0 preserves the frozen Stage 6 path. Only EMA20/50 is currently a production strategy.
 
@@ -264,7 +270,7 @@ Trading Lab/
 │   ├── strategies/        # Strategy signal generation
 │   ├── backtest/          # Fill timing, trade ledger, gross/net accounting
 │   ├── analytics/         # Trade metrics, realized drawdown, time, CLOSE equity
-│   ├── robustness/        # Chronological splits and cold-start IS/OOS evaluation
+│   ├── robustness/        # Cold-start IS/OOS evaluation and descriptive grids
 │   ├── exchange/          # Future exchange-specific adapters
 │   ├── execution/         # Future order and execution management
 │   ├── risk/              # Future centralized risk checks
@@ -277,7 +283,7 @@ Trading Lab/
 └── scripts/               # Future small command-line utilities
 ```
 
-The data package contains `market_data.py`, the exchange package contains the public HTTP adapter `bybit_market_data.py`, the strategies package contains `ema_trend.py`, the backtest package contains `execution.py`, `pipeline.py`, `trades.py`, `performance.py`, and `costs.py`, and the analytics package contains `trade_metrics.py`, `drawdown.py`, `trade_time.py`, and `equity.py`. The robustness package contains the focused `evaluation.py` split/evaluation core. Other application packages remain placeholders. Existing `.py` files in `notebooks/` and the top-level `strategies/` are preserved. New reusable strategy code belongs in `src/trading_lab/strategies/`.
+The data package contains `market_data.py`, the exchange package contains the public HTTP adapter `bybit_market_data.py`, the strategies package contains `ema_trend.py`, the backtest package contains `execution.py`, `pipeline.py`, `trades.py`, `performance.py`, and `costs.py`, and the analytics package contains `trade_metrics.py`, `drawdown.py`, `trade_time.py`, and `equity.py`. The robustness package contains `evaluation.py` for cold-start IS/OOS and `sensitivity.py` for descriptive parameter grids. Other application packages remain placeholders. Existing `.py` files in `notebooks/` and the top-level `strategies/` are preserved. New reusable strategy code belongs in `src/trading_lab/strategies/`.
 
 ## Research and reusable code
 

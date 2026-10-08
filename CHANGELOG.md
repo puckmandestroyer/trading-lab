@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-09 — Stage 8.3 — Parameter Sensitivity Engine
+
+- Added generic deterministic caller-supplied Cartesian grid evaluation through the unchanged Stage 8.2 cold-start IS/OOS core. Preserves input order, reconciles common split metadata, forwards common assumptions, and reuses canonical exposure, marked equity, portfolio drawdown, Sharpe/Sortino analytics with undefined values unchanged. No ranking, selection, optimization, or EMA default changes.
+- Added 36 methods (32 synthetic/contract, four local BTC integration), including the canonical 25-combination EMA research grid with fixed warm-up 50 and direct EMA20/50 parity. Sensitivity (36), Stage 8.2 (56), Stage 7 analytics regression (37), and frozen EMA regression (16) pass. Full suite passed once: 839 tests (803 existing + 36 new), zero failures/errors/skips; `git diff --check` passes.
+- Existing evaluation/backtest/analytics/strategy modules, tests, decisions, notebooks, dependencies, data/results, and frozen references/tolerances are unchanged. The new function is explicitly importable from `trading_lab.robustness`; Stage 8.2 wildcard exports are preserved. Stage 7 remains COMPLETE; Stage 8 remains incomplete. Stage 8.4 — Parameter Stability Analysis awaits explicit owner approval and has not started.
+
 ## 2026-10-08 — Stage 8.2 — Time Split / OOS Evaluation Core
 
 - Added the focused `trading_lab.robustness` package with default 70/30 chronological splitting, a generic cold-start segment evaluator, and independent train/OOS orchestration. Reuses existing pipeline/equity APIs with the same initial capital/settings per segment, no state/capital/trade carry, no cross-boundary fill, and no terminal liquidation.
