@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-09 — Stage 8.5 — Walk-Forward Evaluation
+
+- Added deterministic expanding row-count windows with fixed full, non-overlapping, gap-free tests and explicit unused-tail reporting. Independent cold-start train/test runs reuse Stage 8.2 with the same strategy/configuration and initial capital/settings, without state/trade/capital carry, cross-boundary fills, terminal liquidation, adaptive parameter selection, summary metrics, or stitched equity.
+- Added 42 methods (14 window-definition, 24 evaluation, four local BTC integration), covering exact composition, boundaries, mutable-input isolation, future-data independence, and canonical three-window EMA20/50 research: initial train 4,380 rows, tests 1,460 rows, zero tail. Walk-forward (42), stability (39), sensitivity (36), OOS (56), Stage 7 analytics regression (37), and frozen EMA regression (16) pass. Full suite passed once: 920 tests (878 existing + 42 new), zero failures/errors/skips; `git diff --check` passes.
+- Explicit imports added with the historical wildcard contract preserved. Existing evaluation/sensitivity/stability/backtest/analytics/strategy modules, existing tests, decisions, notebooks, dependencies, data/results, and frozen references/tolerances are unchanged. Stage 7 remains COMPLETE; Stage 8 remains incomplete. Stage 8.6 — Robustness Summary / Diagnostics awaits explicit owner approval and has not started.
+
 ## 2026-10-09 — Stage 8.4 — Parameter Stability Analysis
 
 - Added downstream-only analysis of one numeric metric in an existing Stage 8.3 complete two-parameter sensitivity table. Supplied-order radius-one Moore adjacency provides geometric/finite neighbor counts, mean/sample std/min/max, absolute deltas, and local min/max/range. Preserves surface NaN/infinities and all cells; no backtest reruns, ranking, selection, optimization, classification thresholds, or score.
