@@ -6,9 +6,11 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 ## Current stage
 
-Stage 7 — Risk Manager + Position Sizing.
+Stage 7 — Risk Manager + Position Sizing is COMPLETE.
 
-Stage 7.8 — Position Sizing Notebook completed.
+Stage 7.9 — Final Stage 7 Audit + Docs completed.
+
+Stage 7.8 — Position Sizing Notebook remains complete.
 
 Stage 7.7 — Exact Regression + Analytics Compatibility remains complete.
 
@@ -29,6 +31,8 @@ Stage 6 — Generic Backtesting Engine remains COMPLETE at `df72973de837ecbd4ee8
 Stage 5 — Analytics remains COMPLETE and frozen at `a3fde091be234fd78d216f6338752a810fa117f0` (`Complete Stage 5 analytics report`).
 
 ## Completed
+
+Milestone entries retain the status and test totals recorded at their completion; current status and next focus are stated separately.
 
 - Initial repository-style project structure and documentation.
 - Empty reusable Python packages and a starter Jupyter notebook.
@@ -230,9 +234,11 @@ Stage 5 — Analytics remains COMPLETE and frozen at `a3fde091be234fd78d216f6338
 - Stage 7.8 added executed educational notebook `notebooks/05_risk_position_sizing.ipynb`, comparing fixed fractions 1.0/0.50/0.25 through the existing generic pipeline, reserve-aware GROSS/NET equity, drawdown, and Sharpe/Sortino helpers. All 32 cells (15 code / 17 Markdown) are saved with sequential counts 1–15, zero errors, and two embedded plots.
 - The unchanged 37-method position-sizing regression, 16-method frozen EMA regression, and full 747-test suite pass with zero failures, errors, or skips. Frozen references, source/test/decision/dependency/data files, notebooks 01–04, and all existing `.py` placeholders are preserved. Stage 7.9 awaits explicit owner approval and has not started.
 
+- Stage 7.9 completed the final contract/API, milestone-chain, file-scope, frozen regression, and committed-notebook audit. Stage 7 — Risk Manager + Position Sizing is COMPLETE. All 185 Stage 7 test methods, the 16-method frozen EMA regression, and the full suite (run once: 747 tests) pass with zero failures, errors, or skips. Documentation only; Stage 8 — Strategy Robustness is next and has not started.
+
 ## Risk and position-sizing contract
 
-[Decision 011](decisions/011_risk_and_position_sizing.md) is Accepted. Stage 7's only planned policy is a scalar fixed `position_fraction` in `0 < position_fraction <= 1`, default `1.0`, constant for one backtest run. Reject zero, negatives, values above 1, Python/NumPy bools, non-finite values, strings, None, complex values, and non-scalars without coercion or clamping. No leverage, borrowing, or zero-allocation trade veto is introduced.
+[Decision 011](decisions/011_risk_and_position_sizing.md) is Accepted. Stage 7's implemented policy is a scalar fixed `position_fraction` in `0 < position_fraction <= 1`, default `1.0`, constant for one backtest run. Reject zero, negatives, values above 1, Python/NumPy bools, non-finite values, strings, None, complex values, and non-scalars without coercion or clamping. No leverage, borrowing, or zero-allocation trade veto is introduced.
 
 Strategy continues to decide Decision-010 intent. Risk determines the allowed budget from CURRENT portfolio capital at each actual executed entry: `position_budget = capital_before * position_fraction`; reserve is `capital_before - position_budget`. Accounting converts that budget into quantity using raw price for GROSS and the existing effective-price/entry-fee self-financing rules for NET. Risk does not calculate quantity, costs, or PnL. Execution timing, prices, signals, and ledger pairing remain unchanged.
 
@@ -250,7 +256,7 @@ Capital must be a positive finite real scalar; the fraction must satisfy `0 < po
 
 All 35 methods in `tests/test_position_sizing.py` remain unchanged and pass. Stage 7.2's full suite passed once with 597 tests (562 unchanged baseline + 35 new), zero failures, errors, or skips. Tests cover current-capital examples, Python/NumPy scalar types, invalid inputs, exact boundaries, finite float limits, conversion/product underflow, output type, and repeatability. A valid finite float capital multiplied by a fraction at most 1 cannot overflow; conversion overflow is rejected and the final budget still has an explicit finite/positive check.
 
-Stages 7.3 and 7.4 delegate GROSS and NET budgeting to this unchanged helper. Stage 7.5 adds reserve-aware equity downstream; Stage 7.6 forwards the fraction through the generic pipeline without importing risk or calculating budgets. The risk module/package, decisions 001–011, existing notebooks 01–04, requirements, and raw data are unchanged; no notebook was executed during Stage 7.2–7.7. Stage 6 remains COMPLETE. Stage 7.7 — Exact Regression + Analytics Compatibility is complete; Stage 7.8 — Position Sizing Notebook is complete; Stage 7.9 awaits explicit owner approval and has not started.
+Stages 7.3 and 7.4 delegate GROSS and NET budgeting to this unchanged helper. Stage 7.5 adds reserve-aware equity downstream; Stage 7.6 forwards the fraction through the generic pipeline without importing risk or calculating budgets. The risk module/package, decisions 001–011, existing notebooks 01–04, requirements, and raw data are unchanged; no notebook was executed during Stage 7.2–7.7. Stage 6 remains COMPLETE. Stage 7.7 — Exact Regression + Analytics Compatibility is complete; Stage 7.8 — Position Sizing Notebook is complete; Stage 7.9 final audit is complete; Stage 7 is COMPLETE.
 
 ## GROSS position-sizing integration
 
@@ -262,7 +268,7 @@ The exact eleven-column schema is unchanged: six ledger fields plus `capital_bef
 
 All 25 methods in `tests/test_gross_position_sizing.py`, all 27 unchanged GROSS methods, and all 35 unchanged budget-core methods pass. The full suite passed once with 622 tests (597 existing + 25 new), zero failures, errors, or skips. Default versus explicit 1.0 outputs match exactly; the existing Stage 6 EMA regression remains unchanged and green, with no reference/tolerance changes.
 
-Stages 7.3 and 7.4 added GROSS/NET partial sizing; Stage 7.5 values those canonical results with reserve-aware MTM. Stage 7.6 forwards `position_fraction` through the generic pipeline with default 1.0. Accounting, risk, execution, ledger, decisions 001–011, existing notebooks 01–04, dependencies, and data remain unchanged. The Stage 7.7 partial-allocation analytics audit is complete; Stage 7.8 notebook now demonstrates the verified comparisons. Stage 7.7 — Exact Regression + Analytics Compatibility is complete; Stage 7.8 — Position Sizing Notebook is complete; Stage 7.9 awaits explicit owner approval and has not started.
+Stages 7.3 and 7.4 added GROSS/NET partial sizing; Stage 7.5 values those canonical results with reserve-aware MTM. Stage 7.6 forwards `position_fraction` through the generic pipeline with default 1.0. Accounting, risk, execution, ledger, decisions 001–011, existing notebooks 01–04, dependencies, and data remain unchanged. The Stage 7.7 partial-allocation analytics audit is complete; Stage 7.8 notebook now demonstrates the verified comparisons. Stage 7.7 — Exact Regression + Analytics Compatibility is complete; Stage 7.8 — Position Sizing Notebook is complete; Stage 7.9 final audit is complete; Stage 7 is COMPLETE.
 
 ## NET position-sizing integration
 
@@ -276,7 +282,7 @@ The exact twenty-column order is preserved: six ledger columns plus the fourteen
 
 All 33 methods in `tests/test_net_position_sizing.py`, 21 unchanged transaction-cost methods, 25 unchanged GROSS sizing methods, and 35 unchanged sizing-core methods pass. The full suite passed once with 655 tests (622 existing + 33 new), zero failures, errors, or skips. Default versus explicit 1.0 DataFrames match exactly. Frozen Stage 6 EMA regression remains unchanged and green: last CLOSED NET capital 7,652.530163437 USDT and final NET MTM 7,490.776562851941 USDT; no references or tolerances changed.
 
-GROSS and NET partial accounting from the generic pipeline can feed reserve-aware MTM downstream. Accounting remains unchanged in Stage 7.6; each path uses its own current capital. Stage 7.7 verifies partial-allocation analytics compatibility; Stage 7.8 now demonstrates partial allocation in executed notebook 05. Stage 7.7 — Exact Regression + Analytics Compatibility is complete; Stage 7.8 — Position Sizing Notebook is complete; Stage 7.9 awaits explicit owner approval and has not started.
+GROSS and NET partial accounting from the generic pipeline can feed reserve-aware MTM downstream. Accounting remains unchanged in Stage 7.6; each path uses its own current capital. Stage 7.7 verifies partial-allocation analytics compatibility; Stage 7.8 now demonstrates partial allocation in executed notebook 05. Stage 7.7 — Exact Regression + Analytics Compatibility is complete; Stage 7.8 — Position Sizing Notebook is complete; Stage 7.9 final audit is complete; Stage 7 is COMPLETE.
 
 ## Reserve-aware candle-level MTM
 
@@ -290,7 +296,7 @@ Actual EXIT sets cash to canonical `capital_after` / `net_capital_after` and cle
 
 All 31 methods in `tests/test_partial_mark_to_market_equity.py`, 47 unchanged equity methods, 25 unchanged GROSS sizing methods, and 33 unchanged NET sizing methods pass. The full suite passed once with 686 tests (655 existing + 31 new), zero failures, errors, or skips. Explicit full allocation matches default paths exactly. Frozen Stage 6 EMA regression remains unchanged and green: final GROSS MTM 9,451.485313939314 USDT and final NET MTM 7,490.776562851941 USDT; no reference or tolerance changes.
 
-Partial GROSS/NET accounting-to-equity composition is ready through the generic pipeline. Equity remains optional downstream, with unchanged APIs and no allocation parameter. The Stage 7.7 partial-allocation analytics audit is complete; Stage 7.8 notebook is complete and Stage 7 remains incomplete pending the final audit. Accounting, sizing, equity/other analytics, execution, ledger, strategies, decisions 001–011, existing notebooks 01–04, dependencies, and data are unchanged. No notebook was executed during Stage 7.5. Stage 7.7 — Exact Regression + Analytics Compatibility is complete; Stage 7.8 — Position Sizing Notebook is complete; Stage 7.9 awaits explicit owner approval and has not started.
+Partial GROSS/NET accounting-to-equity composition is ready through the generic pipeline. Equity remains optional downstream, with unchanged APIs and no allocation parameter. The Stage 7.7 partial-allocation analytics audit is complete; Stage 7.8 notebook is complete and Stage 7 is COMPLETE after the final audit. Accounting, sizing, equity/other analytics, execution, ledger, strategies, decisions 001–011, existing notebooks 01–04, dependencies, and data are unchanged. No notebook was executed during Stage 7.5. Stage 7.7 — Exact Regression + Analytics Compatibility is complete; Stage 7.8 — Position Sizing Notebook is complete; Stage 7.9 final audit is complete; Stage 7 is COMPLETE.
 
 ## Generic position-sizing integration
 
@@ -298,7 +304,7 @@ Stage 7.6 adds final positional-or-keyword `position_fraction=1.0` to `run_backt
 
 Changing the fraction affects accounting quantities and realized results without affecting strategy intent, execution, or ledger pairing. GROSS and NET compound their own current total capital independently. Zero-cost amounts agree at the same fraction; GROSS raw position return and NET portfolio return keep their distinct meanings. The exact four return keys are `execution`, `trades`, `gross_results`, and `net_results`; helper schemas are unchanged and no equity output is added. Omitted versus explicit 1.0 outputs match exactly.
 
-All 24 new synthetic methods in `tests/test_generic_position_sizing_pipeline.py`, all 15 retained generic pipeline methods, 25 GROSS sizing methods, 33 NET sizing methods, and 31 partial-equity methods pass. The full suite passed once with 710 tests (686 existing + 24 new), zero failures, errors, or skips. The frozen Stage 6 EMA regression passes without reference or tolerance changes. Stage 7.7 — Exact Regression + Analytics Compatibility is complete; Stage 7.8 — Position Sizing Notebook is complete; Stage 7.9 awaits explicit owner approval and has not started; the analytics regression and educational notebook are complete; the final Stage 7 audit remains pending.
+All 24 new synthetic methods in `tests/test_generic_position_sizing_pipeline.py`, all 15 retained generic pipeline methods, 25 GROSS sizing methods, 33 NET sizing methods, and 31 partial-equity methods pass. The full suite passed once with 710 tests (686 existing + 24 new), zero failures, errors, or skips. The frozen Stage 6 EMA regression passes without reference or tolerance changes. Stage 7.7 — Exact Regression + Analytics Compatibility is complete; Stage 7.8 — Position Sizing Notebook is complete; Stage 7.9 final audit is complete; Stage 7 is COMPLETE; the analytics regression and educational notebook are complete; the final Stage 7 audit passed.
 
 ## Position-sizing analytics regression
 
@@ -325,7 +331,7 @@ The reviewed one-off production-API capture established these full-precision lit
 | NET Sharpe | -0.8824772122392462 | -0.8712069545635516 |
 | NET Sortino | -1.2814314707945054 | -1.2663722258083463 |
 
-Smaller allocations leave ending capital/equity closer to 10,000 and produce shallower drawdowns in this frozen losing BTC sample. These tested orderings are dataset-specific, not a general claim about strategy quality. All 37 new methods and all 747 suite tests pass with zero failures, errors, or skips. No production analytics change was required; Stage 7 is not complete. Stage 7.8 — Position Sizing Notebook is complete; Stage 7.9 awaits explicit owner approval and has not started.
+Smaller allocations leave ending capital/equity closer to 10,000 and produce shallower drawdowns in this frozen losing BTC sample. These tested orderings are dataset-specific, not a general claim about strategy quality. All 37 new methods and all 747 suite tests pass with zero failures, errors, or skips. No production analytics change was required; Stage 7 is COMPLETE. Stage 7.8 — Position Sizing Notebook is complete; Stage 7.9 final audit is complete; Stage 7 is COMPLETE.
 
 ## Position-sizing notebook
 
@@ -335,7 +341,7 @@ It reads only the hash-checked local BTCUSDT 1-hour snapshot: 8,760 candles over
 
 All 32 cells (17 Markdown / 15 code) executed top to bottom using the existing parent-workspace `.venv/`. Saved execution counts are 1–15, error outputs are zero, and both embedded plots were visually inspected. Each equity path has 8,761 observations; trade 78 remains OPEN and marked without liquidation. The four fraction-1.0 capital/equity headlines and both 12-field partial Stage 7.7 snapshots match at established tolerances. Execution, ledger, and time exposure remain fraction-independent: 77 CLOSED / one OPEN, 4,089 invested hours over 8,760 hours, exposure 0.46678082191780823. Realized/portfolio drawdown and Sharpe/Sortino come from unchanged helpers, with 8,760 periods/year and zero hourly risk-free return/MAR.
 
-Input and raw-hash preservation checks pass. The 37-method Stage 7.7 regression, 16-method frozen EMA regression, and full suite (run once: 747 tests) pass with zero failures, errors, or skips; `git diff --check` passes. No production module, test, decision, data, dependency, earlier notebook, or existing `.py` placeholder changed. Smaller-allocation outcomes are explicitly dataset-specific, not recommendations or general strategy improvements. Stage 7.8 is complete; Stage 7.9 — Final Stage 7 Audit + Docs awaits explicit owner approval and has not started. Stage 7 remains incomplete until that audit.
+Input and raw-hash preservation checks pass. The 37-method Stage 7.7 regression, 16-method frozen EMA regression, and full suite (run once: 747 tests) pass with zero failures, errors, or skips; `git diff --check` passes. No production module, test, decision, data, dependency, earlier notebook, or existing `.py` placeholder changed. Smaller-allocation outcomes are explicitly dataset-specific, not recommendations or general strategy improvements. Stage 7.8 is complete; Stage 7.9 — Final Stage 7 Audit + Docs is complete. Stage 7 is COMPLETE.
 
 ## Accepted Stage 7 roadmap
 
@@ -349,7 +355,31 @@ Input and raw-hash preservation checks pass. The 37-method Stage 7.7 regression,
 | 7.6 — Generic Backtest Integration | Completed; unchanged fraction forwarding to both accounting paths. |
 | 7.7 — Exact Regression + Analytics Compatibility | Completed; frozen full allocation and 50%/25% downstream regression. |
 | 7.8 — Position Sizing Notebook | Completed; executed educational 100%/50%/25% comparison. |
-| 7.9 — Final Stage 7 Audit + Docs | Awaits explicit owner approval; not started. |
+| 7.9 — Final Stage 7 Audit + Docs | Completed; architecture, scope, regression, notebook, and documentation gates passed. |
+
+## Final Stage 7 audit
+
+Stage 7 — Risk Manager + Position Sizing is **COMPLETE**. Milestones 7.1–7.9 in the accepted roadmap are complete. Decision 011 is implemented without a new policy or framework: a fixed scalar `position_fraction` in `0 < f <= 1`, default 1.0, permits a budget from current total capital. GROSS and NET independently convert it into quantity and compound total capital; NET's entry budget includes its fee. Equity retains reserve cash alongside the raw-CLOSE marked canonical holding. The generic pipeline only forwards the fraction and retains its four accounting/execution outputs; analytics receives no sizing-policy parameter.
+
+The eight 7.1–7.8 commits form the expected direct-child chain after Stage 6 baseline `df72973de837ecbd4ee81f4bdaf77efd74730a56`, ending at `fc7965fe7d8af1e107b1204e6007feccc2f7fffb`. Production changes are limited to risk budgeting, GROSS/NET accounting, reserve-aware equity, and generic fraction forwarding. Strategy, execution, ledger, other analytics formulas, dependencies, data/results, decisions 001–010, and notebooks 01–04 retain their baseline contents. No hidden production commit, new committed dataset/result, credential, exchange runtime, database, or Stage 8 implementation was introduced.
+
+Default/explicit 1.0 exact-frame compatibility and all frozen Stage 5/6 references pass at unchanged tolerances. The hash-checked local 8,760-candle BTC snapshot preserves 78 ENTRY / 77 EXIT fills, 77 CLOSED / one OPEN trade, last CLOSED GROSS/NET capital 9,641.111388344 / 7,652.530163437 USDT, and final GROSS/NET MTM 9,451.485313939314 / 7,490.776562851941 USDT. Both canonical 0.50/0.25 analytics snapshots pass. Intent, execution, ledger, and time exposure remain fraction-independent: 4,089 invested hours / 8,760 hours, exposure 0.46678082191780823. Final trade 78 remains OPEN without liquidation.
+
+| Audit test module | Passed methods |
+| --- | ---: |
+| Position sizing core | 35 |
+| GROSS sizing | 25 |
+| NET sizing | 33 |
+| Partial MTM equity | 31 |
+| Generic sizing pipeline | 24 |
+| Position-sizing analytics regression | 37 |
+| Stage 7 additions total | 185 |
+| Frozen EMA regression | 16 |
+| Full suite, run once | 747 |
+
+Every required targeted module and the full suite passed with zero failures, errors, or skips. No tests were added in Stage 7.9. Committed notebook 05 validates as JSON with 32 cells (15 code / 17 Markdown), sequential counts 1–15, zero saved errors, and two embedded plots; its accepted Stage 7.8 execution was inspected without re-execution or modification. It demonstrates local-only fixed-allocation budgeting, compounding, reserve-aware GROSS/NET equity, drawdown, Sharpe/Sortino, and unchanged time exposure through production APIs. Source/test/decision/notebook/dependency bytes and all data/result files were preserved during this audit; `git diff --check` passes. Closure changes only the allowed documentation.
+
+The completed scope remains single-asset LONG/FLAT fixed allocation: no leverage, shorts, dynamic sizing, stop-based sizing, multi-asset or multi-bot allocation. Stage 8 — Strategy Robustness is the next project focus, awaiting explicit owner approval; it has not started.
 
 ## Final Stage 6 audit
 
@@ -373,7 +403,7 @@ Frozen Stage 5 execution, ledger, accounting, EMA, analytics, decisions 003–00
 
 Committed notebook 04 has 23 cells (11 code / 12 Markdown), execution counts 1–11, zero saved errors, and one embedded image. Its saved demonstration covers local frozen data, EMA intent, generic execution/ledger/accounting, downstream equity, a synthetic non-EMA contract example, a conceptual future strategy interface, and preservation checks. Neither notebook 03 nor notebook 04 was re-executed during this audit.
 
-Stage 6.7 changes documentation only. No production code, tests, notebooks, decisions, dependencies, raw data, or financial formulas changed. Stage 7.1 has accepted the sizing contract; Stage 7.2 budget core is complete; Stage 7.3 direct GROSS integration is complete; Stage 7.4 direct NET integration is complete; Stage 7.5 reserve-aware equity is complete; Stage 7.6 generic fraction forwarding is complete; Stage 7.7 analytics regression is complete; Stage 7.8 notebook is complete; Stage 7.9 awaits explicit owner approval and has not started.
+Stage 6.7 changes documentation only. No production code, tests, notebooks, decisions, dependencies, raw data, or financial formulas changed. Stage 7.1 has accepted the sizing contract; Stage 7.2 budget core is complete; Stage 7.3 direct GROSS integration is complete; Stage 7.4 direct NET integration is complete; Stage 7.5 reserve-aware equity is complete; Stage 7.6 generic fraction forwarding is complete; Stage 7.7 analytics regression is complete; Stage 7.8 notebook is complete; Stage 7.9 final audit is complete; Stage 7 is COMPLETE.
 
 ## Generic backtest notebook
 
@@ -383,7 +413,7 @@ The notebook loads only the existing frozen local 8,760-candle BTC snapshot thro
 
 Existing equity helpers compose downstream; the generic engine still stops at accounting. Each path has 8,761 observations, ending at GROSS 9,451.485313939314 / NET 7,490.776562851941 USDT. The final OPEN holding is marked without liquidation. Modeled fee/slippage rates remain frozen research assumptions, not current exchange fees. The notebook copies no production financial formulas; Stage 6.5 remains the authoritative exact compatibility regression.
 
-Executed top to bottom using the existing parent-workspace `.venv/`: 23 total cells, 11 code, 12 Markdown, sequential execution counts 1–11, zero saved errors, and one rendered plot. All intended outputs are saved; the plot was visually inspected. Candles, strategy output, and raw bytes are preserved. The full unchanged suite passed once with 562 tests; no new tests, dependencies, or production modules were added or changed. Notebooks 01–03 and all existing `.py` placeholders are unchanged; notebook 03 was not executed. Stage 5 remains COMPLETE and frozen. Stage 6 is COMPLETE after the final audit; Stage 7.1 contract is complete; Stage 7.2 budget core is complete; Stage 7.3 direct GROSS integration is complete; Stage 7.4 direct NET integration is complete; Stage 7.5 reserve-aware equity is complete; Stage 7.6 generic fraction forwarding is complete; Stage 7.7 analytics regression is complete; Stage 7.8 notebook is complete; Stage 7.9 awaits explicit owner approval and has not started.
+Executed top to bottom using the existing parent-workspace `.venv/`: 23 total cells, 11 code, 12 Markdown, sequential execution counts 1–11, zero saved errors, and one rendered plot. All intended outputs are saved; the plot was visually inspected. Candles, strategy output, and raw bytes are preserved. The full unchanged suite passed once with 562 tests; no new tests, dependencies, or production modules were added or changed. Notebooks 01–03 and all existing `.py` placeholders are unchanged; notebook 03 was not executed. Stage 5 remains COMPLETE and frozen. Stage 6 is COMPLETE after the final audit; Stage 7.1 contract is complete; Stage 7.2 budget core is complete; Stage 7.3 direct GROSS integration is complete; Stage 7.4 direct NET integration is complete; Stage 7.5 reserve-aware equity is complete; Stage 7.6 generic fraction forwarding is complete; Stage 7.7 analytics regression is complete; Stage 7.8 notebook is complete; Stage 7.9 final audit is complete; Stage 7 is COMPLETE.
 
 ## EMA exact regression / compatibility
 
@@ -395,7 +425,7 @@ Bullish/bearish crossovers remain 78/78; ENTRY/EXIT signals and fills remain 78/
 
 Last CLOSED realized capital remains GROSS 9,641.111388344 / NET 7,652.530163437 USDT. Existing equity helpers produce 8,761 observations and final OPEN marks of GROSS 9,451.485313939314 / NET 7,490.776562851941 USDT, exactly matching legacy equity paths. Existing CLOSED-trade summaries, realized/portfolio drawdown, duration/exposure, hourly returns, Sharpe/Sortino, and Buy-and-Hold comparison pass frozen Stage 5 references. NET rates 0.001 fee / 0.0005 adverse slippage remain research assumptions, not current exchange fees.
 
-All 16 Stage 6.5 methods and all 562 tests pass. Candles, strategy output, accounting/equity sources, and raw bytes are preserved. All production Python modules, the existing EMA compatibility function, old tests, decisions 001–010, earlier notebooks, and dependencies are unchanged. Stage 6.6 adds the separate notebook 04 demonstration above. Stage 5 remains COMPLETE and frozen. Stage 6 is COMPLETE after the final audit; Stage 7.1 contract is complete; Stage 7.2 budget core is complete; Stage 7.3 direct GROSS integration is complete; Stage 7.4 direct NET integration is complete; Stage 7.5 reserve-aware equity is complete; Stage 7.6 generic fraction forwarding is complete; Stage 7.7 analytics regression is complete; Stage 7.8 notebook is complete; Stage 7.9 awaits explicit owner approval and has not started.
+All 16 Stage 6.5 methods and all 562 tests pass. Candles, strategy output, accounting/equity sources, and raw bytes are preserved. All production Python modules, the existing EMA compatibility function, old tests, decisions 001–010, earlier notebooks, and dependencies are unchanged. Stage 6.6 adds the separate notebook 04 demonstration above. Stage 5 remains COMPLETE and frozen. Stage 6 is COMPLETE after the final audit; Stage 7.1 contract is complete; Stage 7.2 budget core is complete; Stage 7.3 direct GROSS integration is complete; Stage 7.4 direct NET integration is complete; Stage 7.5 reserve-aware equity is complete; Stage 7.6 generic fraction forwarding is complete; Stage 7.7 analytics regression is complete; Stage 7.8 notebook is complete; Stage 7.9 final audit is complete; Stage 7 is COMPLETE.
 
 ## Generic end-to-end backtest pipeline
 
@@ -407,7 +437,7 @@ The new dictionary contains exactly four separate DataFrames: `execution`, `trad
 
 An executed entry may remain OPEN with entry-only accounting and missing exit/realized fields. A final unexecuted ENTRY creates no trade; a final unexecuted EXIT leaves the existing trade OPEN. No terminal fill or close is forced. All-HOLD and typed empty inputs retain helper-defined schemas and dtypes.
 
-All 15 new Stage 6.4 methods pass; that milestone's full suite passed with 546 tests. These tests use only synthetic data, including a non-EMA CLOSED trade at recorded prices 100 → 110, multiple trades with independent compounding, zero/nonzero cost parameters, exact four-frame parity, call order, error propagation, preservation, and index/timezone checks. The existing EMA pipeline remains internally unchanged. Stage 6.5 now proves exact EMA compatibility on the frozen BTC snapshot; notebooks 01–03 were neither modified nor executed. Stage 5 remains COMPLETE and frozen. Stage 6.6 notebook 04 is complete. Stage 6 is COMPLETE after the final audit; Stage 7.1 contract is complete; Stage 7.2 budget core is complete; Stage 7.3 direct GROSS integration is complete; Stage 7.4 direct NET integration is complete; Stage 7.5 reserve-aware equity is complete; Stage 7.6 generic fraction forwarding is complete; Stage 7.7 analytics regression is complete; Stage 7.8 notebook is complete; Stage 7.9 awaits explicit owner approval and has not started.
+All 15 new Stage 6.4 methods pass; that milestone's full suite passed with 546 tests. These tests use only synthetic data, including a non-EMA CLOSED trade at recorded prices 100 → 110, multiple trades with independent compounding, zero/nonzero cost parameters, exact four-frame parity, call order, error propagation, preservation, and index/timezone checks. The existing EMA pipeline remains internally unchanged. Stage 6.5 now proves exact EMA compatibility on the frozen BTC snapshot; notebooks 01–03 were neither modified nor executed. Stage 5 remains COMPLETE and frozen. Stage 6.6 notebook 04 is complete. Stage 6 is COMPLETE after the final audit; Stage 7.1 contract is complete; Stage 7.2 budget core is complete; Stage 7.3 direct GROSS integration is complete; Stage 7.4 direct NET integration is complete; Stage 7.5 reserve-aware equity is complete; Stage 7.6 generic fraction forwarding is complete; Stage 7.7 analytics regression is complete; Stage 7.8 notebook is complete; Stage 7.9 final audit is complete; Stage 7 is COMPLETE.
 
 ## Generic execution pipeline
 
@@ -421,7 +451,7 @@ Candles supply `timestamp` and authoritative market `open`. Only validated `sign
 
 The return is the existing execution helper's exact schema/order/dtypes/index: `timestamp`, `open`, `signal`, `execution_time`, `execution_price`, `executed_position`. Reused alignment checks verify row count, index, and timestamps; additional postconditions verify unchanged validated signals and market OPEN values. Direct-helper parity, non-RangeIndex/duplicate-label alignment, typed empty output, and naive/aware clock checks pass. Valid final entries/exits remain unfilled without forced closing; a newly appended next candle may populate former-final fill metadata without changing earlier rows or state during that candle.
 
-All 25 Stage 6.3 test methods pass; that milestone's full suite passed once with 531 tests (506 earlier + 25 new). `run_ema_execution_pipeline(...)` is not refactored into a wrapper and its source is unchanged. This execution-only API stops before the ledger; Stage 6.4 adds the separate ledger/accounting composition API above. Analytics remain separate downstream components. Stage 5 remains COMPLETE and frozen; notebooks 01–03 were neither modified nor executed. Stage 6.5 exact EMA regression is complete. Stage 6.6 notebook 04 is complete. Stage 6 is COMPLETE after the final audit; Stage 7.1 contract is complete; Stage 7.2 budget core is complete; Stage 7.3 direct GROSS integration is complete; Stage 7.4 direct NET integration is complete; Stage 7.5 reserve-aware equity is complete; Stage 7.6 generic fraction forwarding is complete; Stage 7.7 analytics regression is complete; Stage 7.8 notebook is complete; Stage 7.9 awaits explicit owner approval and has not started.
+All 25 Stage 6.3 test methods pass; that milestone's full suite passed once with 531 tests (506 earlier + 25 new). `run_ema_execution_pipeline(...)` is not refactored into a wrapper and its source is unchanged. This execution-only API stops before the ledger; Stage 6.4 adds the separate ledger/accounting composition API above. Analytics remain separate downstream components. Stage 5 remains COMPLETE and frozen; notebooks 01–03 were neither modified nor executed. Stage 6.5 exact EMA regression is complete. Stage 6.6 notebook 04 is complete. Stage 6 is COMPLETE after the final audit; Stage 7.1 contract is complete; Stage 7.2 budget core is complete; Stage 7.3 direct GROSS integration is complete; Stage 7.4 direct NET integration is complete; Stage 7.5 reserve-aware equity is complete; Stage 7.6 generic fraction forwarding is complete; Stage 7.7 analytics regression is complete; Stage 7.8 notebook is complete; Stage 7.9 final audit is complete; Stage 7 is COMPLETE.
 
 ## Generic strategy output validation
 
@@ -435,7 +465,7 @@ Every signal_time equals its timestamp plus one elapsed hour, including HOLD/fin
 
 The return value is a new full DataFrame copy: canonical and diagnostic columns, values, dtypes, index, and column order are unchanged. Both inputs are preserved; ordinary scalar output edits do not mutate the source. Synthetic EMA output passes without modifying EMA logic. No execution helper is called and no fills or financial fields are added. `run_execution_pipeline(...)` now delegates to this validator; the existing EMA pipeline remains unchanged.
 
-All 48 Stage 6.2 test methods pass; that milestone's full suite passed once with 506 tests (458 earlier + 48 new). Stage 5 remains COMPLETE and frozen, including notebook 03 (104 cells, 51 code / 53 Markdown, seven plots), which was neither modified nor executed. Stage 6.4 now composes execution, ledger, and independent accounting. Stage 6.5 exact EMA regression is complete. Stage 6.6 notebook 04 is complete. Stage 6 is COMPLETE after the final audit; Stage 7.1 contract is complete; Stage 7.2 budget core is complete; Stage 7.3 direct GROSS integration is complete; Stage 7.4 direct NET integration is complete; Stage 7.5 reserve-aware equity is complete; Stage 7.6 generic fraction forwarding is complete; Stage 7.7 analytics regression is complete; Stage 7.8 notebook is complete; Stage 7.9 awaits explicit owner approval and has not started.
+All 48 Stage 6.2 test methods pass; that milestone's full suite passed once with 506 tests (458 earlier + 48 new). Stage 5 remains COMPLETE and frozen, including notebook 03 (104 cells, 51 code / 53 Markdown, seven plots), which was neither modified nor executed. Stage 6.4 now composes execution, ledger, and independent accounting. Stage 6.5 exact EMA regression is complete. Stage 6.6 notebook 04 is complete. Stage 6 is COMPLETE after the final audit; Stage 7.1 contract is complete; Stage 7.2 budget core is complete; Stage 7.3 direct GROSS integration is complete; Stage 7.4 direct NET integration is complete; Stage 7.5 reserve-aware equity is complete; Stage 7.6 generic fraction forwarding is complete; Stage 7.7 analytics regression is complete; Stage 7.8 notebook is complete; Stage 7.9 final audit is complete; Stage 7 is COMPLETE.
 
 ## Final Stage 5 analytics report
 
@@ -443,7 +473,7 @@ Notebook 03 brings together CLOSED-trade performance, realized-capital drawdown,
 
 The final audit checks the 8,760-candle snapshot, 78 executed entries / 77 exits, 77 CLOSED / one final OPEN trade, all four 8,761-observation equity paths and 8,760-return clocks, financial/risk/time references, raw CSV hash, and preservation of 31 report-source DataFrames. All seven existing plot sources/images and earlier calculations are preserved. The notebook has 104 cells (51 code / 53 Markdown), sequential execution, and no saved errors. All 458 existing tests pass; Stage 5.18 adds no tests or metric logic. Production code/tests, decisions, notebooks 01/02, raw data, and dependencies are unchanged.
 
-Stage 5 — Analytics remains complete and frozen at the committed Stage 5.18 baseline. Stage 6.5 proves exact EMA compatibility through generic execution, ledger, accounting, and existing analytics; Stage 6.6 notebook 04 is complete; Stage 6 is COMPLETE; Stage 7.1 contract is complete; Stage 7.2 budget core is complete; Stage 7.3 direct GROSS integration is complete; Stage 7.4 direct NET integration is complete; Stage 7.5 reserve-aware equity is complete; Stage 7.6 generic fraction forwarding is complete; Stage 7.7 analytics regression is complete; Stage 7.8 notebook is complete; Stage 7.9 awaits explicit owner approval and has not started.
+Stage 5 — Analytics remains complete and frozen at the committed Stage 5.18 baseline. Stage 6.5 proves exact EMA compatibility through generic execution, ledger, accounting, and existing analytics; Stage 6.6 notebook 04 is complete; Stage 6 is COMPLETE; Stage 7.1 contract is complete; Stage 7.2 budget core is complete; Stage 7.3 direct GROSS integration is complete; Stage 7.4 direct NET integration is complete; Stage 7.5 reserve-aware equity is complete; Stage 7.6 generic fraction forwarding is complete; Stage 7.7 analytics regression is complete; Stage 7.8 notebook is complete; Stage 7.9 final audit is complete; Stage 7 is COMPLETE.
 
 ## Reusable time-based returns and risk-adjusted metrics
 
@@ -479,7 +509,7 @@ Percentages label return/variability fields; Sharpe/Sortino are dimensionless ra
 
 Sharpe measures reward relative to total variability; Sortino measures reward relative to deviations below MAR. Signs here are relative to zero hourly return. EMA NET finishes with slightly more equity than NET Buy-and-Hold but has more negative ratios; compounded final wealth and arithmetic return relative to variability answer different questions. Results depend on interval, annualization, costs, exposure, and sample window, and establish neither general superiority nor statistical significance.
 
-Notebook 03 snapshots all four equity sources before calling the reusable helpers, displays one compact eight-row comparison and representative first/flat/invested/final return previews, and retains one transparent NET hourly-return scatter plot. Its final Stage 5.18 report brings the notebook to 104 cells (51 code / 53 Markdown), executed sequentially without errors, with seven plots and all seven prior plot sources/images unchanged. Assertions check all 8,760 periods, full clocks, spot formulas, cash zeros, final OPEN marks, actual summary references, all four equity sources, candles, and raw CSV hash. The 61 Stage 5.17 tests cover these contracts, synthetic conventions/degenerate cases, strict validation/DST/preservation/causal prefixes, and actual EMA/benchmark integration. All 458 tests pass. Stage 5.18 preserves production code/tests, decisions, notebooks 01/02, raw data, and dependencies; Stage 5 remains complete; Stage 6.5 proves exact EMA regression through the generic path; Stage 6.6 notebook 04 is complete; Stage 6 is COMPLETE; Stage 7.1 contract is complete; Stage 7.2 budget core is complete; Stage 7.3 direct GROSS integration is complete; Stage 7.4 direct NET integration is complete; Stage 7.5 reserve-aware equity is complete; Stage 7.6 generic fraction forwarding is complete; Stage 7.7 analytics regression is complete; Stage 7.8 notebook is complete; Stage 7.9 awaits explicit owner approval and has not started.
+Notebook 03 snapshots all four equity sources before calling the reusable helpers, displays one compact eight-row comparison and representative first/flat/invested/final return previews, and retains one transparent NET hourly-return scatter plot. Its final Stage 5.18 report brings the notebook to 104 cells (51 code / 53 Markdown), executed sequentially without errors, with seven plots and all seven prior plot sources/images unchanged. Assertions check all 8,760 periods, full clocks, spot formulas, cash zeros, final OPEN marks, actual summary references, all four equity sources, candles, and raw CSV hash. The 61 Stage 5.17 tests cover these contracts, synthetic conventions/degenerate cases, strict validation/DST/preservation/causal prefixes, and actual EMA/benchmark integration. All 458 tests pass. Stage 5.18 preserves production code/tests, decisions, notebooks 01/02, raw data, and dependencies; Stage 5 remains complete; Stage 6.5 proves exact EMA regression through the generic path; Stage 6.6 notebook 04 is complete; Stage 6 is COMPLETE; Stage 7.1 contract is complete; Stage 7.2 budget core is complete; Stage 7.3 direct GROSS integration is complete; Stage 7.4 direct NET integration is complete; Stage 7.5 reserve-aware equity is complete; Stage 7.6 generic fraction forwarding is complete; Stage 7.7 analytics regression is complete; Stage 7.8 notebook is complete; Stage 7.9 final audit is complete; Stage 7 is COMPLETE.
 
 ## Reusable Buy-and-Hold benchmark comparison
 
@@ -504,7 +534,7 @@ The unchanged BTC snapshot starts at `2025-10-01 00:00 UTC`, first OPEN 114,051.
 
 EMA minus benchmark final equity is GROSS +2,120.017226389085 USDT / NET +170.292861096195 USDT; total marked return differences are +21.2001722639 / +1.7029286110 percentage points. Whole-window return means `final equity / initial equity - 1`, not hourly returns or annualization. All four paths lose capital in this declining-BTC sample: EMA's relative advantage does not prove general superiority. Both benchmark paths finish OPEN; no liquidation is fabricated.
 
-Notebook 03 uses helper outputs for the tables and existing equity-comparison plot, with reference assertions for rows, full valuation-time alignment, first-OPEN timing, final OPEN marks, benchmark drawdowns, unchanged EMA/candle inputs, and raw CSV hash. The final Stage 5.18 report preserves the benchmark and time-based analytics sections: 104 cells (51 code / 53 Markdown), seven plots, sequential execution, no saved errors, and all seven prior plot sources/images unchanged. The 38 benchmark tests include exact schemas, delegated sizing/costs, paid-once/no-exit behavior, zero-cost equality, validation, input/output independence, causal prefixes, existing drawdown integration, and actual BTC alignment. All 458 tests pass, including these unchanged 38 benchmark tests. Decision 009 supplies time-based returns and Sharpe/Sortino; Stage 6.4 provides generic execution/ledger/accounting composition; analytics remain separate, Stage 6.5 exact EMA regression is complete, and Stage 6.6 notebook 04 is complete; Stage 6 is COMPLETE; Stage 7.1 contract is complete; Stage 7.2 budget core is complete; Stage 7.3 direct GROSS integration is complete; Stage 7.4 direct NET integration is complete; Stage 7.5 reserve-aware equity is complete; Stage 7.6 generic fraction forwarding is complete; Stage 7.7 analytics regression is complete; Stage 7.8 notebook is complete; Stage 7.9 awaits explicit owner approval and has not started.
+Notebook 03 uses helper outputs for the tables and existing equity-comparison plot, with reference assertions for rows, full valuation-time alignment, first-OPEN timing, final OPEN marks, benchmark drawdowns, unchanged EMA/candle inputs, and raw CSV hash. The final Stage 5.18 report preserves the benchmark and time-based analytics sections: 104 cells (51 code / 53 Markdown), seven plots, sequential execution, no saved errors, and all seven prior plot sources/images unchanged. The 38 benchmark tests include exact schemas, delegated sizing/costs, paid-once/no-exit behavior, zero-cost equality, validation, input/output independence, causal prefixes, existing drawdown integration, and actual BTC alignment. All 458 tests pass, including these unchanged 38 benchmark tests. Decision 009 supplies time-based returns and Sharpe/Sortino; Stage 6.4 provides generic execution/ledger/accounting composition; analytics remain separate, Stage 6.5 exact EMA regression is complete, and Stage 6.6 notebook 04 is complete; Stage 6 is COMPLETE; Stage 7.1 contract is complete; Stage 7.2 budget core is complete; Stage 7.3 direct GROSS integration is complete; Stage 7.4 direct NET integration is complete; Stage 7.5 reserve-aware equity is complete; Stage 7.6 generic fraction forwarding is complete; Stage 7.7 analytics regression is complete; Stage 7.8 notebook is complete; Stage 7.9 final audit is complete; Stage 7 is COMPLETE.
 
 ## Reusable candle-close portfolio drawdown
 
@@ -696,9 +726,9 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Stage 7.8 — Position Sizing Notebook is complete. Current focus: Stage 7.9 — Final Stage 7 Audit + Docs, awaiting explicit owner approval; not started.
+Stage 7 — Risk Manager + Position Sizing is COMPLETE. Current focus: Stage 8 — Strategy Robustness, awaiting explicit owner approval; not started.
 
-The generic backtest pipeline forwards a fixed fraction to independent GROSS/NET accounting; reserve-aware equity composes downstream. The Stage 7.7 partial-allocation analytics audit is complete; Stage 7.8 notebook now demonstrates the verified comparisons.
+Planned themes are out-of-sample evaluation, walk-forward evaluation, parameter sensitivity, and robustness checks. Stage 7 fixed allocation, reserve-aware equity, analytics regression, and notebook 05 remain the completed baseline. No Stage 8 code, tests, or notebooks have been created.
 
 ## Not implemented yet
 
@@ -717,9 +747,9 @@ The generic backtest pipeline forwards a fixed fraction to independent GROSS/NET
 
 ## Next milestone
 
-Stage 7.9 — Final Stage 7 Audit + Docs, only after explicit owner approval. Audit the completed sizing contract, regression, educational notebook, and documentation before closing Stage 7.
+Stage 8 — Strategy Robustness, only after explicit owner approval. Planned themes: out-of-sample evaluation, walk-forward evaluation, parameter sensitivity, and robustness checks.
 
-Stage 7.9 has not started.
+Stage 8 has not started.
 
 ## Backtesting execution contract
 
@@ -761,7 +791,7 @@ Decision 003 is implemented by the Stage 5.2 summary helpers. Arithmetic average
 
 Decision 005 is implemented by the Stage 5.8 ledger-based time helpers, independently of accounting, and presented in notebook 03 by Stage 5.9. OPEN exclusion from realized PnL/drawdown does not imply exclusion from observed time in market. Exposure is binary holding time for the current single-position, non-overlapping ledger. Overlapping/multi-position, leverage/size-weighted, gross/net, and short exposure remain outside this contract; no market-value risk metric is introduced.
 
-Decision 006 is implemented by `analytics/equity.py` and presented in notebook 03 by Stage 5.12. Its all-in long-only single-asset model excludes shorts, partial/multi-asset/multi-position allocation, leverage, funding/borrow interest, dynamic fees, liquidation value, and position-size-weighted exposure. Decision 007 is implemented by `analytics/portfolio_drawdown.py` and presented in notebook 03 by Stage 5.15. Decision 009 now supplies time-based equity returns, Sharpe/Sortino, and their support volatility/downside measures. Drawdown duration/recovery, further equity-return metrics, CAGR/Calmar, alpha/beta, intrabar MAE/MFE, out-of-sample testing, and walk-forward validation remain deferred. The CLOSE path can still miss intrabar risk; no continuous-time or tick-level drawdown claim is supported.
+Decision 006 is implemented by `analytics/equity.py` and presented in notebook 03 by Stage 5.12. Stage 7 extends its original all-in model with fixed partial allocation and reserve cash. The long-only single-asset model still excludes shorts, multi-asset/multi-position allocation, leverage, funding/borrow interest, dynamic fees, liquidation value, and position-size-weighted exposure. Decision 007 is implemented by `analytics/portfolio_drawdown.py` and presented in notebook 03 by Stage 5.15. Decision 009 now supplies time-based equity returns, Sharpe/Sortino, and their support volatility/downside measures. Drawdown duration/recovery, further equity-return metrics, CAGR/Calmar, alpha/beta, intrabar MAE/MFE, out-of-sample testing, and walk-forward validation remain deferred. The CLOSE path can still miss intrabar risk; no continuous-time or tick-level drawdown claim is supported.
 
 ## Existing files preserved
 

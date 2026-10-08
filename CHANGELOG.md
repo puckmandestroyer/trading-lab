@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-08 — Stage 7.9 — Final Stage 7 Audit + Docs
+
+- Stage 7 is COMPLETE: accepted architecture/API boundaries, milestone-chain/scope, frozen regression, canonical 0.50/0.25 snapshots, and committed notebook 05 audits passed. Notebook 05 remains unchanged: 32 cells (15 code / 17 Markdown), sequential counts 1–15, zero errors, two embedded plots; no notebook re-execution.
+- All 185 Stage 7 methods, 16 frozen EMA methods, and the full suite (run once: 747 tests) pass with zero failures/errors/skips. Frozen Stage 5/6 references and tolerances, production, tests, decisions, notebooks, dependencies, and data are preserved. Documentation-only closure; Stage 8 — Strategy Robustness is next and has not started.
+
 ## 2026-10-08 — Stage 7.8 — Position Sizing Notebook
 
 - Added executed notebook `notebooks/05_risk_position_sizing.ipynb`: fixed fractions 1.0/0.50/0.25 on the frozen local BTC snapshot through existing pipeline/analytics APIs, with current-capital budgeting, reserve-aware GROSS/NET equity, drawdown, and Sharpe/Sortino comparisons. Saved 32 cells (15 code / 17 Markdown), sequential counts 1–15, zero errors, and two embedded plots; both plots visually inspected. No network, download, or duplicated production formulas.
