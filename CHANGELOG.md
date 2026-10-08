@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-08 — Stage 7.8 — Position Sizing Notebook
+
+- Added executed notebook `notebooks/05_risk_position_sizing.ipynb`: fixed fractions 1.0/0.50/0.25 on the frozen local BTC snapshot through existing pipeline/analytics APIs, with current-capital budgeting, reserve-aware GROSS/NET equity, drawdown, and Sharpe/Sortino comparisons. Saved 32 cells (15 code / 17 Markdown), sequential counts 1–15, zero errors, and two embedded plots; both plots visually inspected. No network, download, or duplicated production formulas.
+- Frozen full/partial references, fraction-independent fills/ledger/time exposure, and input/raw-hash preservation pass. The 37-method sizing regression, 16-method EMA regression, and full suite passed (747 tests, zero failures/errors/skips). No production/test/decision/dependency/data changes; earlier notebooks and placeholders preserved. Stage 7.9 — Final Stage 7 Audit + Docs awaits approval and has not started; Stage 7 is not complete.
+
 ## 2026-10-06 — Stage 7.7 — Exact Regression + Analytics Compatibility
 
 - Preserved the complete frozen full-allocation Stage 5/6 regression and added canonical real-BTC 50%/25% analytics snapshots. Execution/ledger, duration/exposure, and benchmark paths remain fraction-independent; reserve-aware partial equity works with existing trade, drawdown, hourly-return, and Sharpe/Sortino analytics. No production code, analytics API/formula, old test, decision, notebook, dependency, or data changes; no download or notebook execution.
