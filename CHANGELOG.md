@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-08 — Stage 8.1 — Strategy Robustness Contract
+
+- Accepted Decision 012: chronological IS/OOS, no look-ahead, cold-start/warm-up inside every independent segment, sensitivity rather than optimization, and fixed-parameter walk-forward research. Isolated peaks warn of fragility; no automatic deployment or magic score. Existing BTC data is already-seen research data.
+- Recorded the accepted 8.1–8.8 roadmap. Stage 7 remains COMPLETE; Stage 8 has STARTED and Stage 8.1 is complete. Stage 8.2 — Time Split / OOS Evaluation Core awaits explicit owner approval and has not started.
+- Documentation/architecture only: no production, test, notebook, dependency, or data changes. The full existing suite passed once: 747 tests, zero failures, errors, or skips; `git diff --check` passes.
+
 ## 2026-10-08 — Stage 7.9 — Final Stage 7 Audit + Docs
 
 - Stage 7 is COMPLETE: accepted architecture/API boundaries, milestone-chain/scope, frozen regression, canonical 0.50/0.25 snapshots, and committed notebook 05 audits passed. Notebook 05 remains unchanged: 32 cells (15 code / 17 Markdown), sequential counts 1–15, zero errors, two embedded plots; no notebook re-execution.

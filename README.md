@@ -6,13 +6,17 @@ The long-term goal is to support historical market data, multiple independent st
 
 ## Current stage
 
+**Stage 8 — Strategy Robustness has STARTED. Stage 8.1 — Robustness Contract is complete and Accepted as [Decision 012](decisions/012_strategy_robustness.md).**
+
 **Stage 7 — Risk Manager + Position Sizing is COMPLETE after Stage 7.9 — Final Stage 7 Audit + Docs.**
 
 Stage 6 — Generic Backtesting Engine remains COMPLETE.
 
 Stage 5 — Analytics remains COMPLETE and frozen as the existing EMA regression baseline.
 
-Next focus: **Stage 8 — Strategy Robustness** (out-of-sample evaluation, walk-forward evaluation, parameter sensitivity, robustness checks). It awaits explicit owner approval and has not started. Milestone entries below retain their original status and test totals.
+Stage 8 evaluates stability across chronological periods and nearby strategy parameters without turning Trading Lab into an optimizer. Decision 012 requires no look-ahead and self-contained cold-start segments with warm-up inside each window, reusing existing backtest/accounting/equity/analytics. Sensitivity and fixed-parameter walk-forward are research diagnostics; no automatic best-parameter deployment or magic robustness score is introduced. The existing BTC sample has already been seen, so its OOS checks are methodological research rather than pristine unseen validation. Stage 8.1 adds documentation only.
+
+Next focus: **Stage 8.2 — Time Split / OOS Evaluation Core**, awaiting explicit owner approval; not started. Milestone entries below retain their original status and test totals.
 
 - Stage 1 completed: reusable historical data collection and a validated BTCUSDT hourly snapshot.
 - Stage 2 completed: statistical market analysis of returns, volatility, volume, extreme movements, and BTC buy-and-hold drawdown in `notebooks/01_data_exploration.ipynb`.
@@ -73,6 +77,8 @@ Next focus: **Stage 8 — Strategy Robustness** (out-of-sample evaluation, walk-
 - Stage 7.8 completed: [notebook 05](notebooks/05_risk_position_sizing.ipynb) teaches fixed allocation at 1.0/0.50/0.25 using the frozen local BTC snapshot, existing generic pipeline, reserve-aware GROSS/NET equity, drawdown, and Sharpe/Sortino helpers. All 32 cells (15 code / 17 Markdown) executed sequentially with zero errors and two embedded plots; reference/input/raw-hash checks pass. All 747 tests remain green, with no production/test/decision/dependency/data or earlier-notebook changes. Stage 7.9 — Final Stage 7 Audit + Docs awaits explicit owner approval and has not started; Stage 7 is not complete.
 
 - Stage 7.9 completed: architecture/API boundaries, the eight-milestone commit chain, intended file scope, exact full-allocation compatibility, 0.50/0.25 analytics snapshots, and committed notebook 05 all passed audit. All 185 Stage 7 methods, 16 frozen EMA methods, and the full 747-test suite pass with zero failures, errors, or skips. Documentation only; Stage 7 is COMPLETE and Stage 8 has not started.
+
+- Stage 8.1 completed: [Decision 012](decisions/012_strategy_robustness.md) accepts the chronological/cold-start robustness contract and 8.1–8.8 roadmap. No production, test, notebook, dependency, or data changes; the unchanged full suite passes with 747 tests and zero failures, errors, or skips. Stage 8.2 awaits approval and has not started.
 
 Stage 7 follows accepted Decision 011: strategy decides intent, risk decides the allowed capital budget, execution owns fills, and accounting converts that budget into quantity/PnL. Direct GROSS and NET accounting now both support fixed partial allocation through the unchanged budget helper and trailing `position_fraction=1.0`. Budgets use each path's current total capital independently. NET's budget includes the entry fee; reserve stays outside the position and is derived, not stored. Schemas and return meanings are unchanged: GROSS `trade_return` is raw position return, while NET `net_trade_return` is `net_pnl / capital_before`. At zero costs and fraction 0.50, a 100 → 110 trade returns 10% on the position and 5% on portfolio capital. Default 1.0 preserves the frozen Stage 6 path. Only EMA20/50 is currently a production strategy.
 

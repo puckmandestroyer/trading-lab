@@ -6,6 +6,10 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 ## Current stage
 
+Stage 8 — Strategy Robustness has STARTED.
+
+Stage 8.1 — Robustness Contract is COMPLETE; Decision 012 is Accepted.
+
 Stage 7 — Risk Manager + Position Sizing is COMPLETE.
 
 Stage 7.9 — Final Stage 7 Audit + Docs completed.
@@ -236,6 +240,31 @@ Milestone entries retain the status and test totals recorded at their completion
 
 - Stage 7.9 completed the final contract/API, milestone-chain, file-scope, frozen regression, and committed-notebook audit. Stage 7 — Risk Manager + Position Sizing is COMPLETE. All 185 Stage 7 test methods, the 16-method frozen EMA regression, and the full suite (run once: 747 tests) pass with zero failures, errors, or skips. Documentation only; Stage 8 — Strategy Robustness is next and has not started.
 
+- Stage 8.1 accepted [Decision 012 — Strategy Robustness Contract](decisions/012_strategy_robustness.md) and the 8.1–8.8 roadmap. Documentation/architecture only; no production, test, notebook, dependency, or data changes. The full existing suite passed once: 747 tests, zero failures, errors, or skips. Stage 8.2 awaits explicit owner approval and has not started.
+
+## Strategy robustness contract
+
+[Decision 012](decisions/012_strategy_robustness.md) is Accepted. Stage 8 evaluates stability across chronological periods and nearby strategy parameters; it does not optimize profit, choose one best EMA pair, or deploy parameters automatically. Splits use predefined chronological half-open windows, never random splitting or shuffled candles, with no look-ahead. EMA20/50 with 50 warm-up candles remains the existing research baseline, not an optimal or validated strategy.
+
+Every independent IS/OOS/walk-forward segment cold-starts FLAT with its own initial capital and fresh strategy, execution, accounting, and ledger state. Initialization/warm-up occurs inside the segment and remains in its observation window. No pre-window indicators, portfolio state, or trades carry in; no synthetic boundary entry or terminal liquidation is added. Existing strategy generation, generic backtest, independent GROSS/NET accounting, reserve-aware equity, and analytics are reused without duplicate formulas or changed responsibilities.
+
+Sensitivity uses a predefined valid finite grid with consistent window/cost/sizing assumptions; isolated peaks are robustness warnings. Normally hold the accepted fixed `position_fraction` constant while varying time or strategy parameters. Fixed-parameter walk-forward supports the initial research; adaptive selection is not required, and no magic robustness score is introduced. Independent windows do not imply continuous compounded equity. Existing undefined metrics remain honest. The BTC snapshot is already-seen research data; chronological OOS checks within it are methodological evidence, not pristine unseen validation.
+
+Stage 8.1 adds no code, API, package, tests, notebooks, or dependencies. Stage 7 remains COMPLETE and Stage 5 analytics remains frozen. Current suite: 747 tests, zero failures, errors, or skips; `git diff --check` passes. Only Decision 012 and project documentation change.
+
+## Accepted Stage 8 roadmap
+
+| Milestone | Status |
+| --- | --- |
+| 8.1 — Robustness Contract | Complete; Decision 012 Accepted, documentation/architecture only. |
+| 8.2 — Time Split / OOS Evaluation Core | Awaits explicit owner approval; not started. |
+| 8.3 — Parameter Sensitivity Engine | Planned; not started. |
+| 8.4 — Parameter Stability Analysis | Planned; not started. |
+| 8.5 — Walk-Forward Evaluation | Planned; not started. |
+| 8.6 — Robustness Summary / Diagnostics | Planned; not started. |
+| 8.7 — Strategy Robustness Notebook | Planned; not started. |
+| 8.8 — Final Stage 8 Audit + Docs | Planned; not started. |
+
 ## Risk and position-sizing contract
 
 [Decision 011](decisions/011_risk_and_position_sizing.md) is Accepted. Stage 7's implemented policy is a scalar fixed `position_fraction` in `0 < position_fraction <= 1`, default `1.0`, constant for one backtest run. Reject zero, negatives, values above 1, Python/NumPy bools, non-finite values, strings, None, complex values, and non-scalars without coercion or clamping. No leverage, borrowing, or zero-allocation trade veto is introduced.
@@ -379,7 +408,7 @@ Default/explicit 1.0 exact-frame compatibility and all frozen Stage 5/6 referenc
 
 Every required targeted module and the full suite passed with zero failures, errors, or skips. No tests were added in Stage 7.9. Committed notebook 05 validates as JSON with 32 cells (15 code / 17 Markdown), sequential counts 1–15, zero saved errors, and two embedded plots; its accepted Stage 7.8 execution was inspected without re-execution or modification. It demonstrates local-only fixed-allocation budgeting, compounding, reserve-aware GROSS/NET equity, drawdown, Sharpe/Sortino, and unchanged time exposure through production APIs. Source/test/decision/notebook/dependency bytes and all data/result files were preserved during this audit; `git diff --check` passes. Closure changes only the allowed documentation.
 
-The completed scope remains single-asset LONG/FLAT fixed allocation: no leverage, shorts, dynamic sizing, stop-based sizing, multi-asset or multi-bot allocation. Stage 8 — Strategy Robustness is the next project focus, awaiting explicit owner approval; it has not started.
+The completed scope remains single-asset LONG/FLAT fixed allocation: no leverage, shorts, dynamic sizing, stop-based sizing, multi-asset or multi-bot allocation. Stage 8 has started with the accepted Stage 8.1 contract; Stage 8.2 awaits explicit owner approval and has not started.
 
 ## Final Stage 6 audit
 
@@ -726,9 +755,9 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Stage 7 — Risk Manager + Position Sizing is COMPLETE. Current focus: Stage 8 — Strategy Robustness, awaiting explicit owner approval; not started.
+Stage 8.1 — Robustness Contract is COMPLETE / Accepted. Current focus: Stage 8.2 — Time Split / OOS Evaluation Core, awaiting explicit owner approval; not started.
 
-Planned themes are out-of-sample evaluation, walk-forward evaluation, parameter sensitivity, and robustness checks. Stage 7 fixed allocation, reserve-aware equity, analytics regression, and notebook 05 remain the completed baseline. No Stage 8 code, tests, or notebooks have been created.
+Decision 012 and the accepted 8.1–8.8 roadmap govern the next work. Stage 7 fixed allocation, reserve-aware equity, analytics regression, and notebook 05 remain the completed baseline. No Stage 8 code, tests, or notebooks have been created.
 
 ## Not implemented yet
 
@@ -747,9 +776,9 @@ Planned themes are out-of-sample evaluation, walk-forward evaluation, parameter 
 
 ## Next milestone
 
-Stage 8 — Strategy Robustness, only after explicit owner approval. Planned themes: out-of-sample evaluation, walk-forward evaluation, parameter sensitivity, and robustness checks.
+Stage 8.2 — Time Split / OOS Evaluation Core, only after explicit owner approval. Implement self-contained chronological evaluation under Decision 012, reusing the existing backtest and analytics layers.
 
-Stage 8 has not started.
+Stage 8.2 has not started.
 
 ## Backtesting execution contract
 
