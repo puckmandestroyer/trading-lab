@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-09 — Stage 8.6 — Robustness Summary / Diagnostics
+
+- Added downstream-only summaries of precomputed IS/OOS and walk-forward results, reusing existing exposure, portfolio-drawdown, and risk-adjusted analytics. Reports endpoint returns, neutral OOS-minus-IS/test-minus-train comparisons, and finite-only cross-window count/mean/median/min/max. Preserves raw NaN/signed infinities; no strategy/backtest/grid/stability/walk-forward reruns, window compounding, stitched equity, scoring, classification, or parameter recommendation.
+- Added 62 methods (24 train/test, 29 walk-forward, five architecture/delegation, four local BTC integration), covering exact schemas/dtypes/parity, no reruns, non-finite policies, non-compounding, errors, preservation, and canonical table shapes. Diagnostics (62), walk-forward (42), stability (39), sensitivity (36), OOS (56), Stage 7 analytics regression (37), and frozen EMA regression (16) pass. Full suite passed once: 982 tests (920 existing + 62 new), zero failures/errors/skips; `git diff --check` passes.
+- Explicit imports added with all existing imports and the historical wildcard contract preserved. Existing robustness evaluation/sensitivity/stability/walk-forward, analytics/backtest/strategy modules, existing tests, decisions, notebooks, dependencies, data/results, and frozen references/tolerances are unchanged. Stage 7 remains COMPLETE; Stage 8 remains incomplete. Stage 8.7 — Strategy Robustness Notebook awaits explicit owner approval and has not started.
+
 ## 2026-10-09 — Stage 8.5 — Walk-Forward Evaluation
 
 - Added deterministic expanding row-count windows with fixed full, non-overlapping, gap-free tests and explicit unused-tail reporting. Independent cold-start train/test runs reuse Stage 8.2 with the same strategy/configuration and initial capital/settings, without state/trade/capital carry, cross-boundary fills, terminal liquidation, adaptive parameter selection, summary metrics, or stitched equity.

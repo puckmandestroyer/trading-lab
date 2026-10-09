@@ -6,7 +6,7 @@ The long-term goal is to support historical market data, multiple independent st
 
 ## Current stage
 
-**Stage 8 — Strategy Robustness is in progress. Stage 8.5 — Walk-Forward Evaluation is complete; Stage 8 remains incomplete. Stage 8.1 remains Accepted as [Decision 012](decisions/012_strategy_robustness.md).**
+**Stage 8 — Strategy Robustness is in progress. Stage 8.6 — Robustness Summary / Diagnostics is complete; Stage 8 remains incomplete. Stage 8.1 remains Accepted as [Decision 012](decisions/012_strategy_robustness.md).**
 
 **Stage 7 — Risk Manager + Position Sizing is COMPLETE after Stage 7.9 — Final Stage 7 Audit + Docs.**
 
@@ -28,9 +28,13 @@ Canonical BTC stability checks cover OOS NET equity, Sharpe, and portfolio drawd
 
 Stage 8.5 adds explicit imports `generate_expanding_walk_forward_windows` and `evaluate_expanding_walk_forward`. A fixed strategy configuration is evaluated on expanding training history and successive fixed-length, non-overlapping, gap-free full test windows. Each train/test segment cold-starts independently with its own warm-up and the same initial capital/settings; no state, trades, capital, or fills cross boundaries. Partial final tests are excluded and reported as unused tail rows. Results retain the canonical train/test outputs separately, with no adaptive parameter selection or stitched equity.
 
-Canonical local BTC research uses **4,380 initial train rows**, **1,460-row tests**, **three windows**, and zero unused tail rows. Training grows to 5,840 then 7,300 rows; EMA20/50 and 50-candle warm-up stay fixed inside every segment. The 42 new tests and full **920-test** suite pass with zero failures, errors, or skips. Broader summary diagnostics, visualization, and a robustness score remain unimplemented; Stage 8.6 will summarize the independent window outputs.
+Canonical local BTC research uses **4,380 initial train rows**, **1,460-row tests**, **three windows**, and zero unused tail rows. Training grows to 5,840 then 7,300 rows; EMA20/50 and 50-candle warm-up stay fixed inside every segment. All 42 Stage 8.5 tests remain green.
 
-Next focus: **Stage 8.6 — Robustness Summary / Diagnostics**, awaiting explicit owner approval; not started. Milestone entries below retain their original status and test totals.
+Stage 8.6 adds explicit imports `summarize_train_test_diagnostics` and `summarize_walk_forward_diagnostics`. They turn precomputed IS/OOS and walk-forward results into consistent tables ready for plotting, without rerunning research. Segment metrics include trade counts, exposure, initial/final GROSS/NET equity, endpoint total return, portfolio drawdown, Sharpe, and Sortino through existing analytics. Long-form comparisons report neutral OOS-minus-IS or test-minus-train differences. Cross-window test statistics report finite count, mean, median, minimum, and maximum; raw NaN/infinities remain unchanged, while only finite values enter aggregation. Independent OOS windows are not compounded or stitched into one portfolio. No robustness score, classification, parameter ranking, or recommendation is added.
+
+Canonical BTC diagnostics retain **6,132 IS / 2,628 OOS**, boundary **2026-06-13 12:00 UTC**, and the **three** independent walk-forward windows above. Every segment starts at 10,000; the walk-forward tables contain **3** window rows, **39** comparison rows, and **13** test-summary rows. The 62 new diagnostics tests and full **982-test** suite pass with zero failures, errors, or skips. Stage 8.7 is the visualization/notebook milestone; no chart or notebook was added here.
+
+Next focus: **Stage 8.7 — Strategy Robustness Notebook**, awaiting explicit owner approval; not started. Milestone entries below retain their original status and test totals.
 
 - Stage 1 completed: reusable historical data collection and a validated BTCUSDT hourly snapshot.
 - Stage 2 completed: statistical market analysis of returns, volatility, volume, extreme movements, and BTC buy-and-hold drawdown in `notebooks/01_data_exploration.ipynb`.
@@ -101,6 +105,8 @@ Next focus: **Stage 8.6 — Robustness Summary / Diagnostics**, awaiting explici
 - Stage 8.4 completed: downstream-only two-dimensional local variation analysis of the sensitivity table, with supplied-order Moore adjacency, finite neighborhood statistics, preserved non-finite cells, and canonical BTC geometry. The 39 new methods and full 878-test suite pass; no ranking, classification, or score. Stage 8.5 awaits approval and has not started.
 
 - Stage 8.5 completed: deterministic expanding windows and independent fixed-configuration train/test evaluation through Stage 8.2, with full test windows and explicit unused tail reporting. Canonical BTC integration verifies three successive tests with fresh EMA20/50 warm-up and unchanged financial assumptions. The 42 new methods and full 920-test suite pass; Stage 8.6 awaits approval and has not started.
+
+- Stage 8.6 completed: downstream-only IS/OOS and walk-forward diagnostic tables reuse existing analytics, with neutral comparisons and finite-only descriptive statistics across independent tests. No reruns, window compounding, stitched equity, score, classification, or parameter recommendation. The 62 new methods and full 982-test suite pass; Stage 8.7 awaits approval and has not started.
 
 Stage 7 follows accepted Decision 011: strategy decides intent, risk decides the allowed capital budget, execution owns fills, and accounting converts that budget into quantity/PnL. Direct GROSS and NET accounting now both support fixed partial allocation through the unchanged budget helper and trailing `position_fraction=1.0`. Budgets use each path's current total capital independently. NET's budget includes the entry fee; reserve stays outside the position and is derived, not stored. Schemas and return meanings are unchanged: GROSS `trade_return` is raw position return, while NET `net_trade_return` is `net_pnl / capital_before`. At zero costs and fraction 0.50, a 100 → 110 trade returns 10% on the position and 5% on portfolio capital. Default 1.0 preserves the frozen Stage 6 path. Only EMA20/50 is currently a production strategy.
 
@@ -282,7 +288,7 @@ Trading Lab/
 │   ├── strategies/        # Strategy signal generation
 │   ├── backtest/          # Fill timing, trade ledger, gross/net accounting
 │   ├── analytics/         # Trade metrics, realized drawdown, time, CLOSE equity
-│   ├── robustness/        # IS/OOS, grids, local variation, and walk-forward
+│   ├── robustness/        # IS/OOS, grids, local variation, walk-forward, diagnostics
 │   ├── exchange/          # Future exchange-specific adapters
 │   ├── execution/         # Future order and execution management
 │   ├── risk/              # Future centralized risk checks
@@ -295,7 +301,7 @@ Trading Lab/
 └── scripts/               # Future small command-line utilities
 ```
 
-The data package contains `market_data.py`, the exchange package contains the public HTTP adapter `bybit_market_data.py`, the strategies package contains `ema_trend.py`, the backtest package contains `execution.py`, `pipeline.py`, `trades.py`, `performance.py`, and `costs.py`, and the analytics package contains `trade_metrics.py`, `drawdown.py`, `trade_time.py`, and `equity.py`. The robustness package contains `evaluation.py` for cold-start IS/OOS, `sensitivity.py` for descriptive parameter grids, `stability.py` for downstream local variation, and `walk_forward.py` for independent expanding train/test research. Other application packages remain placeholders. Existing `.py` files in `notebooks/` and the top-level `strategies/` are preserved. New reusable strategy code belongs in `src/trading_lab/strategies/`.
+The data package contains `market_data.py`, the exchange package contains the public HTTP adapter `bybit_market_data.py`, the strategies package contains `ema_trend.py`, the backtest package contains `execution.py`, `pipeline.py`, `trades.py`, `performance.py`, and `costs.py`, and the analytics package contains `trade_metrics.py`, `drawdown.py`, `trade_time.py`, and `equity.py`. The robustness package contains `evaluation.py` for cold-start IS/OOS, `sensitivity.py` for descriptive parameter grids, `stability.py` for downstream local variation, `walk_forward.py` for independent expanding train/test research, and `diagnostics.py` for downstream descriptive summary tables. Other application packages remain placeholders. Existing `.py` files in `notebooks/` and the top-level `strategies/` are preserved. New reusable strategy code belongs in `src/trading_lab/strategies/`.
 
 ## Research and reusable code
 

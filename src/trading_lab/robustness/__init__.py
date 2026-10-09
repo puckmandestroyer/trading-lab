@@ -1,5 +1,9 @@
 """Chronological, cold-start strategy research using the existing backtest."""
 
+from trading_lab.robustness.diagnostics import (
+    summarize_train_test_diagnostics,
+    summarize_walk_forward_diagnostics,
+)
 from trading_lab.robustness.evaluation import (
     chronological_split,
     evaluate_strategy_segment,
