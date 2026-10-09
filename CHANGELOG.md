@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-09 — Stage 9.1 — Bybit Demo Exchange Adapter Contract
+
+- Accepted Decision 013 and the 9.1–9.7 roadmap. Stage 9 has STARTED; 9.1 is COMPLETE. Stage 8 remains COMPLETE; Stage 9.2 — Pybit Dependency + Secure Demo Configuration / Session awaits explicit owner approval and is NOT STARTED.
+- Defined Demo Trading separately from Testnet/real trading: Demo UTA, `testnet=False`, `demo=True`, fail-closed configuration, Spot LONG/FLAT without margin/borrowing/leverage, REST only, market BUY in explicit quoteCoin units and SELL in baseCoin units.
+- Froze authoritative instrument metadata, decimal-safe normalization, round down only, minimum/maximum rejection without increased risk or splitting, small normalized responses/errors, acknowledgement versus fills, caller order IDs, no blind placement retries, credential/logging safety, offline tests, and optional explicit manual Demo smoke. Strategy/risk allocation and historical fills/costs stay separate; runtime loops belong to Stage 10.
+- Documentation/architecture only: created Decision 013 and updated PROJECT_STATE/README/CHANGELOG. Source, tests, old decisions, requirements, `.env.example`, environment, notebooks, data/results, and financial references are unchanged; no pybit install, sessions, credential reads, exchange API calls, orders, or new tests. Full suite ran once: **982 tests, zero failures/errors/skips**; `git diff --check` passes.
+
 ## 2026-10-09 — Stage 8.8 — Final Stage 8 Audit + Docs
 
 - Stage 8 — Strategy Robustness is COMPLETE: Accepted Decision 012, milestones 8.1–8.8, public APIs/exports, seven-commit implementation chain, intended scope, canonical research, and frozen Stage 5–7 regressions passed audit. No optimizer, ranking, selection, deployment, robustness score, or stitched independent-window equity.

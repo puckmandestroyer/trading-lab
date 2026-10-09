@@ -6,6 +6,12 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 ## Current stage
 
+Stage 9 — Bybit Demo Exchange Adapter has STARTED and remains INCOMPLETE.
+
+Stage 9.1 — Demo Exchange Adapter Contract is COMPLETE; [Decision 013](decisions/013_bybit_demo_exchange_adapter.md) is Accepted. This milestone is documentation/architecture only; no authenticated adapter API is implemented.
+
+Stage 9.2 — Pybit Dependency + Secure Demo Configuration / Session awaits explicit owner approval and is NOT STARTED.
+
 Stage 8 — Strategy Robustness is COMPLETE.
 
 Stage 8.8 — Final Stage 8 Audit + Docs is COMPLETE. All milestones 8.1–8.8 are complete under Accepted Decision 012.
@@ -270,6 +276,39 @@ Milestone entries retain the status and test totals recorded at their completion
 
 - Stage 8.8 completed the Decision 012 contract/API, seven-commit milestone chain, file-scope, frozen Stage 5–7 regression, canonical BTC, and saved-notebook audits. Stage 8 — Strategy Robustness is COMPLETE. Its 235 new tests plus the unchanged 747-test baseline give 982 passing tests, zero failures/errors/skips. Documentation only; source, tests, decisions, notebooks, dependencies, data/results, and reference values/tolerances are preserved. Stage 9 — Bybit Demo Exchange Adapter awaits explicit owner approval and has not started.
 
+## Bybit Demo exchange adapter contract
+
+[Decision 013 — Bybit Demo Exchange Adapter Contract](decisions/013_bybit_demo_exchange_adapter.md) is Accepted. Stage 9.1 freezes the exchange boundary against completed baseline `83e6df19377339ccb3c937f18e1067704e357035` (`Complete Stage 8 strategy robustness`). Stages 6, 7, and 8 remain COMPLETE; Decisions 010–012 and historical strategy/execution/risk/accounting/research behavior are unchanged.
+
+The future flow is Market Data → Strategy → Signal / desired position → Risk Manager → Execution / Runtime → Exchange Adapter → Bybit Demo. Strategy decides WHEN / desired position; risk decides HOW MUCH capital is allocated; execution/runtime supplies explicit authorized intent; the adapter decides HOW to express it to Bybit and normalize exchange state. It does not choose allocation, strategy policy, or backtest fills/PnL. Wallet reads do not authorize spending.
+
+Core accepted rules:
+
+- Bybit Demo Trading UTA only, not Testnet or real trading: centralized future `pybit.unified_trading.HTTP` construction uses `testnet=False`, `demo=True`, authenticated REST `https://api-demo.bybit.com`. Credentials are generated while the user's production website account is switched into Demo mode. Missing/ambiguous configuration fails closed, never falling back to real trading; no real-trading switch.
+- Initial scope is Spot LONG/FLAT, no margin, borrowing, or leverage, MARKET orders only. BTCUSDT is canonical for integration/smoke; other valid Spot symbols may be supplied. REST only; no WebSockets.
+- Explicit market BUY uses `marketUnit="quoteCoin"` (USDT for BTCUSDT); SELL uses `marketUnit="baseCoin"` (BTC). No implicit units or adapter-selected allocation.
+- Instrument metadata is authoritative. Decimal-safe canonical strings and round DOWN toward zero only; never increase authorized exposure to meet a minimum. Reject below-minimum/above-maximum requests without automatic splitting or strategy resizing.
+- Optional caller `orderLinkId` is validated/forwarded without replacement. Ambiguous placement must not be blindly retried, including inside the SDK; Stage 10 reconciles order state before deciding whether replacement is safe.
+- Normalize small instrument/wallet/acknowledgement/order/fill structures; validate `retCode == 0`, shape, and relevant symbol/category. Acceptance does not prove a fill. Actual Demo fills/fees are separate from next-OPEN historical fills and research fee/slippage assumptions.
+- Runtime credentials only, never committed, logged, exposed in errors/repr, or included in raw diagnostics. Stage 9.2 will review Demo-specific variable names; `.env.example` is unchanged now. No session/network activity on import.
+- Offline mocked/fake tests by default, with no keys, internet, account, funds, or orders required. Any Stage 9.6 manual Demo smoke is explicit opt-in, starts read-only, and never places an order merely to test connectivity.
+- Stage 9 provides exchange/reconciliation primitives. The trading loop, scheduling, polling cadence, signal-triggered orders, state machine, and continuous reconciliation belong to Stage 10 — Demo Trading Runtime, initially using REST polling.
+- The Stage 1 public historical Kline helper remains unchanged and separate from later authenticated Demo modules.
+
+Stage 9.1 creates only Decision 013 and updates project documentation. No source, tests, old decisions, dependencies/environment, `.env.example`, notebooks, data/results, or financial references change. New tests: **0**. The unchanged full suite passed once: **982 tests, zero failures, errors, or skips**; `git diff --check` passes. No sessions, credential reads, exchange API calls, or orders occurred. Stage 9.2 is not started.
+
+## Accepted Stage 9 roadmap
+
+| Milestone | Direction | Status |
+| --- | --- | --- |
+| 9.1 — Demo Exchange Adapter Contract | Decision 013 and project documentation only. | COMPLETE; Accepted. |
+| 9.2 — Pybit Dependency + Secure Demo Configuration / Session | Verify/add pybit, review Demo-specific variables and safe `.env.example`, centralized Demo-only session construction and offline tests. | Awaiting explicit owner approval; NOT STARTED. |
+| 9.3 — Instrument Metadata + Order Normalization | Spot rules, decimal amounts, round down, applicable minimums/maximums without increased exposure. | Planned; NOT STARTED. |
+| 9.4 — Read-Only Demo Account / Order State Adapter | Needed wallet, order/status/history, and execution reads before placement. | Planned; NOT STARTED. |
+| 9.5 — Spot Market Order Lifecycle Adapter | Explicit market BUY/SELL, acknowledgements, status, cancellation where applicable; no loop. | Planned; NOT STARTED. |
+| 9.6 — Adapter Integration + Offline Regression + Optional Manual Demo Smoke | Offline integration/error/environment/formatting regression; optional explicitly authorized Demo smoke. | Planned; NOT STARTED. |
+| 9.7 — Final Stage 9 Audit + Docs | Contract/regression/scope/secret/Demo safety audit; close Stage 9 and declare Stage 10 next. | Planned; NOT STARTED. |
+
 ## Strategy robustness contract
 
 [Decision 012](decisions/012_strategy_robustness.md) is Accepted. Stage 8 evaluates stability across chronological periods and nearby strategy parameters; it does not optimize profit, choose one best EMA pair, or deploy parameters automatically. Splits use predefined chronological half-open windows, never random splitting or shuffled candles, with no look-ahead. EMA20/50 with 50 warm-up candles remains the existing research baseline, not an optimal or validated strategy.
@@ -517,7 +556,7 @@ Each required targeted suite ran once, as did the full suite:
 
 All gates passed with **zero failures, errors, or skips**; `git diff --check` passes. Stages 8.1, 8.7, and 8.8 add no tests. Stage 7 references and Decisions 010/011/012 are unchanged. Frozen EMA remains **78 ENTRY / 77 EXIT**, **77 CLOSED / one OPEN**, last CLOSED GROSS/NET capital **9,641.111388344 / 7,652.530163437**, and final GROSS/NET MTM equity **9,451.485313939314 / 7,490.776562851941**, with original tolerances. All source, tests, decisions, `.ipynb` files, placeholders, dependencies, data/results, and frozen references are preserved during 8.8; only the four allowed documentation files change, with no new repository files.
 
-Completion means the research tools satisfy the accepted contract, not that the strategy has a proven edge. The BTC sample is already seen; evidence covers one asset, one hourly timeframe, one primary strategy family, and three canonical OOS windows. Cold-start research differs from continuous live state, and transaction costs are frozen assumptions. Historical robustness does not prove future profitability; there is no demo/live trading evidence yet. Stage 7 remains COMPLETE. **Stage 9 — Bybit Demo Exchange Adapter** is next, awaiting explicit owner approval and **NOT STARTED**.
+Completion means the research tools satisfy the accepted contract, not that the strategy has a proven edge. The BTC sample is already seen; evidence covers one asset, one hourly timeframe, one primary strategy family, and three canonical OOS windows. Cold-start research differs from continuous live state, and transaction costs are frozen assumptions. Historical robustness does not prove future profitability; there is no demo/live trading evidence yet. Stage 7 remains COMPLETE. Stage 9 has now started with documentation-only Stage 9.1; Stage 9.2 awaits explicit owner approval.
 
 ## Risk and position-sizing contract
 
@@ -662,7 +701,7 @@ Default/explicit 1.0 exact-frame compatibility and all frozen Stage 5/6 referenc
 
 Every required targeted module and the full suite passed with zero failures, errors, or skips. No tests were added in Stage 7.9. Committed notebook 05 validates as JSON with 32 cells (15 code / 17 Markdown), sequential counts 1–15, zero saved errors, and two embedded plots; its accepted Stage 7.8 execution was inspected without re-execution or modification. It demonstrates local-only fixed-allocation budgeting, compounding, reserve-aware GROSS/NET equity, drawdown, Sharpe/Sortino, and unchanged time exposure through production APIs. Source/test/decision/notebook/dependency bytes and all data/result files were preserved during this audit; `git diff --check` passes. Closure changes only the allowed documentation.
 
-The completed scope remains single-asset LONG/FLAT fixed allocation: no leverage, shorts, dynamic sizing, stop-based sizing, multi-asset or multi-bot allocation. Stage 8 is COMPLETE under Decision 012 after its final audit; Stage 9 awaits explicit owner approval and has not started.
+The completed scope remains single-asset LONG/FLAT fixed allocation: no leverage, shorts, dynamic sizing, stop-based sizing, multi-asset or multi-bot allocation. Stage 8 is COMPLETE under Decision 012 after its final audit; Stage 9.1's Demo adapter contract is now Accepted, with Stage 9.2 awaiting explicit owner approval.
 
 ## Final Stage 6 audit
 
@@ -1009,9 +1048,9 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Stage 8 — Strategy Robustness and Stage 8.8 — Final Stage 8 Audit + Docs are COMPLETE. Current focus: Stage 9 — Bybit Demo Exchange Adapter, awaiting explicit owner approval; NOT STARTED.
+Stage 9.2 — Pybit Dependency + Secure Demo Configuration / Session, awaiting explicit owner approval; NOT STARTED.
 
-Decision 012 and all milestones 8.1–8.8 passed the final audit. Stages 5–7, fixed allocation, reserve-aware equity, regression references, and notebooks 01–06 are preserved. Stage 9 will connect the existing architecture to Bybit demo trading infrastructure through an isolated exchange adapter; it requires separate explicit approval.
+Stage 9 has STARTED; Stage 9.1 is COMPLETE and Decision 013 is Accepted. Stage 8 and its final audit remain COMPLETE. Stages 5–8, fixed allocation, reserve-aware equity, regression references, and notebooks 01–06 are preserved. The next milestone will introduce the pybit dependency and secure Demo-only configuration/session construction with offline tests; no authenticated request is required to prove construction. Nothing from Stage 9.2 or Stage 10 is implemented now.
 
 ## Not implemented yet
 
@@ -1030,9 +1069,9 @@ Decision 012 and all milestones 8.1–8.8 passed the final audit. Stages 5–7, 
 
 ## Next milestone
 
-Stage 9 — Bybit Demo Exchange Adapter, only after explicit owner approval, connecting the existing architecture to Bybit demo trading infrastructure through an isolated exchange adapter.
+Stage 9.2 — Pybit Dependency + Secure Demo Configuration / Session, only after explicit owner approval.
 
-Stage 9 has not started. No Stage 9 design or implementation is included in this closure.
+Stage 9.1's contract is complete; Stage 9.2 is NOT STARTED. Do not install pybit, change environment/configuration, construct authenticated sessions, or proceed to implementation until that milestone is approved.
 
 ## Backtesting execution contract
 

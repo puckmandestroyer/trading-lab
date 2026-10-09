@@ -6,6 +6,8 @@ The long-term goal is to support historical market data, multiple independent st
 
 ## Current stage
 
+**Stage 9 — Bybit Demo Exchange Adapter has STARTED. Stage 9.1 — Demo Exchange Adapter Contract is COMPLETE; [Decision 013](decisions/013_bybit_demo_exchange_adapter.md) is Accepted.**
+
 **Stage 8 — Strategy Robustness is COMPLETE after Stage 8.8 — Final Stage 8 Audit + Docs. All milestones 8.1–8.8 passed under Accepted [Decision 012](decisions/012_strategy_robustness.md).**
 
 **Stage 7 — Risk Manager + Position Sizing is COMPLETE after Stage 7.9 — Final Stage 7 Audit + Docs.**
@@ -13,6 +15,8 @@ The long-term goal is to support historical market data, multiple independent st
 Stage 6 — Generic Backtesting Engine remains COMPLETE.
 
 Stage 5 — Analytics remains COMPLETE and frozen as the existing EMA regression baseline.
+
+Stage 9 will introduce a **Demo-only Bybit Spot REST exchange boundary**: LONG/FLAT, no margin/borrowing/leverage, and market orders only. Strategy owns intent, risk owns capital allocation, and the adapter formats authorized requests and exposes exchange state; continuous orchestration belongs to Stage 10. Explicit BUY amounts use quote currency and SELL quantities use base currency. Instrument metadata governs decimal-safe rounding down and constraint rejection; minimums cannot increase risk. Demo configuration must fail closed, credentials stay private, ambiguous placements cannot be blindly retried, and unit tests will be offline. These are accepted rules, not implemented APIs: Stage 9.1 changes documentation only, adds no tests, and leaves all **982 tests** green. Historical next-OPEN fills and modeled costs remain separate from eventual Demo exchange fills/fees; the public Stage 1 Kline helper is unchanged.
 
 Stage 8 evaluates stability across chronological periods and nearby strategy parameters without turning Trading Lab into an optimizer. Decision 012 requires no look-ahead and self-contained cold-start segments with warm-up inside each window, reusing existing backtest/accounting/equity/analytics. Sensitivity and fixed-parameter walk-forward are research diagnostics; no automatic best-parameter deployment or magic robustness score is introduced. The existing BTC sample has already been seen, so its OOS checks are methodological research rather than pristine unseen validation. Stage 8.1 adds documentation only.
 
@@ -38,7 +42,7 @@ Canonical BTC diagnostics retain **6,132 IS / 2,628 OOS**, boundary **2026-06-13
 
 The final audit accepts chronological cold-start OOS evaluation, deterministic sensitivity, descriptive local stability, fixed-configuration expanding walk-forward, consistent downstream diagnostics, and Notebook 06's visual research report. Stage 8 adds **235 tests** to the unchanged 747-test baseline: **982 total**, zero failures, errors, or skips. Frozen Stage 5–7 references, Decisions 010–012, notebook bytes, and BTC SHA256 are preserved. No optimizer, selected best EMA, robustness score, or stitched OOS portfolio exists. Already-seen single-asset/hourly/EMA research does not prove future profitability or provide demo/live trading evidence.
 
-Next: **Stage 9 — Bybit Demo Exchange Adapter — NOT STARTED**, awaiting explicit owner approval. Its high-level purpose is to connect the existing architecture to Bybit demo trading infrastructure through an isolated exchange adapter. Milestone entries below retain their original status and test totals.
+Next: **Stage 9.2 — Pybit Dependency + Secure Demo Configuration / Session — NOT STARTED**, awaiting explicit owner approval. The accepted 9.1–9.7 roadmap is recorded in Decision 013 and PROJECT_STATE.md. No pybit dependency, authenticated session, Demo API, order, or runtime loop exists yet. Milestone entries below retain their original status and test totals.
 
 - Stage 1 completed: reusable historical data collection and a validated BTCUSDT hourly snapshot.
 - Stage 2 completed: statistical market analysis of returns, volatility, volume, extreme movements, and BTC buy-and-hold drawdown in `notebooks/01_data_exploration.ipynb`.
@@ -333,7 +337,7 @@ A strategy will produce BUY, SELL, or HOLD signals. The same strategy logic shou
 
 ## Research environment
 
-`requirements.txt` lists pandas, NumPy, Matplotlib, JupyterLab, and requests. requests is the small HTTP library used to read the public API; no exchange SDK is needed. In the current workspace, the virtual environment lives one directory above this project:
+`requirements.txt` lists pandas, NumPy, Matplotlib, JupyterLab, and requests. requests reads the public historical API; pybit is planned for Stage 9.2 and is not added or installed in Stage 9.1. In the current workspace, the virtual environment lives one directory above this project:
 
 ```sh
 source ../.venv/bin/activate
@@ -352,6 +356,6 @@ PYTHONPATH=src ../.venv/bin/python -m unittest discover -s tests -v
 
 The loader supports Bybit's fixed minute-based intervals. It paginates backward through newest-first API pages, converts millisecond timestamps to UTC datetimes and numeric strings to floats, and sorts oldest first. It warns when removing identical duplicates and rejects conflicting duplicates, invalid candles, and incomplete interval coverage. Saving refuses to overwrite an existing snapshot. Daily, weekly, and monthly intervals are not supported in this first version.
 
-`.env.example` contains empty variable names for future exchange configuration. Never add real credentials to source files or commit a local `.env` file. Credentials are not needed at this stage.
+`.env.example` retains empty generic variable names for future exchange configuration; Stage 9.2 will review Demo-specific names. Never add real credentials to source files or commit a local `.env` file. Credentials are not needed for Stage 9.1 or the offline full suite.
 
 Read `PROJECT_STATE.md` before starting new work. Git is initialized at the project root (`/Users/romankondratenko/trading-lab/Trading Lab`). The initial commit has been pushed to [GitHub](https://github.com/puckmandestroyer/trading-lab), and `main` tracks `origin/main`. The CSV is ignored by the project's `.gitignore`.
