@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-09 — Stage 9.2 — Pybit Dependency + Secure Demo Configuration / Session
+
+- Pinned and installed official `pybit==5.17.0` after the existing Python 3.11.17 environment passed the >= 3.10 gate; `pip check` passes. All five prior requirement lines and 104 installed distribution versions are preserved. Only pybit and its new pycryptodome dependency were installed; no virtualenv recreation or unrelated upgrades.
+- Added `BybitDemoConfigurationError`, frozen/slotted repr-safe `BybitDemoCredentials`, explicit call-time `load_bybit_demo_credentials(...)`, and central `create_bybit_demo_session(credentials)`, exported from `trading_lab.exchange`. Only `BYBIT_DEMO_API_KEY` / `BYBIT_DEMO_API_SECRET` are accepted; no generic fallback, stripping/coercion, global cache, dotenv/file loader, or real-trading/Testnet override. `.env.example` has empty Demo placeholders; `.env` remains ignored/untracked.
+- Fixed `testnet=False`, `demo=True`, endpoint `https://api-demo.bybit.com`, `force_retry=False`, `max_retries=1`, `retry_delay=0`, and `log_requests=False`. No network or session at import; construction makes no request. Offline guarded real-client smoke confirms only safe fields. No raw credential/environment/client logging, real credentials, exchange requests, or orders.
+- All 42 new offline unittest methods and 16 frozen EMA regression methods pass. Full suite ran once: **1,024 tests (982 + 42), zero failures/errors/skips**; `git diff --check` passes. Historical Kline, other production code, existing tests, all decisions/notebooks, data/results, and financial references/tolerances are unchanged. Stage 8 and 9.1 remain COMPLETE; 9.2 is COMPLETE; Stage 9 remains INCOMPLETE. Stage 9.3 — Instrument Metadata + Order Normalization awaits explicit approval and is NOT STARTED.
+
 ## 2026-10-09 — Stage 9.1 — Bybit Demo Exchange Adapter Contract
 
 - Accepted Decision 013 and the 9.1–9.7 roadmap. Stage 9 has STARTED; 9.1 is COMPLETE. Stage 8 remains COMPLETE; Stage 9.2 — Pybit Dependency + Secure Demo Configuration / Session awaits explicit owner approval and is NOT STARTED.
