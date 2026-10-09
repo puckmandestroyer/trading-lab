@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-09 — Stage 8.8 — Final Stage 8 Audit + Docs
+
+- Stage 8 — Strategy Robustness is COMPLETE: Accepted Decision 012, milestones 8.1–8.8, public APIs/exports, seven-commit implementation chain, intended scope, canonical research, and frozen Stage 5–7 regressions passed audit. No optimizer, ranking, selection, deployment, robustness score, or stitched independent-window equity.
+- All 235 Stage 8 methods pass (56 OOS / 36 sensitivity / 39 stability / 42 walk-forward / 62 diagnostics). Required targeted suites ran once, including unchanged Stage 7 analytics regression (37) and frozen EMA regression (16). Full suite ran once: 982 tests (747 + 235), zero failures/errors/skips; `git diff --check` passes.
+- Committed notebook 06 is valid: 34 cells (17 code / 17 Markdown), execution counts 1–17, zero saved errors, six embedded figures. Source/output/claims audited without editing or re-execution. Frozen BTC SHA256, original values/tolerances, source, tests, decisions, notebooks, dependencies, data/results, and placeholders are preserved.
+- Documentation-only closure updates four allowed files; no new files. Already-seen single-asset/hourly/EMA, cold-start, three-test-window, frozen-cost, and historical-evidence limitations remain explicit; no demo/live trading evidence. Stage 7 remains COMPLETE. Stage 9 — Bybit Demo Exchange Adapter is next, awaiting explicit owner approval and NOT STARTED.
+
 ## 2026-10-09 — Stage 8.7 — Strategy Robustness Notebook
 
 - Added executed `notebooks/06_strategy_robustness.ipynb` using accepted Stage 8 production APIs and only the frozen local BTC snapshot, with pre/post SHA256 and input-preservation checks. No network/download or new dependencies.

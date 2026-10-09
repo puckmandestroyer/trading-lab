@@ -6,7 +6,7 @@ The long-term goal is to support historical market data, multiple independent st
 
 ## Current stage
 
-**Stage 8 — Strategy Robustness is in progress. Stage 8.7 — Strategy Robustness Notebook is COMPLETE; Stage 8 remains incomplete until the Stage 8.8 final audit. Stage 8.1 remains Accepted as [Decision 012](decisions/012_strategy_robustness.md).**
+**Stage 8 — Strategy Robustness is COMPLETE after Stage 8.8 — Final Stage 8 Audit + Docs. All milestones 8.1–8.8 passed under Accepted [Decision 012](decisions/012_strategy_robustness.md).**
 
 **Stage 7 — Risk Manager + Position Sizing is COMPLETE after Stage 7.9 — Final Stage 7 Audit + Docs.**
 
@@ -32,11 +32,13 @@ Canonical local BTC research uses **4,380 initial train rows**, **1,460-row test
 
 Stage 8.6 adds explicit imports `summarize_train_test_diagnostics` and `summarize_walk_forward_diagnostics`. They turn precomputed IS/OOS and walk-forward results into consistent tables ready for plotting, without rerunning research. Segment metrics include trade counts, exposure, initial/final GROSS/NET equity, endpoint total return, portfolio drawdown, Sharpe, and Sortino through existing analytics. Long-form comparisons report neutral OOS-minus-IS or test-minus-train differences. Cross-window test statistics report finite count, mean, median, minimum, and maximum; raw NaN/infinities remain unchanged, while only finite values enter aggregation. Independent OOS windows are not compounded or stitched into one portfolio. No robustness score, classification, parameter ranking, or recommendation is added.
 
-Canonical BTC diagnostics retain **6,132 IS / 2,628 OOS**, boundary **2026-06-13 12:00 UTC**, and the **three** independent walk-forward windows above. Every segment starts at 10,000; the walk-forward tables contain **3** window rows, **39** comparison rows, and **13** test-summary rows. The 62 new diagnostics tests and full **982-test** suite pass with zero failures, errors, or skips. Stage 8.7 is the visualization/notebook milestone; no chart or notebook was added here.
+Canonical BTC diagnostics retain **6,132 IS / 2,628 OOS**, boundary **2026-06-13 12:00 UTC**, and the **three** independent walk-forward windows above. Every segment starts at 10,000; the walk-forward tables contain **3** window rows, **39** comparison rows, and **13** test-summary rows. The 62 new diagnostics tests and full **982-test** suite pass with zero failures, errors, or skips. Stage 8.6 added tables only; Notebook 06 now visualizes these accepted outputs.
 
 [Notebook 06](notebooks/06_strategy_robustness.ipynb) now visualizes chronological IS/OOS diagnostics, parameter sensitivity, local parameter stability, and expanding walk-forward behavior using accepted production APIs and the frozen local BTC snapshot. Its 34 cells (17 code / 17 Markdown) executed with sequential counts 1–17, zero saved errors, and six visually inspected embedded Matplotlib figures. EMA20/50 is the baseline only; no winner is selected and independent test windows are not compounded or stitched. No network/download or production/test/decision changes occurred; all 982 tests remain green.
 
-Next focus: **Stage 8.8 — Final Stage 8 Audit + Docs**, awaiting explicit owner approval; not started. Milestone entries below retain their original status and test totals.
+The final audit accepts chronological cold-start OOS evaluation, deterministic sensitivity, descriptive local stability, fixed-configuration expanding walk-forward, consistent downstream diagnostics, and Notebook 06's visual research report. Stage 8 adds **235 tests** to the unchanged 747-test baseline: **982 total**, zero failures, errors, or skips. Frozen Stage 5–7 references, Decisions 010–012, notebook bytes, and BTC SHA256 are preserved. No optimizer, selected best EMA, robustness score, or stitched OOS portfolio exists. Already-seen single-asset/hourly/EMA research does not prove future profitability or provide demo/live trading evidence.
+
+Next: **Stage 9 — Bybit Demo Exchange Adapter — NOT STARTED**, awaiting explicit owner approval. Its high-level purpose is to connect the existing architecture to Bybit demo trading infrastructure through an isolated exchange adapter. Milestone entries below retain their original status and test totals.
 
 - Stage 1 completed: reusable historical data collection and a validated BTCUSDT hourly snapshot.
 - Stage 2 completed: statistical market analysis of returns, volatility, volume, extreme movements, and BTC buy-and-hold drawdown in `notebooks/01_data_exploration.ipynb`.
@@ -111,6 +113,8 @@ Next focus: **Stage 8.8 — Final Stage 8 Audit + Docs**, awaiting explicit owne
 - Stage 8.6 completed: downstream-only IS/OOS and walk-forward diagnostic tables reuse existing analytics, with neutral comparisons and finite-only descriptive statistics across independent tests. No reruns, window compounding, stitched equity, score, classification, or parameter recommendation. The 62 new methods and full 982-test suite pass; Stage 8.7 awaits approval and has not started.
 
 - Stage 8.7 completed: executed [notebook 06](notebooks/06_strategy_robustness.ipynb) explains the accepted Stage 8 research with six embedded figure groups, predefined parameters, independent cold starts, and no optimizer/score/stitched equity. Frozen hash/input preservation and all 982 tests pass; source, tests, decisions, earlier notebooks, dependencies, and data/results are unchanged. Stage 8.8 awaits explicit owner approval; Stage 8 remains incomplete.
+
+- Stage 8.8 completed: final contract/API, milestone-history/scope, canonical BTC, frozen regression, and saved-notebook audits passed. Stage 8 is COMPLETE; all 235 Stage 8 tests, 37 Stage 7 analytics regression tests, 16 frozen EMA regression tests, and the full 982-test suite pass. Documentation only; no source/test/decision/notebook/dependency/data changes. Stage 9 awaits explicit approval and has not started.
 
 Stage 7 follows accepted Decision 011: strategy decides intent, risk decides the allowed capital budget, execution owns fills, and accounting converts that budget into quantity/PnL. Direct GROSS and NET accounting now both support fixed partial allocation through the unchanged budget helper and trailing `position_fraction=1.0`. Budgets use each path's current total capital independently. NET's budget includes the entry fee; reserve stays outside the position and is derived, not stored. Schemas and return meanings are unchanged: GROSS `trade_return` is raw position return, while NET `net_trade_return` is `net_pnl / capital_before`. At zero costs and fraction 0.50, a 100 → 110 trade returns 10% on the position and 5% on portfolio capital. Default 1.0 preserves the frozen Stage 6 path. Only EMA20/50 is currently a production strategy.
 

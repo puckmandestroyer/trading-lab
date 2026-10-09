@@ -6,9 +6,11 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 ## Current stage
 
-Stage 8 — Strategy Robustness has STARTED.
+Stage 8 — Strategy Robustness is COMPLETE.
 
-Stage 8.7 — Strategy Robustness Notebook is COMPLETE. Stage 8 remains INCOMPLETE.
+Stage 8.8 — Final Stage 8 Audit + Docs is COMPLETE. All milestones 8.1–8.8 are complete under Accepted Decision 012.
+
+Stage 8.7 — Strategy Robustness Notebook remains COMPLETE and unchanged.
 
 Stage 8.6 — Robustness Summary / Diagnostics remains COMPLETE and unchanged.
 
@@ -266,6 +268,8 @@ Milestone entries retain the status and test totals recorded at their completion
 
 - Stage 8.7 added and executed `notebooks/06_strategy_robustness.ipynb` using accepted production APIs and only the hash-verified local BTC snapshot. All 34 cells (17 code / 17 Markdown) executed sequentially with zero errors and six visually inspected embedded figures. Canonical split/grid/neighborhood/walk-forward and input/raw-hash checks pass; all 982 tests remain green. No production/test/decision/earlier-notebook/dependency/data/result changes, optimization, score, or stitched equity. Stage 8.8 awaits explicit approval; Stage 8 remains INCOMPLETE.
 
+- Stage 8.8 completed the Decision 012 contract/API, seven-commit milestone chain, file-scope, frozen Stage 5–7 regression, canonical BTC, and saved-notebook audits. Stage 8 — Strategy Robustness is COMPLETE. Its 235 new tests plus the unchanged 747-test baseline give 982 passing tests, zero failures/errors/skips. Documentation only; source, tests, decisions, notebooks, dependencies, data/results, and reference values/tolerances are preserved. Stage 9 — Bybit Demo Exchange Adapter awaits explicit owner approval and has not started.
+
 ## Strategy robustness contract
 
 [Decision 012](decisions/012_strategy_robustness.md) is Accepted. Stage 8 evaluates stability across chronological periods and nearby strategy parameters; it does not optimize profit, choose one best EMA pair, or deploy parameters automatically. Splits use predefined chronological half-open windows, never random splitting or shuffled candles, with no look-ahead. EMA20/50 with 50 warm-up candles remains the existing research baseline, not an optimal or validated strategy.
@@ -274,7 +278,7 @@ Every independent IS/OOS/walk-forward segment cold-starts FLAT with its own init
 
 Sensitivity uses a predefined valid finite grid with consistent window/cost/sizing assumptions; isolated peaks are robustness warnings. Normally hold the accepted fixed `position_fraction` constant while varying time or strategy parameters. Fixed-parameter walk-forward supports the initial research; adaptive selection is not required, and no magic robustness score is introduced. Independent windows do not imply continuous compounded equity. Existing undefined metrics remain honest. The BTC snapshot is already-seen research data; chronological OOS checks within it are methodological evidence, not pristine unseen validation.
 
-Stage 8.1 was documentation/architecture only; Stage 8.2 implements the split/evaluation core, Stage 8.3 adds descriptive parameter sensitivity, Stage 8.4 analyzes local surface variation, Stage 8.5 adds independent expanding walk-forward evaluation, and Stage 8.6 summarizes precomputed IS/OOS and walk-forward results below. Stage 8.7 presents these outputs in executed notebook 06. Stage 7 remains COMPLETE and Stage 5 analytics remains frozen. Current suite: 982 tests, zero failures, errors, or skips; `git diff --check` passes. Decision 012 remains unchanged; Stage 8.8 final audit awaits explicit approval and has not started.
+Stage 8.1 was documentation/architecture only; Stage 8.2 implements the split/evaluation core, Stage 8.3 adds descriptive parameter sensitivity, Stage 8.4 analyzes local surface variation, Stage 8.5 adds independent expanding walk-forward evaluation, and Stage 8.6 summarizes precomputed IS/OOS and walk-forward results below. Stage 8.7 presents these outputs in executed notebook 06. Stage 7 remains COMPLETE and Stage 5 analytics remains frozen. Current suite: 982 tests, zero failures, errors, or skips; `git diff --check` passes. Decision 012 remains unchanged; Stage 8.8 final audit and Stage 8 are COMPLETE.
 
 ## Accepted Stage 8 roadmap
 
@@ -287,7 +291,7 @@ Stage 8.1 was documentation/architecture only; Stage 8.2 implements the split/ev
 | 8.5 — Walk-Forward Evaluation | Complete; fixed-configuration expanding windows with independent cold starts. |
 | 8.6 — Robustness Summary / Diagnostics | Complete; downstream neutral comparisons and finite-only independent-window statistics. |
 | 8.7 — Strategy Robustness Notebook | Complete; executed local-only research with six embedded figure groups. |
-| 8.8 — Final Stage 8 Audit + Docs | Awaits explicit owner approval; not started. |
+| 8.8 — Final Stage 8 Audit + Docs | Complete; contract/API, history/scope, frozen regression, data, and saved-notebook audits passed. |
 
 ## Chronological split / OOS evaluation core
 
@@ -389,7 +393,7 @@ Original NaN, +infinity, and -infinity remain in the surface and `metric_value`;
 
 The hash-checked local BTC integration generates the accepted Stage 8.3 **25-cell** research grid through its production API, with the unchanged fast/slow levels, warm-up 50, default 70/30 split, capital/cost/allocation/annualization assumptions above. It analyzes **OOS NET final equity, Sharpe, and maximum portfolio drawdown**. All three retain every cell; **10/40 has three neighbors, 10/50 five, and EMA20/50 eight**. EMA20/50's exact neighbors are 15/40, 15/50, 15/60, 20/40, 20/60, 25/40, 25/50, and 25/60. Across the 5×5 geometry: four corners with 3, twelve edges with 5, nine interiors with 8. No performance preference is asserted.
 
-All **39 new methods** (35 synthetic/contract, four focused BTC integration cases) pass. Unchanged compatibility gates: sensitivity **36**, OOS **56**, Stage 7 analytics regression **37**, frozen EMA regression **16**. Full suite passed once: **878 tests (839 existing + 39 new), zero failures, errors, or skips**; `git diff --check` passes. Existing evaluation/sensitivity/backtest/analytics/strategy modules, tests, decisions, notebooks, dependencies, data/results, and frozen references/tolerances are preserved. The three-name wildcard export contract stays unchanged. Stage 7 remains COMPLETE; Stage 8 remains INCOMPLETE. Stage 8.4 remains complete and frozen; Stage 8.5 composes independent segment evaluations below.
+All **39 new methods** (35 synthetic/contract, four focused BTC integration cases) pass. Unchanged compatibility gates: sensitivity **36**, OOS **56**, Stage 7 analytics regression **37**, frozen EMA regression **16**. Full suite passed once: **878 tests (839 existing + 39 new), zero failures, errors, or skips**; `git diff --check` passes. Existing evaluation/sensitivity/backtest/analytics/strategy modules, tests, decisions, notebooks, dependencies, data/results, and frozen references/tolerances are preserved. The three-name wildcard export contract stays unchanged. Stage 7 remains COMPLETE; Stage 8 is COMPLETE after the final audit below. Stage 8.4 remains complete and frozen; Stage 8.5 composes independent segment evaluations below.
 
 ## Expanding walk-forward evaluation
 
@@ -433,7 +437,7 @@ Canonical local BTC research uses **8,760 rows**, `initial_train_rows=4380`, `te
 
 All six evaluations use predefined **EMA20/50**, **50 warm-up candles inside every segment**, initial capital **10,000**, fee **0.001**, adverse slippage **0.0005**, position fraction **1.0**, and the existing one-hour candle interval. Costs are research assumptions. Integration reads only the hash-checked frozen local snapshot, with no download or parameter comparison; it verifies window metadata, fresh EMA initialization/warm-up, unchanged settings, and input/raw preservation without freezing profitability conclusions.
 
-All **42 new methods** pass: **14** window-definition, **24** evaluation, and **4** BTC integration cases. Exact seven-frame direct-composition parity, future-data independence, boundary signals, fresh capital/state, kwargs isolation, tail exclusion, and determinism are covered. Unchanged compatibility gates pass: stability **39**, sensitivity **36**, OOS **56**, Stage 7 analytics regression **37**, frozen EMA regression **16**. The full suite passed once: **920 tests (878 existing + 42 new), zero failures, errors, or skips**; `git diff --check` passes. Existing evaluation/sensitivity/stability, backtest/analytics/strategy modules, existing tests, decisions, notebooks, dependencies, data/results, and frozen references/tolerances are unchanged. Stage 7 remains COMPLETE; Stage 8 remains INCOMPLETE. Stage 8.5 remains complete and frozen; Stage 8.6 summarizes its precomputed independent outputs below.
+All **42 new methods** pass: **14** window-definition, **24** evaluation, and **4** BTC integration cases. Exact seven-frame direct-composition parity, future-data independence, boundary signals, fresh capital/state, kwargs isolation, tail exclusion, and determinism are covered. Unchanged compatibility gates pass: stability **39**, sensitivity **36**, OOS **56**, Stage 7 analytics regression **37**, frozen EMA regression **16**. The full suite passed once: **920 tests (878 existing + 42 new), zero failures, errors, or skips**; `git diff --check` passes. Existing evaluation/sensitivity/stability, backtest/analytics/strategy modules, existing tests, decisions, notebooks, dependencies, data/results, and frozen references/tolerances are unchanged. Stage 7 remains COMPLETE; Stage 8 is COMPLETE after the final audit below. Stage 8.5 remains complete and frozen; Stage 8.6 summarizes its precomputed independent outputs below.
 
 ## Robustness summary / diagnostics
 
@@ -471,7 +475,7 @@ The walk-forward return keys are exactly `unused_tail_rows`, `window_metrics`, `
 
 The hash-checked local BTC integration uses unchanged EMA20/50, warm-up 50, capital 10,000, fee 0.001, slippage 0.0005, fraction 1.0, one-hour candles, 8,760 periods/year, and zero per-period risk-free return/MAR. These remain research assumptions. Single split: **6,132 IS / 2,628 OOS**, boundary **2026-06-13 12:00 UTC**, diagnostic table **2 × 15**, comparison **13 × 4**. Walk-forward: **4,380 initial train / 1,460-row tests**, **three windows**, **zero tail**, window metrics **3 × 35**, comparisons **39 × 5**, test statistics **13 × 6**. Every train/test initial equity remains **10,000**. All segment metrics match direct public analytics; counts, exposure, equity, drawdown, and endpoint returns satisfy canonical sanity checks. No download or strategy-quality verdict occurs.
 
-All **62 new methods** pass: **24** train/test, **29** walk-forward, **5** architecture/delegation, and **4** BTC integration cases. Coverage includes exact schemas/dtypes/parity, neutral comparisons, raw non-finite preservation, finite-only statistics, non-compounding, input preservation, determinism, structural errors, and the hard no-rerun gate. Unchanged compatibility suites pass: walk-forward **42**, stability **39**, sensitivity **36**, OOS **56**, Stage 7 analytics regression **37**, frozen EMA regression **16**. The full suite passed once: **982 tests (920 existing + 62 new), zero failures, errors, or skips**; `git diff --check` passes. Existing robustness evaluation/sensitivity/stability/walk-forward, analytics/backtest/strategy modules, existing tests, decisions, notebooks, dependencies, data/results, and frozen references/tolerances are unchanged. Stage 7 remains COMPLETE; Stage 8 remains INCOMPLETE. Stage 8.7 — Strategy Robustness Notebook awaits explicit owner approval and has not started.
+All **62 new methods** pass: **24** train/test, **29** walk-forward, **5** architecture/delegation, and **4** BTC integration cases. Coverage includes exact schemas/dtypes/parity, neutral comparisons, raw non-finite preservation, finite-only statistics, non-compounding, input preservation, determinism, structural errors, and the hard no-rerun gate. Unchanged compatibility suites pass: walk-forward **42**, stability **39**, sensitivity **36**, OOS **56**, Stage 7 analytics regression **37**, frozen EMA regression **16**. The full suite passed once: **982 tests (920 existing + 62 new), zero failures, errors, or skips**; `git diff --check` passes. Existing robustness evaluation/sensitivity/stability/walk-forward, analytics/backtest/strategy modules, existing tests, decisions, notebooks, dependencies, data/results, and frozen references/tolerances are unchanged. Stage 7 remains COMPLETE; Stage 8 is COMPLETE after the final audit below. Stage 8.7 — Strategy Robustness Notebook is complete as recorded below.
 
 ## Strategy robustness notebook
 
@@ -483,7 +487,37 @@ Data is only the local **8,760-row** `data/raw/BTCUSDT_1h.csv`, period `[2025-10
 
 Canonical settings remain EMA20/50, warm-up 50 inside every segment, capital 10,000, fee 0.001, adverse slippage 0.0005, fixed fraction 1.0, one-hour candles, 8,760 periods/year, and zero per-period risk-free return/MAR. Fees/slippage are frozen research assumptions. The single cold-start split verifies **6,132 IS / 2,628 OOS**, first OOS **2026-06-13 12:00 UTC**. The predefined fast `[10, 15, 20, 25, 30]` × slow `[40, 50, 60, 70, 80]` grid has **25** rows in supplied order; EMA20/50 appears once and has **eight** stability neighbors. Three stability objects cover OOS NET equity, Sharpe, and portfolio drawdown. Walk-forward verifies **three** independent tests, train sizes **4,380 / 5,840 / 7,300**, test sizes **1,460** each, and **zero** unused tail rows; no capital continues between windows.
 
-Markdown distinguishes robustness from profitability and explains chronological testing, local similarity versus isolated variation, and limits of already-seen single-asset/hourly/EMA research. It makes no strategy-quality verdict or live/demo/production claim. All six targeted modules pass: diagnostics **62**, walk-forward **42**, stability **39**, sensitivity **36**, OOS **56**, frozen EMA regression **16**. The full suite passed once: **982 tests, zero failures, errors, or skips**; `git diff --check` passes. No tests were added. Source, tests, decisions, notebooks 01–05, `.py` placeholders, dependencies, data/results, and frozen references/tolerances are unchanged. Stage 7 remains COMPLETE; Stage 8 remains INCOMPLETE. Stage 8.8 — Final Stage 8 Audit + Docs awaits explicit owner approval and has not started.
+Markdown distinguishes robustness from profitability and explains chronological testing, local similarity versus isolated variation, and limits of already-seen single-asset/hourly/EMA research. It makes no strategy-quality verdict or live/demo/production claim. All six targeted modules pass: diagnostics **62**, walk-forward **42**, stability **39**, sensitivity **36**, OOS **56**, frozen EMA regression **16**. The full suite passed once: **982 tests, zero failures, errors, or skips**; `git diff --check` passes. No tests were added. Source, tests, decisions, notebooks 01–05, `.py` placeholders, dependencies, data/results, and frozen references/tolerances are unchanged. Stage 7 remains COMPLETE; Stage 8 is COMPLETE after the final audit below. Stage 8.8 — Final Stage 8 Audit + Docs is complete as recorded below.
+
+## Final Stage 8 audit
+
+Stage 8.8 — Final Stage 8 Audit + Docs is **COMPLETE**. Stage 8 — Strategy Robustness is **COMPLETE** under Accepted, unchanged [Decision 012](decisions/012_strategy_robustness.md). All milestones 8.1–8.8 are accepted: contract; chronological split / OOS core; deterministic parameter sensitivity; descriptive local stability; fixed-configuration expanding walk-forward; downstream summary / diagnostics; research notebook; and final audit.
+
+The audit confirms chronological-only splitting without sorting, shuffling, random splitting, overlap, or gaps. Every independent segment generates strategy output from its own candles, cold-starts FLAT with its own configured capital and internal warm-up, and reuses the existing generic backtest, accounting, reserve-aware equity, and analytics. No pre-window indicators, state, capital, trades, cross-boundary fills, or terminal liquidation are introduced. Sensitivity preserves caller-supplied Cartesian order; two-dimensional radius-one Moore stability clips at edges (3/5/8 neighbors) and preserves raw NaN/infinities. Walk-forward holds parameters fixed across expanding trains and independent full tests, with explicit unused tails. Diagnostics consume precomputed results only, retain neutral comparisons and finite-only descriptive statistics, and never compound independent windows. No optimizer, ranking, winner selection, automatic deployment, classification threshold, robustness score, stitched equity, or second financial engine exists.
+
+All **nine** accepted public APIs are explicitly importable from `trading_lab.robustness`. The historical wildcard contract remains exactly `chronological_split`, `evaluate_strategy_segment`, and `evaluate_train_test_split`. The seven implementation commits from `6928991` through `09112fc` added only six robustness modules, five test modules, Decision 012, and notebook 06, plus documentation. Every pre-Stage-8 non-documentation file stayed unchanged in every commit; no later-stage exchange/runtime/database/dashboard/deployment implementation or dependencies were added.
+
+Canonical research remains the frozen **Bybit spot BTCUSDT 1-hour** snapshot: **8,760 rows**, `[2025-10-01 00:00 UTC, 2026-10-01 00:00 UTC)`, SHA256 **`0be33013ae5decc74112c4a1cfdcb94b387830a37b9d1109b7f6c582d60f1975`** unchanged. EMA20/50 and 50-candle warm-up remain the baseline/defaults, not an optimal configuration. Initial capital 10,000, fee 0.001, adverse slippage 0.0005, fraction 1.0, 8,760 periods/year, and zero per-period risk-free return/MAR stay fixed; costs are research assumptions, not current exchange pricing. The 70/30 split is **6,132 / 2,628**, first OOS **2026-06-13 12:00 UTC**. The ordered 25-cell grid includes EMA20/50 once, with eight neighbors. Three walk-forward tests have **1,460 rows each**, train sizes **4,380 / 5,840 / 7,300**, starts **2026-04-01 12:00**, **2026-06-01 08:00**, and **2026-08-01 04:00 UTC**, and **zero** unused tail. Diagnostics retain shapes **2 × 15**, **13 × 4**, **3 × 35**, **39 × 5**, and **13 × 6**.
+
+Committed notebook 06 validates as JSON with **34 cells (17 code / 17 Markdown)**, saved sequential execution **1–17**, **zero errors**, and **six embedded figures** covering all required groups. Its source/output/claims audit confirms public API reuse, presentation-only helpers, independent own-start equity indexing, no obvious secrets/credentials, no network/download output, and no external result-file dependency. Notebook 06 was **not edited or re-executed** during this audit; its milestone-time status note remains preserved.
+
+Each required targeted suite ran once, as did the full suite:
+
+| Test group | Passing methods |
+| --- | ---: |
+| Stage 8.2 OOS core | 56 |
+| Stage 8.3 sensitivity | 36 |
+| Stage 8.4 stability | 39 |
+| Stage 8.5 walk-forward | 42 |
+| Stage 8.6 diagnostics | 62 |
+| Stage 8 additions total | 235 |
+| Stage 7 analytics regression | 37 |
+| Frozen EMA regression | 16 |
+| Full suite: 747 + 235 | 982 |
+
+All gates passed with **zero failures, errors, or skips**; `git diff --check` passes. Stages 8.1, 8.7, and 8.8 add no tests. Stage 7 references and Decisions 010/011/012 are unchanged. Frozen EMA remains **78 ENTRY / 77 EXIT**, **77 CLOSED / one OPEN**, last CLOSED GROSS/NET capital **9,641.111388344 / 7,652.530163437**, and final GROSS/NET MTM equity **9,451.485313939314 / 7,490.776562851941**, with original tolerances. All source, tests, decisions, `.ipynb` files, placeholders, dependencies, data/results, and frozen references are preserved during 8.8; only the four allowed documentation files change, with no new repository files.
+
+Completion means the research tools satisfy the accepted contract, not that the strategy has a proven edge. The BTC sample is already seen; evidence covers one asset, one hourly timeframe, one primary strategy family, and three canonical OOS windows. Cold-start research differs from continuous live state, and transaction costs are frozen assumptions. Historical robustness does not prove future profitability; there is no demo/live trading evidence yet. Stage 7 remains COMPLETE. **Stage 9 — Bybit Demo Exchange Adapter** is next, awaiting explicit owner approval and **NOT STARTED**.
 
 ## Risk and position-sizing contract
 
@@ -628,7 +662,7 @@ Default/explicit 1.0 exact-frame compatibility and all frozen Stage 5/6 referenc
 
 Every required targeted module and the full suite passed with zero failures, errors, or skips. No tests were added in Stage 7.9. Committed notebook 05 validates as JSON with 32 cells (15 code / 17 Markdown), sequential counts 1–15, zero saved errors, and two embedded plots; its accepted Stage 7.8 execution was inspected without re-execution or modification. It demonstrates local-only fixed-allocation budgeting, compounding, reserve-aware GROSS/NET equity, drawdown, Sharpe/Sortino, and unchanged time exposure through production APIs. Source/test/decision/notebook/dependency bytes and all data/result files were preserved during this audit; `git diff --check` passes. Closure changes only the allowed documentation.
 
-The completed scope remains single-asset LONG/FLAT fixed allocation: no leverage, shorts, dynamic sizing, stop-based sizing, multi-asset or multi-bot allocation. Stages 8.2–8.6 are complete under the accepted Stage 8.1 contract; Stage 8.7 awaits explicit owner approval and has not started.
+The completed scope remains single-asset LONG/FLAT fixed allocation: no leverage, shorts, dynamic sizing, stop-based sizing, multi-asset or multi-bot allocation. Stage 8 is COMPLETE under Decision 012 after its final audit; Stage 9 awaits explicit owner approval and has not started.
 
 ## Final Stage 6 audit
 
@@ -975,9 +1009,9 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Stage 8.7 — Strategy Robustness Notebook is COMPLETE. Current focus: Stage 8.8 — Final Stage 8 Audit + Docs, awaiting explicit owner approval; not started.
+Stage 8 — Strategy Robustness and Stage 8.8 — Final Stage 8 Audit + Docs are COMPLETE. Current focus: Stage 9 — Bybit Demo Exchange Adapter, awaiting explicit owner approval; NOT STARTED.
 
-Decision 012 and the accepted 8.1–8.8 roadmap govern the next work. Stage 7 remains COMPLETE; its fixed allocation, reserve-aware equity, analytics regression, and notebook 05 are preserved. Stage 8.7 now visualizes the accepted independent Stage 8 results in notebook 06. Stage 8 remains INCOMPLETE pending its final audit.
+Decision 012 and all milestones 8.1–8.8 passed the final audit. Stages 5–7, fixed allocation, reserve-aware equity, regression references, and notebooks 01–06 are preserved. Stage 9 will connect the existing architecture to Bybit demo trading infrastructure through an isolated exchange adapter; it requires separate explicit approval.
 
 ## Not implemented yet
 
@@ -996,9 +1030,9 @@ Decision 012 and the accepted 8.1–8.8 roadmap govern the next work. Stage 7 re
 
 ## Next milestone
 
-Stage 8.8 — Final Stage 8 Audit + Docs, only after explicit owner approval, auditing the accepted Stage 8 contract, production APIs, regression coverage, executed notebook, and documentation.
+Stage 9 — Bybit Demo Exchange Adapter, only after explicit owner approval, connecting the existing architecture to Bybit demo trading infrastructure through an isolated exchange adapter.
 
-Stage 8.8 has not started.
+Stage 9 has not started. No Stage 9 design or implementation is included in this closure.
 
 ## Backtesting execution contract
 
