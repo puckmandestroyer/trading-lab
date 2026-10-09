@@ -6,7 +6,16 @@ from .bybit_demo import (
     create_bybit_demo_session,
     load_bybit_demo_credentials,
 )
+from .bybit_spot_rules import (
+    BybitSpotInstrumentError,
+    BybitSpotInstrumentRules,
+    BybitSpotOrderConstraintError,
+    fetch_bybit_spot_instrument_rules,
+    normalize_spot_market_buy_quote_amount,
+    normalize_spot_market_sell_base_quantity,
+)
 
+# Preserve Stage 9.2 wildcard imports; Spot APIs are available by explicit import.
 __all__ = [
     "BybitDemoConfigurationError",
     "BybitDemoCredentials",

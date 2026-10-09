@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-09 — Stage 9.3 — Instrument Metadata + Order Normalization
+
+- Added exact-symbol Spot metadata fetch through a supplied client with one `get_instruments_info(category="spot", symbol=...)` call, strict success/shape/identity/Trading validation, and immutable slotted Decimal rules. Current fields are required; deprecated `minOrderQty`, `maxOrderQty`, and `maxOrderAmt` are ignored without fallback. No permanent BTC limits, cache, credential loading, session construction, or retries.
+- Added quote-unit Market BUY round-down formatting with `minOrderAmt` and base-unit Market SELL round-down formatting with `maxMarketOrderQty`. No invented quote BUY maximum or SELL notional conversion without price; no rounding up, clipping, splitting, or tick-based Market sizing. Exact step arithmetic survives low Decimal context precision and produces plain strings; floats, bools, non-finite/non-positive values, and rounded zero fail.
+- Exported six new APIs by explicit package import while preserving Stage 9.2 wildcard exports. All **93 new offline unittest methods**, unchanged Stage 9.2 **42**, and frozen EMA **16** pass. Full suite ran once: **1,117 tests (1,024 + 93), zero failures/errors/skips**; `pip check` and `git diff --check` pass. Python 3.11.17 / pybit 5.17.0 and all installed package versions are unchanged; no new dependency.
+- No real credentials, actual Bybit requests, wallet/order reads, placement/cancellation, or runtime loops; imports remain side-effect-free. Historical Kline, Demo session code/settings, existing tests, decisions, notebooks, requirements, `.env.example`, `.gitignore`, data/results, and financial references/tolerances are preserved. Stage 8 and 9.1–9.3 remain COMPLETE; Stage 9 remains INCOMPLETE. Stage 9.4 — Read-Only Demo Account / Order State Adapter awaits approval and is NOT STARTED.
+
 ## 2026-10-09 — Stage 9.2 — Pybit Dependency + Secure Demo Configuration / Session
 
 - Pinned and installed official `pybit==5.17.0` after the existing Python 3.11.17 environment passed the >= 3.10 gate; `pip check` passes. All five prior requirement lines and 104 installed distribution versions are preserved. Only pybit and its new pycryptodome dependency were installed; no virtualenv recreation or unrelated upgrades.
