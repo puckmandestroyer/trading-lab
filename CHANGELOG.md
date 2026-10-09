@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-09 — Stage 8.7 — Strategy Robustness Notebook
+
+- Added executed `notebooks/06_strategy_robustness.ipynb` using accepted Stage 8 production APIs and only the frozen local BTC snapshot, with pre/post SHA256 and input-preservation checks. No network/download or new dependencies.
+- Six embedded Matplotlib figure groups explain IS/OOS diagnostics, three sensitivity heatmaps, two stability maps, walk-forward train/test returns, independent test NET equity indexed to its own start, and test diagnostics. Baseline EMA20/50 is outlined; no optimizer, winner, ranking, score, stitched equity, or duplicated financial formulas. All plots visually inspected.
+- Saved valid notebook JSON: 34 cells (17 code / 17 Markdown), sequential execution counts 1–17, zero saved errors, six figures. Diagnostics (62), walk-forward (42), stability (39), sensitivity (36), OOS (56), and frozen EMA regression (16) pass. Full suite passed once: 982 tests, zero failures/errors/skips; `git diff --check` passes.
+- Updated notebook/project documentation only. Source, tests, decisions, notebooks 01–05, `.py` placeholders, dependencies, data/results, and frozen references/tolerances are preserved. Stage 7 remains COMPLETE; Stage 8 remains INCOMPLETE. Stage 8.8 — Final Stage 8 Audit + Docs awaits explicit approval and has not started.
+
 ## 2026-10-09 — Stage 8.6 — Robustness Summary / Diagnostics
 
 - Added downstream-only summaries of precomputed IS/OOS and walk-forward results, reusing existing exposure, portfolio-drawdown, and risk-adjusted analytics. Reports endpoint returns, neutral OOS-minus-IS/test-minus-train comparisons, and finite-only cross-window count/mean/median/min/max. Preserves raw NaN/signed infinities; no strategy/backtest/grid/stability/walk-forward reruns, window compounding, stitched equity, scoring, classification, or parameter recommendation.
