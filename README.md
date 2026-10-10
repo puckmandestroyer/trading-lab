@@ -6,7 +6,7 @@ The long-term goal is to support historical market data, multiple independent st
 
 ## Current stage
 
-**Stage 9 — Bybit Demo Exchange Adapter remains INCOMPLETE. Stages 9.1–9.3 are COMPLETE, including Stage 9.3 — Instrument Metadata + Order Normalization; [Decision 013](decisions/013_bybit_demo_exchange_adapter.md) remains Accepted and unchanged.**
+**Stage 9 — Bybit Demo Exchange Adapter remains INCOMPLETE. Stages 9.1–9.4 are COMPLETE; Stage 9.4 provides read-only Demo account/order/fill snapshots under [Decision 014](decisions/014_read_only_account_and_order_state.md). [Decision 013](decisions/013_bybit_demo_exchange_adapter.md) remains unchanged.**
 
 **Stage 8 — Strategy Robustness is COMPLETE after Stage 8.8 — Final Stage 8 Audit + Docs. All milestones 8.1–8.8 passed under Accepted [Decision 012](decisions/012_strategy_robustness.md).**
 
@@ -24,7 +24,15 @@ Stage 9.3 adds `BybitSpotInstrumentRules`, two small domain errors, `fetch_bybit
 
 BUY budgets use quote precision and enforce `minOrderAmt`; SELL quantities use base precision and enforce `maxMarketOrderQty`. Both round down to exact step multiples and emit plain decimal strings, accepting Decimal/integer/string inputs while rejecting floats, bools, non-finite values, and amounts rounding to zero. Neither can increase authorization, clip to a maximum, or split an order. Without a price, the adapter deliberately does not invent a quote BUY maximum from a base quantity or a SELL notional minimum from base quantity. Tick size is retained as metadata only.
 
-All **93 new offline metadata/normalization tests**, **42 unchanged Stage 9.2 tests**, and **16 frozen EMA regression tests** pass. Full suite ran once: **1,117 = 1,024 + 93**, zero failures/errors/skips. No real credentials or actual exchange request were used; tests use synthetic responses/fake clients. Imports perform no environment read, session construction, or request. Wallet/order reads, placement/cancellation, and runtime loops are not implemented.
+Stage 9.3 validation passed all **93 new metadata/normalization tests**, **42 Stage 9.2 tests**, **16 frozen EMA regression tests**, and its **1,117-test** suite. Its fixtures/clients were offline and no real exchange request occurred.
+
+Stage 9.4 adds `BybitDemoReadOnlyAdapter(session, account_id=...)` with only `get_account_state()`, `get_open_orders(symbol=None)`, `get_order(order_id)`, and `get_executions(order_id=None, symbol=None)`. It accepts the central Demo session, rechecks Demo routing/safety before every read, and returns immutable broker-independent `AccountState`, `CurrencyBalance`, `OrderState`, and `ExecutionState` objects through a small `ReadOnlyBroker` interface. Broker payload parsing is isolated in the adapter. Wallet reads make one logical call; open orders and fills consume complete pages with a 100-call bound each. An exact order lookup makes at most two calls, falling back to retained history only after a valid empty realtime response. Missing orders remain an unknown outcome, not an invented fill or rejection.
+
+Account-wide totals retain their USD currency; individual coin balances stay separate and unavailable spendable cash stays `None`. Order amounts use exact Decimal values with explicit BASE/QUOTE units, so quote budgets are never mixed with base fills. Optional prices stay unavailable when absent, and timestamps become UTC. Finite statuses explicitly represent partial/final/cancelled/rejected states; unknown external statuses remain UNKNOWN with the original value. Errors fail clearly without raw payload/client diagnostics, partial state updates, or hidden retries.
+
+Fills come only from exchange-reported Spot Trade records: one immutable object per execution ID, base quantity, quote-per-base price, signed fee, optional reported fee currency, and UTC execution time. Multiple fills stay separate; missing fee currency remains `None`, and no research slippage/fee assumption or order status creates a fill. Execution reads use the broker's default seven-day window; an empty result means no observed fills in that window. Reported caller order-link IDs are retained when present. No automatic reconciliation is added.
+
+All **123 new read-only tests**, **148 existing exchange/API tests**, and **16 frozen EMA regression tests** pass. The final full suite passes: **1,240 = 1,117 + 123**, zero failures/errors/skips. Tests need no broker connection or real credentials and guard against network/mutation endpoints. No placement, cancellation, modification, execution capability, strategy/engine wiring, broker-state writes, or runtime loop exists. Stage 5 remains the frozen EMA baseline, including next-OPEN timing; notebooks, historical code, dependencies, and earlier tests are unchanged.
 
 Stage 8 evaluates stability across chronological periods and nearby strategy parameters without turning Trading Lab into an optimizer. Decision 012 requires no look-ahead and self-contained cold-start segments with warm-up inside each window, reusing existing backtest/accounting/equity/analytics. Sensitivity and fixed-parameter walk-forward are research diagnostics; no automatic best-parameter deployment or magic robustness score is introduced. The existing BTC sample has already been seen, so its OOS checks are methodological research rather than pristine unseen validation. Stage 8.1 adds documentation only.
 
@@ -50,7 +58,7 @@ Canonical BTC diagnostics retain **6,132 IS / 2,628 OOS**, boundary **2026-06-13
 
 The final audit accepts chronological cold-start OOS evaluation, deterministic sensitivity, descriptive local stability, fixed-configuration expanding walk-forward, consistent downstream diagnostics, and Notebook 06's visual research report. Stage 8 adds **235 tests** to the unchanged 747-test baseline: **982 total**, zero failures, errors, or skips. Frozen Stage 5–7 references, Decisions 010–012, notebook bytes, and BTC SHA256 are preserved. No optimizer, selected best EMA, robustness score, or stitched OOS portfolio exists. Already-seen single-asset/hourly/EMA research does not prove future profitability or provide demo/live trading evidence.
 
-Next: **Stage 9.4 — Read-Only Demo Account / Order State Adapter — NOT STARTED**, awaiting explicit owner approval. The accepted 9.1–9.7 roadmap is recorded in Decision 013 and PROJECT_STATE.md. Only Demo configuration, explicit Spot metadata retrieval, and amount formatting are implemented; no wallet/order reads, placement, or runtime loop. Milestone entries below retain their original status and test totals.
+Next: **Stage 9.5 — Spot Market Order Lifecycle Adapter — NOT STARTED**, awaiting explicit owner approval. Demo configuration, metadata/formatting, and read-only account/order/fill snapshots are implemented; no execution or runtime capability. Milestone entries below retain their original status and test totals.
 
 - Stage 1 completed: reusable historical data collection and a validated BTCUSDT hourly snapshot.
 - Stage 2 completed: statistical market analysis of returns, volatility, volume, extreme movements, and BTC buy-and-hold drawdown in `notebooks/01_data_exploration.ipynb`.
@@ -282,7 +290,7 @@ The exact output is four counts, win/loss/breakeven rates, average/median trade 
 
 The executed notebook gives 77 CLOSED trades per summary: 20 WIN, 57 LOSS, zero BREAKEVEN, and 25.974026% win rate. Average gross winning/losing returns are +3.865162% / -1.346661%; net values are +3.554033% / -1.642178%. Gross/net total PnL is -358.888611656 / -2,347.469836563 USDT; sample expectancy is -4.660891060 / -30.486621254 USDT per CLOSED trade; profit factor is 0.945165760246 / 0.675088667158. Costs happened to leave classification unchanged in this sample; that is not guaranteed elsewhere. The slightly positive gross arithmetic average return (+0.007059%) differs from its negative compounded outcome. Removing the final OPEN row leaves all 16 metrics unchanged, and that trade remains unvalued. See `PROJECT_STATE.md` for the full comparison. Stage 5.3 preserved reusable analytics, Stage 4 accounting, earlier notebooks, raw CSV, and dependencies; Stage 5.5 adds drawdown as a separate component.
 
-The platform currently uses no real money. Public data collection requires no API key. Exchange trading and demo trading integration will be added later.
+The platform currently uses no real money. Public data collection requires no API key. Demo-only account/order/fill reads are available; order execution remains deferred to later approved milestones.
 
 The first snapshot, `data/raw/BTCUSDT_1h.csv`, contains 8,760 hourly Bybit spot BTCUSDT candles from 2025-10-01 00:00 UTC through 2026-09-30 23:00 UTC. It contains only timestamp, open, high, low, close, and volume. See `data/README.md` for provenance and validation results.
 
@@ -309,7 +317,7 @@ Trading Lab/
 │   ├── backtest/          # Fill timing, trade ledger, gross/net accounting
 │   ├── analytics/         # Trade metrics, realized drawdown, time, CLOSE equity
 │   ├── robustness/        # IS/OOS, grids, local variation, walk-forward, diagnostics
-│   ├── exchange/          # Future exchange-specific adapters
+│   ├── exchange/          # Public market data and Demo-only read adapters
 │   ├── execution/         # Future order and execution management
 │   ├── risk/              # Future centralized risk checks
 │   ├── database/          # Future storage integration
@@ -321,7 +329,7 @@ Trading Lab/
 └── scripts/               # Future small command-line utilities
 ```
 
-The data package contains `market_data.py`, the exchange package contains the public HTTP adapter `bybit_market_data.py`, the strategies package contains `ema_trend.py`, the backtest package contains `execution.py`, `pipeline.py`, `trades.py`, `performance.py`, and `costs.py`, and the analytics package contains `trade_metrics.py`, `drawdown.py`, `trade_time.py`, and `equity.py`. The robustness package contains `evaluation.py` for cold-start IS/OOS, `sensitivity.py` for descriptive parameter grids, `stability.py` for downstream local variation, `walk_forward.py` for independent expanding train/test research, and `diagnostics.py` for downstream descriptive summary tables. Other application packages remain placeholders. Existing `.py` files in `notebooks/` and the top-level `strategies/` are preserved. New reusable strategy code belongs in `src/trading_lab/strategies/`.
+The data package contains `market_data.py`. The exchange package separates public candles (`bybit_market_data.py`), Demo configuration (`bybit_demo.py`), Spot rules (`bybit_spot_rules.py`), broker-independent snapshots (`account_state.py`), and Demo read parsing (`bybit_demo_read_only.py`). The strategies package contains `ema_trend.py`; the backtest package contains `execution.py`, `pipeline.py`, `trades.py`, `performance.py`, and `costs.py`. Analytics and robustness contain the reusable research helpers described above; risk contains fixed capital budgeting. Execution, database, and configuration remain placeholders. Existing `.py` files in `notebooks/` and the top-level `strategies/` are preserved. New reusable strategy code belongs in `src/trading_lab/strategies/`.
 
 ## Research and reusable code
 

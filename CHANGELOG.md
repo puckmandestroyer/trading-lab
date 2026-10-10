@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-10 — Stage 9.4 — Read-Only Demo Account / Order State Adapter
+
+- Added broker-independent frozen/slotted AccountState, CurrencyBalance, OrderState, and ExecutionState snapshots, finite explicit OrderStatus values, and a small ReadOnlyBroker Protocol. Decision 014 records the stable account/order/fill contract, status mappings, Decimal/UTC semantics, and explicit unavailable values; raw broker payloads stay isolated behind the adapter.
+- Added Demo-only Bybit account/open-order/exact-ID/execution reads with guarded GET dispatch, complete bounded pagination, history fallback only after a valid empty realtime result, and safe API/network/parsing errors. No caches or partial state mutation; unobserved orders retain unknown outcome. USD account totals and BASE/QUOTE order amounts stay dimensionally separate; deprecated coin availability is not used. Reported order-link IDs are retained.
+- Execution records preserve actual base quantities, prices, signed fees/rebates, and optional reported fee currencies; multiple fills stay separate and missing currency remains unavailable. No fills or costs are inferred from order status or historical research assumptions; empty execution reads describe only the default seven-day query window. No automatic reconciliation.
+- All 123 new offline tests, 148 existing exchange/API tests, and 16 frozen EMA regression tests pass. The final full suite passes: **1,240 tests (1,117 + 123), zero failures/errors/skips**; `pip check` and `git diff --check` pass. SDK GET-path and AST/dispatch guards exercise all four read APIs and prove no adapter mutation path; no real credentials or actual exchange requests.
+- No placement/cancellation/modification, execution/strategy wiring, broker-state writes, runtime, or new dependencies. Earlier-stage implementation/tests/decisions/notebooks/data/results and frozen Stage 5 EMA values/tolerances/next-OPEN timing are unchanged. Stage 9.1–9.4 are COMPLETE; Stage 9 remains INCOMPLETE; Stage 9.5 awaits approval and is NOT STARTED. Stage 10 is NOT STARTED.
+
 ## 2026-10-09 — Stage 9.3 — Instrument Metadata + Order Normalization
 
 - Added exact-symbol Spot metadata fetch through a supplied client with one `get_instruments_info(category="spot", symbol=...)` call, strict success/shape/identity/Trading validation, and immutable slotted Decimal rules. Current fields are required; deprecated `minOrderQty`, `maxOrderQty`, and `maxOrderAmt` are ignored without fallback. No permanent BTC limits, cache, credential loading, session construction, or retries.

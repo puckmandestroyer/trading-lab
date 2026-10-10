@@ -12,9 +12,11 @@ Stage 9.1 — Demo Exchange Adapter Contract remains COMPLETE; [Decision 013](de
 
 Stage 9.2 — Pybit Dependency + Secure Demo Configuration / Session remains COMPLETE; its Demo configuration and retry settings are unchanged.
 
-Stage 9.3 — Instrument Metadata + Order Normalization is COMPLETE. Exact Spot metadata retrieval and Decimal-safe Market amount formatting are implemented; no wallet/order reads or placement.
+Stage 9.3 — Instrument Metadata + Order Normalization remains COMPLETE; its metadata and Decimal formatting behavior is unchanged.
 
-Stage 9.4 — Read-Only Demo Account / Order State Adapter awaits explicit owner approval and is NOT STARTED.
+Stage 9.4 — Read-Only Demo Account / Order State Adapter is COMPLETE under [Decision 014](decisions/014_read_only_account_and_order_state.md). Account/order/fill snapshots are immutable and broker-independent; Demo reads only, no execution capability.
+
+Stage 9.5 — Spot Market Order Lifecycle Adapter awaits explicit owner approval and is NOT STARTED.
 
 Stage 8 — Strategy Robustness is COMPLETE.
 
@@ -284,6 +286,8 @@ Milestone entries retain the status and test totals recorded at their completion
 
 - Stage 9.3 added exact-symbol Spot metadata retrieval, immutable Decimal rules, quote-unit BUY and base-unit SELL round-down normalization, and 93 offline unittest methods. Current fields are authoritative; deprecated fields and dimensionally invalid constraints are not used. All new methods, Stage 9.2's 42 methods, frozen EMA's 16 methods, and the full suite run once (1,117 = 1,024 + 93) pass with zero failures/errors/skips. No real credentials, actual exchange requests, wallet/order reads, placement, or runtime; Stage 9.4 awaits approval and is not started.
 
+- Stage 9.4 added broker-independent immutable account/currency/order/fill snapshots, finite explicit statuses, a read-only Protocol, and a Demo-only Bybit adapter. All 123 new offline tests, 148 existing exchange/API tests, 16 frozen EMA regression tests, and the final full suite (1,240 = 1,117 + 123) pass with zero failures/errors/skips. No trading actions, execution/strategy wiring, real credentials, actual exchange requests, dependency changes, or changes to frozen Stage 5 behavior. Decision 014 records the stable read contract; Stage 9.5 awaits approval and is not started.
+
 ## Bybit Demo exchange adapter contract
 
 [Decision 013 — Bybit Demo Exchange Adapter Contract](decisions/013_bybit_demo_exchange_adapter.md) is Accepted. Stage 9.1 freezes the exchange boundary against completed baseline `83e6df19377339ccb3c937f18e1067704e357035` (`Complete Stage 8 strategy robustness`). Stages 6, 7, and 8 remain COMPLETE; Decisions 010–012 and historical strategy/execution/risk/accounting/research behavior are unchanged.
@@ -350,9 +354,35 @@ Normalizers accept **Decimal**, integral scalars (including Python int), or deci
 - **BUY:** quote-currency budget, rounded DOWN by `quote_precision`; the normalized amount must meet `min_order_amount`. Never raise a below-minimum budget. No quote maximum is invented from the base-unit `max_market_order_quantity` or deprecated `maxOrderAmt`.
 - **SELL:** base-asset quantity, rounded DOWN by `base_precision`; the normalized quantity must not exceed `max_market_order_quantity`. Above-maximum values fail without clipping or splitting. `min_order_amount` is quote notional, not a base minimum; no price is supplied to convert it, and deprecated `minOrderQty` is not a fallback.
 
-These are deliberate same-unit validation limits: price-dependent/execution constraints remain authoritative at the exchange and belong to later reviewed preflight work. `tick_size` is retained as metadata and does not change Market amounts. No order body, wallet/order-state read, placement/cancellation, reconciliation, or runtime loop is implemented. Imports require no credentials and perform no session construction, metadata fetch, or network call; actual I/O occurs only through an explicit fetch. Tests use fake clients, synthetic responses, and guarded network boundaries; no real credentials or actual Bybit request was used.
+These are deliberate same-unit validation limits: price-dependent/execution constraints remain authoritative at the exchange and belong to later reviewed preflight work. `tick_size` is retained as metadata and does not change Market amounts. Stage 9.3 added no order body, wallet/order-state read, placement/cancellation, reconciliation, or runtime loop. Imports require no credentials and perform no session construction, metadata fetch, or network call; actual I/O occurs only through an explicit fetch. Tests use fake clients, synthetic responses, and guarded network boundaries; no real credentials or actual Bybit request was used. Stage 9.4 adds read-only snapshots below.
 
-Validation: **93 new Stage 9.3 unittest methods**, unchanged Stage 9.2 **42** and frozen EMA **16** pass. Full suite ran once: **1,117 tests (1,024 + 93), zero failures, errors, or skips**; `pip check` and `git diff --check` pass. Python remains **3.11.17**, installed/pinned pybit **5.17.0**. All 106 installed distribution versions, requirements, `.env.example`, `.gitignore`, Demo session code/settings, historical Kline, existing tests, decisions, notebooks, data/results, and frozen financial values/tolerances are preserved. No dependency/environment change. Stages 8 and 9.1–9.3 are COMPLETE; Stage 9 remains INCOMPLETE; Stage 9.4 is not started.
+Stage 9.3 validation: **93 new unittest methods**, unchanged Stage 9.2 **42** and frozen EMA **16** passed. Its full suite ran once: **1,117 tests (1,024 + 93), zero failures, errors, or skips**; `pip check` and `git diff --check` passed. Python **3.11.17**, installed/pinned pybit **5.17.0**, all 106 installed distribution versions, requirements, `.env.example`, `.gitignore`, Demo session code/settings, historical Kline, existing tests, decisions, notebooks, data/results, and frozen financial values/tolerances were preserved. Stage 9.4 is now complete below; Stage 9 remains INCOMPLETE.
+
+## Read-only Demo account / order state
+
+Stage 9.4 is **COMPLETE**, ready for owner review/freeze. [Decision 014](decisions/014_read_only_account_and_order_state.md) documents the normalized read-only contract. `exchange/account_state.py` defines frozen/slotted `CurrencyBalance`, `AccountState`, `OrderState`, and `ExecutionState`, the finite `OrderStatus` enum, `BrokerOrderNotFoundError`, and the structural `ReadOnlyBroker` Protocol. `exchange/bybit_demo_read_only.py` implements `BybitDemoReadOnlyAdapter` and the safe `BybitDemoReadError` / `BybitDemoStateParseError` errors. New names are available by explicit package import; prior wildcard exports are unchanged.
+
+```python
+BybitDemoReadOnlyAdapter(session, *, account_id=None)
+get_account_state() -> AccountState
+get_open_orders(symbol: str | None = None) -> tuple[OrderState, ...]
+get_order(order_id: str) -> OrderState
+get_executions(order_id: str | None = None, symbol: str | None = None) -> tuple[ExecutionState, ...]
+```
+
+Account snapshots separate authoritative **USD** UTA totals from individual coin balances/equity/locked amounts. Optional caller `account_id` is a diagnostic label, not an invented broker UID. Unavailable values stay `None`; deprecated coin availability fields are ignored, and per-coin spendable cash is not fabricated from wallet-minus-locked or USD aggregates. This availability information does not authorize capital allocation.
+
+Order snapshots include identifiers, symbol, side/type, finite status plus original `external_status`, requested/filled/remaining amounts with explicit BASE/QUOTE units, separate filled base quantity/quote value, optional average/limit/stop prices, and aware UTC creation/update/server/fetched timestamps. QUOTE Market BUY uses executed quote value when calculating remaining budget; base execution quantity is never subtracted from quote authorization. Remaining means unfilled authorization, including a cancelled remainder or a FILLED quote order's unused budget; it does not imply an active order. Missing fill prices remain `None`. Exact Decimal parsing/subtraction and integer-millisecond conversion avoid implicit float/context rounding.
+
+Orders and fills retain optional reported caller `order_link_id`; absent/blank identifiers stay `None`. Execution snapshots contain the broker execution/order IDs, account label, symbol, side, positive base execution quantity, positive quote-per-base execution price, finite signed fee, optional reported fee currency, and UTC execution/server/fetch timestamps. Multiple fills per order remain separate exchange observations. Require Spot `execType="Trade"`; unsupported execution types and reported margin flags fail explicitly. Missing fee currency stays unavailable; no fee conversion, order-status inference, backtest fill, modeled slippage, or research cost assumption is used.
+
+Status mapping: New → OPEN; Untriggered/Triggered → NEW; PartiallyFilled → PARTIALLY_FILLED; Filled → FILLED; Cancelled/PartiallyFilledCanceled/Deactivated → CANCELLED; Rejected → REJECTED. Other non-empty statuses remain UNKNOWN with their original value; missing/malformed status fails. EXPIRED is reserved internally, not guessed from unsupported Bybit values. Unknown open-query records are not silently dropped or declared active.
+
+The adapter receives the existing Demo session and rechecks its fixed endpoint/flags, one-attempt retry settings, and disabled request logging before every call. Its closed dispatch allowlist contains only four SDK GET reads: UNIFIED wallet balance, Spot realtime orders, exact-ID history fallback, and Spot Trade executions. Wallet reads make one logical call and order lookup at most two; open-order and execution pagination return complete tuples, detect duplicate IDs/cursor failures, and each have a 100-page bound. `get_order` uses history only after a valid empty realtime result; absent records raise `BrokerOrderNotFoundError` with unknown outcome, never a fabricated terminal state. History has broker retention/latency limits. Execution reads use the default seven-day window, optionally filter by order ID/symbol, and validate returned identities; an empty collection only means no observed fills in that window. There is no automatic reconciliation.
+
+API/network/parsing failures raise explicit safe errors with operation/code/type or field context. No raw broker response, client, credential, or SDK exception text is exposed; no snapshot/trading state is cached or partially updated. Imports/construction perform no requests. There are **no placement, cancellation, modification, balance mutation, execution-engine/strategy wiring, or runtime methods**. Existing Limit/conditional records may be observed without introducing those trading actions. Stage 5 remains the frozen EMA regression baseline, including accepted next-OPEN timing; other historical financial contracts remain unchanged.
+
+Validation: **123 new Stage 9.4 tests**, **148 unchanged exchange/API tests** (42 session + 93 Spot + 13 historical data), and **16 frozen EMA regression tests** pass. The final full suite passes: **1,240 tests (1,117 + 123), zero failures, errors, or skips**. Tests use synthetic fixtures, fake clients, fail-on-network guards, SDK GET-path checks, and AST/dispatch mutation guards; no real broker connection/credentials were used. `pip check` and `git diff --check` pass. All 105 protected tracked files, five data/result files, and 106 installed package versions are unchanged; no earlier-stage tests, old decisions, notebooks, dependencies, or frozen values/tolerances changed. Stage 9.1–9.4 are COMPLETE; Stage 9 remains INCOMPLETE; Stage 9.5 is not started.
 
 ## Accepted Stage 9 roadmap
 
@@ -361,8 +391,8 @@ Validation: **93 new Stage 9.3 unittest methods**, unchanged Stage 9.2 **42** an
 | 9.1 — Demo Exchange Adapter Contract | Decision 013 and project documentation only. | COMPLETE; Accepted. |
 | 9.2 — Pybit Dependency + Secure Demo Configuration / Session | Pinned pybit, Demo-specific variables, empty `.env.example`, centralized Demo-only offline client construction and 42 tests. | COMPLETE; no exchange requests. |
 | 9.3 — Instrument Metadata + Order Normalization | Current Spot Decimal rules, quote BUY minimum/base SELL maximum, exact round-down formatting, 93 offline tests. | COMPLETE; no wallet/orders or actual exchange requests. |
-| 9.4 — Read-Only Demo Account / Order State Adapter | Needed wallet, order/status/history, and execution reads before placement. | Awaiting explicit owner approval; NOT STARTED. |
-| 9.5 — Spot Market Order Lifecycle Adapter | Explicit market BUY/SELL, acknowledgements, status, cancellation where applicable; no loop. | Planned; NOT STARTED. |
+| 9.4 — Read-Only Demo Account / Order State Adapter | Immutable account/order/fill snapshots, explicit statuses, complete bounded reads/exact-ID history fallback, 123 offline tests. | COMPLETE; read-only, no execution capability. |
+| 9.5 — Spot Market Order Lifecycle Adapter | Explicit market BUY/SELL, acknowledgements, status, cancellation where applicable; no loop. | Awaiting explicit owner approval; NOT STARTED. |
 | 9.6 — Adapter Integration + Offline Regression + Optional Manual Demo Smoke | Offline integration/error/environment/formatting regression; optional explicitly authorized Demo smoke. | Planned; NOT STARTED. |
 | 9.7 — Final Stage 9 Audit + Docs | Contract/regression/scope/secret/Demo safety audit; close Stage 9 and declare Stage 10 next. | Planned; NOT STARTED. |
 
@@ -374,7 +404,7 @@ Every independent IS/OOS/walk-forward segment cold-starts FLAT with its own init
 
 Sensitivity uses a predefined valid finite grid with consistent window/cost/sizing assumptions; isolated peaks are robustness warnings. Normally hold the accepted fixed `position_fraction` constant while varying time or strategy parameters. Fixed-parameter walk-forward supports the initial research; adaptive selection is not required, and no magic robustness score is introduced. Independent windows do not imply continuous compounded equity. Existing undefined metrics remain honest. The BTC snapshot is already-seen research data; chronological OOS checks within it are methodological evidence, not pristine unseen validation.
 
-Stage 8.1 was documentation/architecture only; Stage 8.2 implements the split/evaluation core, Stage 8.3 adds descriptive parameter sensitivity, Stage 8.4 analyzes local surface variation, Stage 8.5 adds independent expanding walk-forward evaluation, and Stage 8.6 summarizes precomputed IS/OOS and walk-forward results below. Stage 8.7 presents these outputs in executed notebook 06. Stage 7 remains COMPLETE and Stage 5 analytics remains frozen. Current suite: 1,117 tests, zero failures, errors, or skips; the Stage 8 baseline remains 982. `git diff --check` passes. Decision 012 remains unchanged; Stage 8.8 final audit and Stage 8 are COMPLETE.
+Stage 8.1 was documentation/architecture only; Stage 8.2 implements the split/evaluation core, Stage 8.3 adds descriptive parameter sensitivity, Stage 8.4 analyzes local surface variation, Stage 8.5 adds independent expanding walk-forward evaluation, and Stage 8.6 summarizes precomputed IS/OOS and walk-forward results below. Stage 8.7 presents these outputs in executed notebook 06. Stage 7 remains COMPLETE and Stage 5 analytics remains frozen. Current suite: 1,240 tests, zero failures, errors, or skips; the Stage 8 baseline remains 982. `git diff --check` passes. Decision 012 remains unchanged; Stage 8.8 final audit and Stage 8 are COMPLETE.
 
 ## Accepted Stage 8 roadmap
 
@@ -613,7 +643,7 @@ Each required targeted suite ran once, as did the full suite:
 
 All gates passed with **zero failures, errors, or skips**; `git diff --check` passes. Stages 8.1, 8.7, and 8.8 add no tests. Stage 7 references and Decisions 010/011/012 are unchanged. Frozen EMA remains **78 ENTRY / 77 EXIT**, **77 CLOSED / one OPEN**, last CLOSED GROSS/NET capital **9,641.111388344 / 7,652.530163437**, and final GROSS/NET MTM equity **9,451.485313939314 / 7,490.776562851941**, with original tolerances. All source, tests, decisions, `.ipynb` files, placeholders, dependencies, data/results, and frozen references are preserved during 8.8; only the four allowed documentation files change, with no new repository files.
 
-Completion means the research tools satisfy the accepted contract, not that the strategy has a proven edge. The BTC sample is already seen; evidence covers one asset, one hourly timeframe, one primary strategy family, and three canonical OOS windows. Cold-start research differs from continuous live state, and transaction costs are frozen assumptions. Historical robustness does not prove future profitability; there is no demo/live trading evidence yet. Stage 7 remains COMPLETE. Stage 9.1–9.3 are complete; Stage 9.4 awaits explicit owner approval.
+Completion means the research tools satisfy the accepted contract, not that the strategy has a proven edge. The BTC sample is already seen; evidence covers one asset, one hourly timeframe, one primary strategy family, and three canonical OOS windows. Cold-start research differs from continuous live state, and transaction costs are frozen assumptions. Historical robustness does not prove future profitability; there is no demo/live trading evidence yet. Stage 7 remains COMPLETE. Stage 9.1–9.4 are complete; Stage 9.5 awaits explicit owner approval.
 
 ## Risk and position-sizing contract
 
@@ -625,7 +655,7 @@ Reserve belongs to the same portfolio. Stage 7.5 MTM equity now includes reserve
 
 Default fraction 1.0 must reproduce Stage 6 exactly, including quantities, independent GROSS/NET accounting, equity, and downstream analytics, without loosening existing tolerances. Frozen BTC reference values are recorded in Decision 011. Prefer existing accounting schemas and derive reserve safely from canonical entry accounting; any necessary new field requires an explicit reviewed decision.
 
-The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 1,117 tests.
+The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 1,240 tests.
 
 ## Position sizing core
 
@@ -758,7 +788,7 @@ Default/explicit 1.0 exact-frame compatibility and all frozen Stage 5/6 referenc
 
 Every required targeted module and the full suite passed with zero failures, errors, or skips. No tests were added in Stage 7.9. Committed notebook 05 validates as JSON with 32 cells (15 code / 17 Markdown), sequential counts 1–15, zero saved errors, and two embedded plots; its accepted Stage 7.8 execution was inspected without re-execution or modification. It demonstrates local-only fixed-allocation budgeting, compounding, reserve-aware GROSS/NET equity, drawdown, Sharpe/Sortino, and unchanged time exposure through production APIs. Source/test/decision/notebook/dependency bytes and all data/result files were preserved during this audit; `git diff --check` passes. Closure changes only the allowed documentation.
 
-The completed scope remains single-asset LONG/FLAT fixed allocation: no leverage, shorts, dynamic sizing, stop-based sizing, multi-asset or multi-bot allocation. Stage 8 is COMPLETE under Decision 012 after its final audit; Stage 9.1's Demo adapter contract is Accepted and Stage 9.2–9.3 are complete. Stage 9.4 awaits explicit owner approval.
+The completed scope remains single-asset LONG/FLAT fixed allocation: no leverage, shorts, dynamic sizing, stop-based sizing, multi-asset or multi-bot allocation. Stage 8 is COMPLETE under Decision 012 after its final audit; Stage 9.1's Demo adapter contract is Accepted and Stage 9.2–9.4 are complete. Stage 9.5 awaits explicit owner approval.
 
 ## Final Stage 6 audit
 
@@ -1105,9 +1135,9 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Stage 9.4 — Read-Only Demo Account / Order State Adapter, awaiting explicit owner approval; NOT STARTED.
+Stage 9.5 — Spot Market Order Lifecycle Adapter, awaiting explicit owner approval; NOT STARTED.
 
-Stage 9.1–9.3 are COMPLETE; Decision 013 remains Accepted and unchanged. Stage 9 remains INCOMPLETE. Stage 8 and its final audit remain COMPLETE; historical financial behavior/references and notebooks 01–06 are preserved. The next milestone will add needed read-only Demo wallet/account and order/execution state primitives. Stage 9.4, order placement/cancellation, and Stage 10 are not started.
+Stage 9.1–9.4 are COMPLETE; Decision 013 remains unchanged and Decision 014 records the accepted read-only snapshot contract. Stage 9 remains INCOMPLETE. Stage 8 and its final audit remain COMPLETE; Stage 5 frozen EMA behavior, next-OPEN timing, other historical contracts, and notebooks 01–06 are preserved. Stage 9.5 order lifecycle and Stage 10 runtime are not started; no execution capability exists yet.
 
 ## Not implemented yet
 
@@ -1117,7 +1147,7 @@ Stage 9.1–9.3 are COMPLETE; Decision 013 remains Accepted and unchanged. Stage
 - Drawdown duration/recovery and subsequent portfolio metrics.
 - Additional reusable strategies beyond the EMA crossover strategy.
 - Performance analytics beyond the 16 CLOSED-trade summary metrics, separate realized-capital drawdown, ledger-based duration/exposure, candle-level equity, candle-close portfolio drawdown, the aligned Buy-and-Hold comparison, and time-based returns/Sharpe/Sortino with support volatility/downside metrics; broader multi-strategy comparison.
-- Wallet/order-state APIs, placement/cancellation, and live/demo execution beyond Demo configuration, Spot metadata, and amount formatting.
+- Order placement/cancellation/modification, reconciliation, and live/demo execution beyond the read-only account/order/fill boundary.
 - Multiple autonomous bot instances and order management.
 - Broader centralized risk controls beyond fixed capital allocation.
 - PostgreSQL.
@@ -1126,9 +1156,9 @@ Stage 9.1–9.3 are COMPLETE; Decision 013 remains Accepted and unchanged. Stage
 
 ## Next milestone
 
-Stage 9.4 — Read-Only Demo Account / Order State Adapter, only after explicit owner approval.
+Stage 9.5 — Spot Market Order Lifecycle Adapter, only after explicit owner approval.
 
-Stage 9.3's Spot metadata and dimension-safe Decimal normalization are complete; Stage 9.4 is NOT STARTED. Do not add wallet/account, order/status/history, or execution/fill queries until that milestone is approved.
+Stage 9.4's Demo-only account/order/fill reads are complete; Stage 9.5 is NOT STARTED. Do not add order placement/cancellation or execution capability until that milestone is explicitly approved. Read snapshots do not authorize trading or connect strategies/backtests to the broker.
 
 ## Backtesting execution contract
 
