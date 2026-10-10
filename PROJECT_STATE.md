@@ -16,7 +16,9 @@ Stage 9.3 — Instrument Metadata + Order Normalization remains COMPLETE; its me
 
 Stage 9.4 — Read-Only Demo Account / Order State Adapter is COMPLETE under [Decision 014](decisions/014_read_only_account_and_order_state.md). Account/order/fill snapshots are immutable and broker-independent; Demo reads only, no execution capability.
 
-Stage 9.5 — Spot Market Order Lifecycle Adapter awaits explicit owner approval and is NOT STARTED.
+Stage 9.5 — Spot Market Order Lifecycle Adapter is COMPLETE, ready for owner review/freeze under [Decision 015](decisions/015_spot_market_order_lifecycle.md). Explicit Demo Spot Market actions only; no automated execution or local portfolio mutation.
+
+Stage 9.6 — Adapter Integration + Offline Regression + Optional Manual Demo Smoke is next and NOT STARTED. Stage 10 — Demo Trading Runtime is NOT STARTED.
 
 Stage 8 — Strategy Robustness is COMPLETE.
 
@@ -288,6 +290,8 @@ Milestone entries retain the status and test totals recorded at their completion
 
 - Stage 9.4 added broker-independent immutable account/currency/order/fill snapshots, finite explicit statuses, a read-only Protocol, and a Demo-only Bybit adapter. All 123 new offline tests, 148 existing exchange/API tests, 16 frozen EMA regression tests, and the final full suite (1,240 = 1,117 + 123) pass with zero failures/errors/skips. No trading actions, execution/strategy wiring, real credentials, actual exchange requests, dependency changes, or changes to frozen Stage 5 behavior. Decision 014 records the stable read contract; Stage 9.5 awaits approval and is not started.
 
+- Stage 9.5 added immutable authorized requests and separate placement/cancellation receipts, with a Demo-only two-action adapter. All 76 new offline tests and the unchanged Stage 9.2–9.4/EMA gates pass; full suite: 1,316 tests (1,240 + 76), zero failures/errors/skips. No actual broker request, new dependency, strategy/runtime wiring or portfolio mutation. Stage 9 remains INCOMPLETE; Stage 9.6 is next and NOT STARTED.
+
 ## Bybit Demo exchange adapter contract
 
 [Decision 013 — Bybit Demo Exchange Adapter Contract](decisions/013_bybit_demo_exchange_adapter.md) is Accepted. Stage 9.1 freezes the exchange boundary against completed baseline `83e6df19377339ccb3c937f18e1067704e357035` (`Complete Stage 8 strategy robustness`). Stages 6, 7, and 8 remain COMPLETE; Decisions 010–012 and historical strategy/execution/risk/accounting/research behavior are unchanged.
@@ -382,7 +386,29 @@ The adapter receives the existing Demo session and rechecks its fixed endpoint/f
 
 API/network/parsing failures raise explicit safe errors with operation/code/type or field context. No raw broker response, client, credential, or SDK exception text is exposed; no snapshot/trading state is cached or partially updated. Imports/construction perform no requests. There are **no placement, cancellation, modification, balance mutation, execution-engine/strategy wiring, or runtime methods**. Existing Limit/conditional records may be observed without introducing those trading actions. Stage 5 remains the frozen EMA regression baseline, including accepted next-OPEN timing; other historical financial contracts remain unchanged.
 
-Validation: **123 new Stage 9.4 tests**, **148 unchanged exchange/API tests** (42 session + 93 Spot + 13 historical data), and **16 frozen EMA regression tests** pass. The final full suite passes: **1,240 tests (1,117 + 123), zero failures, errors, or skips**. Tests use synthetic fixtures, fake clients, fail-on-network guards, SDK GET-path checks, and AST/dispatch mutation guards; no real broker connection/credentials were used. `pip check` and `git diff --check` pass. All 105 protected tracked files, five data/result files, and 106 installed package versions are unchanged; no earlier-stage tests, old decisions, notebooks, dependencies, or frozen values/tolerances changed. Stage 9.1–9.4 are COMPLETE; Stage 9 remains INCOMPLETE; Stage 9.5 is not started.
+Validation: **123 new Stage 9.4 tests**, **148 unchanged exchange/API tests** (42 session + 93 Spot + 13 historical data), and **16 frozen EMA regression tests** pass. The final full suite passes: **1,240 tests (1,117 + 123), zero failures, errors, or skips**. Tests use synthetic fixtures, fake clients, fail-on-network guards, SDK GET-path checks, and AST/dispatch mutation guards; no real broker connection/credentials were used. `pip check` and `git diff --check` pass. All 105 protected tracked files, five data/result files, and 106 installed package versions are unchanged; no earlier-stage tests, old decisions, notebooks, dependencies, or frozen values/tolerances changed. Stage 9.4 remains read-only and unchanged; Stage 9.5 is now complete below; Stage 9 remains INCOMPLETE.
+
+## Explicit Demo Spot Market order actions
+
+Stage 9.5 is **COMPLETE**, ready for owner review/freeze. [Decision 015](decisions/015_spot_market_order_lifecycle.md) records the stable action contract. `exchange/order_actions.py` defines frozen/slotted broker-independent `SpotMarketOrderRequest`, `SpotMarketOrderAcknowledgement`, and `OrderCancellationAcknowledgement`. `exchange/bybit_demo_orders.py` defines `BybitDemoOrderAdapter`, `BybitDemoActionError`, `BybitDemoOrderRejectedError`, `BybitDemoActionParseError`, and `BybitDemoAmbiguousActionError`. All eight names are explicit package imports; previous wildcard exports remain unchanged.
+
+```python
+BybitDemoOrderAdapter(session)
+place_market_order(request: SpotMarketOrderRequest) -> SpotMarketOrderAcknowledgement
+cancel_order(symbol: str, order_id: str) -> OrderCancellationAcknowledgement
+```
+
+Request fields: symbol, BUY/SELL side, exact authorized_amount (Decimal/int/decimal string), amount_unit (QUOTE for BUY, BASE for SELL), optional caller order_link_id. Adapter validates the request before mutation. Caller supplies authorization; there is no wallet/risk/position sizing or quote/base conversion. Each placement fetches fresh rules through Stage 9.3 and reuses its exact round-down/constraint helpers. No duplicated precision/min/max logic, increased exposure, permanent metadata cache, clipping or splitting.
+
+Pinned pybit 5.17.0 `place_order` / `cancel_order` signatures and authenticated POST behavior were inspected and tested offline. Placement sends only `category="spot"`, caller symbol, `side="Buy"`/`"Sell"`, `orderType="Market"`, canonical normalized `qty`, `marketUnit="quoteCoin"`/`"baseCoin"`, `isLeverage=0`, and optional caller `orderLinkId`. Cancellation sends only Spot category, symbol and exact `orderId`; no link-only/symbol-only/bulk cancellation. The mutation allowlist contains exactly place_order and cancel_order.
+
+Before preflight and every mutation, require Stage 9.2's exact Demo routing, flags, one-attempt retry settings and disabled request logging; no Testnet/live override or hidden session/environment access. Optional caller links use documented 1–36 ASCII letters/digits/dashes/underscores, forwarded unchanged and matched to the acknowledgement; no ID generation, replacement or uniqueness policy.
+
+Placement receipt fields: broker_id, broker_order_id, optional order_link_id, symbol, side, MARKET order_type, submitted_amount (Decimal), amount_unit, broker_timestamp and fetched_at (aware UTC). Cancellation receipt fields: broker_id, matching broker_order_id, optional reported order_link_id, symbol and both timestamps. Require successful exact integer retCode, valid result/identity/time, and matching category/symbol if echoed. **Placement acknowledgement is not a fill; cancellation acknowledgement is not terminal cancellation.** No status, fake fill/fee/PnL or local state mutation is introduced. Caller separately invokes unchanged Stage 9.4 order/fill reads; concurrent fills and broker cancellation rejection remain possible.
+
+Errors distinguish confirmed nonzero broker rejection (including pinned SDK InvalidRequestError), malformed/mismatched acknowledgement with unknown outcome, and ambiguous transport/SDK failure. SDK retry-code exhaustion is conservatively ambiguous. Metadata failures are sanitized preflight errors with no placement attempt. No raw payload, unsafe SDK message/request/headers/client repr or exception chain is exposed. At most one logical mutation and one actual SDK send are verified; no automatic retry, replacement ID, follow-up read, polling, sleep/reconciliation loop or scheduler exists.
+
+Validation: **76 new Stage 9.5 tests**, unchanged Stage 9.2 **42**, Stage 9.3 **93**, Stage 9.4 **123**, frozen EMA **16**, and full suite **1,316 (1,240 + 76)** pass with zero failures/errors/skips. `pip check` and `git diff --check` pass. Offline fixtures/guards cover exact requests, normalization reuse, receipts, failures, SDK paths/send counts, Demo safety and scope. All 109 protected tracked files, five data/result files, and 106 installed package versions are unchanged; earlier production/tests/decisions/notebooks, financial values/tolerances and next-OPEN timing remain frozen. No actual Demo placement/cancellation, credentials, broker connection or manual smoke. Stage 9.1–9.5 are COMPLETE; Stage 9 remains INCOMPLETE; Stage 9.6 and Stage 10 are NOT STARTED.
 
 ## Accepted Stage 9 roadmap
 
@@ -392,8 +418,8 @@ Validation: **123 new Stage 9.4 tests**, **148 unchanged exchange/API tests** (4
 | 9.2 — Pybit Dependency + Secure Demo Configuration / Session | Pinned pybit, Demo-specific variables, empty `.env.example`, centralized Demo-only offline client construction and 42 tests. | COMPLETE; no exchange requests. |
 | 9.3 — Instrument Metadata + Order Normalization | Current Spot Decimal rules, quote BUY minimum/base SELL maximum, exact round-down formatting, 93 offline tests. | COMPLETE; no wallet/orders or actual exchange requests. |
 | 9.4 — Read-Only Demo Account / Order State Adapter | Immutable account/order/fill snapshots, explicit statuses, complete bounded reads/exact-ID history fallback, 123 offline tests. | COMPLETE; read-only, no execution capability. |
-| 9.5 — Spot Market Order Lifecycle Adapter | Explicit market BUY/SELL, acknowledgements, status, cancellation where applicable; no loop. | Awaiting explicit owner approval; NOT STARTED. |
-| 9.6 — Adapter Integration + Offline Regression + Optional Manual Demo Smoke | Offline integration/error/environment/formatting regression; optional explicitly authorized Demo smoke. | Planned; NOT STARTED. |
+| 9.5 — Spot Market Order Lifecycle Adapter | Explicit Demo Spot Market BUY/SELL and exact-ID cancellation, separate receipts, 76 offline tests; no loop or local state mutation. | COMPLETE; ready for owner review/freeze. |
+| 9.6 — Adapter Integration + Offline Regression + Optional Manual Demo Smoke | Offline integration/error/environment/formatting regression; optional explicitly authorized Demo smoke. | Next; awaiting explicit owner approval; NOT STARTED. |
 | 9.7 — Final Stage 9 Audit + Docs | Contract/regression/scope/secret/Demo safety audit; close Stage 9 and declare Stage 10 next. | Planned; NOT STARTED. |
 
 ## Strategy robustness contract
@@ -404,7 +430,7 @@ Every independent IS/OOS/walk-forward segment cold-starts FLAT with its own init
 
 Sensitivity uses a predefined valid finite grid with consistent window/cost/sizing assumptions; isolated peaks are robustness warnings. Normally hold the accepted fixed `position_fraction` constant while varying time or strategy parameters. Fixed-parameter walk-forward supports the initial research; adaptive selection is not required, and no magic robustness score is introduced. Independent windows do not imply continuous compounded equity. Existing undefined metrics remain honest. The BTC snapshot is already-seen research data; chronological OOS checks within it are methodological evidence, not pristine unseen validation.
 
-Stage 8.1 was documentation/architecture only; Stage 8.2 implements the split/evaluation core, Stage 8.3 adds descriptive parameter sensitivity, Stage 8.4 analyzes local surface variation, Stage 8.5 adds independent expanding walk-forward evaluation, and Stage 8.6 summarizes precomputed IS/OOS and walk-forward results below. Stage 8.7 presents these outputs in executed notebook 06. Stage 7 remains COMPLETE and Stage 5 analytics remains frozen. Current suite: 1,240 tests, zero failures, errors, or skips; the Stage 8 baseline remains 982. `git diff --check` passes. Decision 012 remains unchanged; Stage 8.8 final audit and Stage 8 are COMPLETE.
+Stage 8.1 was documentation/architecture only; Stage 8.2 implements the split/evaluation core, Stage 8.3 adds descriptive parameter sensitivity, Stage 8.4 analyzes local surface variation, Stage 8.5 adds independent expanding walk-forward evaluation, and Stage 8.6 summarizes precomputed IS/OOS and walk-forward results below. Stage 8.7 presents these outputs in executed notebook 06. Stage 7 remains COMPLETE and Stage 5 analytics remains frozen. Current suite: 1,316 tests, zero failures, errors, or skips; the Stage 8 baseline remains 982. `git diff --check` passes. Decision 012 remains unchanged; Stage 8.8 final audit and Stage 8 are COMPLETE.
 
 ## Accepted Stage 8 roadmap
 
@@ -643,7 +669,7 @@ Each required targeted suite ran once, as did the full suite:
 
 All gates passed with **zero failures, errors, or skips**; `git diff --check` passes. Stages 8.1, 8.7, and 8.8 add no tests. Stage 7 references and Decisions 010/011/012 are unchanged. Frozen EMA remains **78 ENTRY / 77 EXIT**, **77 CLOSED / one OPEN**, last CLOSED GROSS/NET capital **9,641.111388344 / 7,652.530163437**, and final GROSS/NET MTM equity **9,451.485313939314 / 7,490.776562851941**, with original tolerances. All source, tests, decisions, `.ipynb` files, placeholders, dependencies, data/results, and frozen references are preserved during 8.8; only the four allowed documentation files change, with no new repository files.
 
-Completion means the research tools satisfy the accepted contract, not that the strategy has a proven edge. The BTC sample is already seen; evidence covers one asset, one hourly timeframe, one primary strategy family, and three canonical OOS windows. Cold-start research differs from continuous live state, and transaction costs are frozen assumptions. Historical robustness does not prove future profitability; there is no demo/live trading evidence yet. Stage 7 remains COMPLETE. Stage 9.1–9.4 are complete; Stage 9.5 awaits explicit owner approval.
+Completion means the research tools satisfy the accepted contract, not that the strategy has a proven edge. The BTC sample is already seen; evidence covers one asset, one hourly timeframe, one primary strategy family, and three canonical OOS windows. Cold-start research differs from continuous live state, and transaction costs are frozen assumptions. Historical robustness does not prove future profitability; there is no demo/live trading evidence yet. Stage 7 remains COMPLETE. Stage 9.1–9.5 are complete; Stage 9.6 awaits explicit owner approval.
 
 ## Risk and position-sizing contract
 
@@ -655,7 +681,7 @@ Reserve belongs to the same portfolio. Stage 7.5 MTM equity now includes reserve
 
 Default fraction 1.0 must reproduce Stage 6 exactly, including quantities, independent GROSS/NET accounting, equity, and downstream analytics, without loosening existing tolerances. Frozen BTC reference values are recorded in Decision 011. Prefer existing accounting schemas and derive reserve safely from canonical entry accounting; any necessary new field requires an explicit reviewed decision.
 
-The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 1,240 tests.
+The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 1,316 tests.
 
 ## Position sizing core
 
@@ -788,7 +814,7 @@ Default/explicit 1.0 exact-frame compatibility and all frozen Stage 5/6 referenc
 
 Every required targeted module and the full suite passed with zero failures, errors, or skips. No tests were added in Stage 7.9. Committed notebook 05 validates as JSON with 32 cells (15 code / 17 Markdown), sequential counts 1–15, zero saved errors, and two embedded plots; its accepted Stage 7.8 execution was inspected without re-execution or modification. It demonstrates local-only fixed-allocation budgeting, compounding, reserve-aware GROSS/NET equity, drawdown, Sharpe/Sortino, and unchanged time exposure through production APIs. Source/test/decision/notebook/dependency bytes and all data/result files were preserved during this audit; `git diff --check` passes. Closure changes only the allowed documentation.
 
-The completed scope remains single-asset LONG/FLAT fixed allocation: no leverage, shorts, dynamic sizing, stop-based sizing, multi-asset or multi-bot allocation. Stage 8 is COMPLETE under Decision 012 after its final audit; Stage 9.1's Demo adapter contract is Accepted and Stage 9.2–9.4 are complete. Stage 9.5 awaits explicit owner approval.
+The completed scope remains single-asset LONG/FLAT fixed allocation: no leverage, shorts, dynamic sizing, stop-based sizing, multi-asset or multi-bot allocation. Stage 8 is COMPLETE under Decision 012 after its final audit; Stage 9.1's Demo adapter contract is Accepted and Stage 9.2–9.5 are complete. Stage 9.6 awaits explicit owner approval.
 
 ## Final Stage 6 audit
 
@@ -1135,9 +1161,9 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Stage 9.5 — Spot Market Order Lifecycle Adapter, awaiting explicit owner approval; NOT STARTED.
+Stage 9.5 is COMPLETE and ready for owner review/freeze. Stage 9.6 — Adapter Integration + Offline Regression + Optional Manual Demo Smoke is next, awaiting explicit owner approval; NOT STARTED.
 
-Stage 9.1–9.4 are COMPLETE; Decision 013 remains unchanged and Decision 014 records the accepted read-only snapshot contract. Stage 9 remains INCOMPLETE. Stage 8 and its final audit remain COMPLETE; Stage 5 frozen EMA behavior, next-OPEN timing, other historical contracts, and notebooks 01–06 are preserved. Stage 9.5 order lifecycle and Stage 10 runtime are not started; no execution capability exists yet.
+Stage 9.1–9.5 are COMPLETE; Decisions 013/014 remain unchanged and Decision 015 records the action boundary. Stage 9 remains INCOMPLETE. Stage 8 and its final audit remain COMPLETE; Stage 5 frozen EMA behavior, next-OPEN timing, other historical contracts, and notebooks 01–06 are preserved. Explicit Demo actions have no automated strategy/risk wiring or local portfolio mutation. Stage 10 runtime is NOT STARTED.
 
 ## Not implemented yet
 
@@ -1147,7 +1173,7 @@ Stage 9.1–9.4 are COMPLETE; Decision 013 remains unchanged and Decision 014 re
 - Drawdown duration/recovery and subsequent portfolio metrics.
 - Additional reusable strategies beyond the EMA crossover strategy.
 - Performance analytics beyond the 16 CLOSED-trade summary metrics, separate realized-capital drawdown, ledger-based duration/exposure, candle-level equity, candle-close portfolio drawdown, the aligned Buy-and-Hold comparison, and time-based returns/Sharpe/Sortino with support volatility/downside metrics; broader multi-strategy comparison.
-- Order placement/cancellation/modification, reconciliation, and live/demo execution beyond the read-only account/order/fill boundary.
+- Order modification, reconciliation, and automated live/demo execution beyond explicit Demo Spot Market actions and separate state/fill reads.
 - Multiple autonomous bot instances and order management.
 - Broader centralized risk controls beyond fixed capital allocation.
 - PostgreSQL.
@@ -1156,9 +1182,9 @@ Stage 9.1–9.4 are COMPLETE; Decision 013 remains unchanged and Decision 014 re
 
 ## Next milestone
 
-Stage 9.5 — Spot Market Order Lifecycle Adapter, only after explicit owner approval.
+Stage 9.6 — Adapter Integration + Offline Regression + Optional Manual Demo Smoke, only after explicit owner approval; NOT STARTED.
 
-Stage 9.4's Demo-only account/order/fill reads are complete; Stage 9.5 is NOT STARTED. Do not add order placement/cancellation or execution capability until that milestone is explicitly approved. Read snapshots do not authorize trading or connect strategies/backtests to the broker.
+Stages 9.1–9.5 are COMPLETE; Stage 9 remains INCOMPLETE. Stage 9.4 read snapshots and Stage 9.5 receipts do not authorize sizing or connect strategies/backtests to the broker. Do not start Stage 9.6, run a manual broker smoke, or begin Stage 10 automatically.
 
 ## Backtesting execution contract
 

@@ -28,6 +28,18 @@ from .bybit_demo_read_only import (
     BybitDemoReadOnlyAdapter,
     BybitDemoStateParseError,
 )
+from .order_actions import (
+    OrderCancellationAcknowledgement,
+    SpotMarketOrderAcknowledgement,
+    SpotMarketOrderRequest,
+)
+from .bybit_demo_orders import (
+    BybitDemoActionError,
+    BybitDemoActionParseError,
+    BybitDemoAmbiguousActionError,
+    BybitDemoOrderAdapter,
+    BybitDemoOrderRejectedError,
+)
 
 # Preserve Stage 9.2 wildcard imports; Spot APIs are available by explicit import.
 __all__ = [

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-10 — Stage 9.5 — Spot Market Order Lifecycle Adapter
+
+- Added immutable broker-independent authorized Spot Market requests and separate placement/cancellation acknowledgements; Decision 015 records the action contract. Demo-only explicit quote BUY/base SELL uses fresh Stage 9.3 rules, exact round-down amounts and explicit isLeverage=0; exact-ID cancellation cannot become bulk/symbol-only cancellation.
+- Added a two-method mutation allowlist (place_order/cancel_order), per-call Demo/retry/logging guards, documented optional caller orderLinkId validation/unchanged forwarding, and safe distinct broker rejection/parsing/ambiguous outcomes. No automatic resend, generated replacement ID or reconciliation. Acceptance is not a fill; cancellation acceptance is not terminal status. Stage 9.4 remains unchanged and strictly read-only.
+- All 76 new offline tests, unchanged Stage 9.2 42 / Stage 9.3 93 / Stage 9.4 123 / frozen EMA 16 pass. Full suite: **1,316 tests (1,240 + 76), zero failures/errors/skips**; pip check and git diff --check pass. Tests verify real pinned SDK POST paths/single sends using mocks; no actual broker connection, credentials, orders/cancellations or manual smoke.
+- Frozen Stage 5–9.4 code/tests/decisions, financial results/tolerances, next-OPEN timing, notebooks, data/results and dependencies are preserved. No strategy/risk wiring, runtime loop, wallet sizing, portfolio mutation, Limit/conditional order, amend/replace, batch, transfer or live mode. Stage 9.1–9.5 are COMPLETE; Stage 9 remains INCOMPLETE; Stage 9.6 is next and NOT STARTED; Stage 10 is NOT STARTED.
+
 ## 2026-10-10 — Stage 9.4 — Read-Only Demo Account / Order State Adapter
 
 - Added broker-independent frozen/slotted AccountState, CurrencyBalance, OrderState, and ExecutionState snapshots, finite explicit OrderStatus values, and a small ReadOnlyBroker Protocol. Decision 014 records the stable account/order/fill contract, status mappings, Decimal/UTC semantics, and explicit unavailable values; raw broker payloads stay isolated behind the adapter.
