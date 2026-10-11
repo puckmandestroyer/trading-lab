@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-11 — Stage 9.7 — Final Stage 9 Audit + Docs
+
+- Audited Accepted Decisions 013–016, all exchange/smoke implementation and Stage 9 tests, plus the six commits from Stage 8 completion through `1054917`. No blocking findings or production/test fixes; Demo routing, Decimal normalization, read-only snapshots, separate receipts/fills, place/cancel-only capability, uncertainty/no-resend semantics and client-local diagnostic hardening pass.
+- Confirmed explicit bounded manual smoke, secret-safe diagnostics, ignored/untracked `.env`, and absence of wallet sizing, strategy/backtest wiring, runtime/polling/reconciliation, scheduler or persistence. No actual authenticated Demo smoke/order was executed during Stage 9.
+- All targeted suites pass: Stage 9.2 **42**, 9.3 **93**, 9.4 **123**, 9.5 **76**, 9.6 **68**, frozen EMA **16**. Full suite ran once: **1,384 tests (982 + 402), zero failures/errors/skips**; `pip check` and `git diff --check` pass. No new tests/dependencies/ADR; source, tests, Decisions 013–016, notebooks, data/results, frozen financial values/tolerances and next-OPEN timing remain unchanged.
+- Updated closure documentation and the smoke guide's current-status line. Stage 9.1–9.7 and Stage 9 are COMPLETE. Stage 10 — Demo Trading Runtime is next and NOT STARTED. Completion is offline contract verification, not profitability, actual Demo execution, live/real-money safety or deployment readiness.
+
 ## 2026-10-10 — Stage 9.6 — Adapter Integration + Offline Regression + Optional Manual Demo Smoke
 
 - Added 34 cross-component integration regressions and 34 offline smoke-control tests using one coherent fake broker and existing production parsing/normalization. Covered explicit quote BUY/base SELL, receipts versus state/fills, partial/multiple fills, cancellation races, history/pagination, unknown outcomes, constraints, confirmed rejection and ambiguity without resend.
