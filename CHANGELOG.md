@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-11 — Stage 10.3 — Durable Runtime Persistence + Single-Instance Lock
+
+- Added standard-library SQLite schema/version 1 with immutable runtime identity/configuration, checkpoints, candles/decisions, one-attempt action phases and owned-fill records. Exact Decimal money uses canonical TEXT; enums/UTC milliseconds, required PRAGMAs, bounded integrity/reference checks and unique historical IDs fail closed without reset/migration.
+- Added short atomic decision/PREPARED/frontier, ATTEMPT_STARTED and observation/fill/terminal/checkpoint writes; stale sequences, phase regressions and conflicting duplicates are rejected. Indeterminate commits close the store for reopen/validation. Added real nonblocking POSIX account flock with canonical non-secret registry paths, lock-before-store and release-after-store ordering; runtime artifacts are ignored.
+- Added **188 offline tests (165 storage + 23 locking)**, including all **49 phase pairs**, rollback/commit faults and subprocess exclusion/process-death release. Frozen Stage 10.2 **188**, Stage 9.6 **68**, EMA **16** pass; full suite **1,760 (1,572 + 188)**, zero failures/errors/skips. `pip check` and `git diff --check` pass.
+- Frozen state/package APIs, earlier source/tests/Decisions 001–017, notebooks, data/results, financial results/tolerances and dependencies remain unchanged. No credentials, broker/network operation, authenticated Demo smoke/order, market-data gate, reconciliation service, planner/sizing, scheduler or runtime loop. Stage 9 remains COMPLETE; 10.1/10.2 frozen, 10.3 COMPLETE/ready for review, Stage 10 INCOMPLETE, 10.4 next/NOT STARTED.
+
 ## 2026-10-11 — Stage 10.2 — Runtime State Model + Pure State Machine
 
 - Added a minimal broker-independent runtime package with the exact eight operational states, frozen/slotted records, fifteen normalized events, safe reason codes and pure deterministic transitions under unchanged Decision 017. Exact Decimal quantities distinguish confirmed from last-known/unknown exposure; pending/terminal evidence binds the original action identity. Intent and acknowledgements never fabricate fills; HALT requires explicit rearm through synchronization and STOPPING preserves unresolved work.

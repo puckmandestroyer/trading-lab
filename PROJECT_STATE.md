@@ -10,9 +10,11 @@ Stage 10 — Demo Trading Runtime has STARTED and remains INCOMPLETE.
 
 Stage 10.1 — Runtime Contract / Architecture is COMPLETE, published and frozen at `b9eb945674fb450515164eb54256d7ac7270d29d`. [Decision 017](decisions/017_demo_trading_runtime_contract.md) remains Accepted and unchanged.
 
-Stage 10.2 — Runtime State Model + Pure State Machine is COMPLETE and ready for owner review. Only immutable records and pure transitions exist; no operational runtime, persistence, scheduler or strategy/exchange auto-wiring.
+Stage 10.2 — Runtime State Model + Pure State Machine is COMPLETE, published and frozen at `8b41427d669f5c17717a296113aa7b28b9dd23e3`. Its pure model, public API and tests remain unchanged.
 
-Stage 10.3 — Durable Runtime Persistence + Single-Instance Lock is next and NOT STARTED.
+Stage 10.3 — Durable Runtime Persistence + Single-Instance Lock is COMPLETE and ready for owner review. Local durable storage and account locking are infrastructure only; no operational runtime or broker/network operation exists.
+
+Stage 10.4 — Closed-Candle Market Data Gate is next and NOT STARTED.
 
 Stage 9 — Bybit Demo Exchange Adapter is COMPLETE after Stage 9.7 — Final Stage 9 Audit + Docs.
 
@@ -310,15 +312,17 @@ Milestone entries and Accepted ADRs retain the status and test totals recorded a
 
 - Stage 10.2 implemented the broker-independent pure operational state core under unchanged Decision 017: frozen/slotted records, exact eight states, typed events/evidence/reason codes, Decimal ownership invariants, retained pending identities, explicit recovery/rearm and shutdown. Added 188 offline tests, including all 120 state/event pairs. No I/O, ID generation, action planner, sizing, journal phases, persistence, scheduler, reconciliation service or broker action. Stage 10.3 is next and NOT STARTED.
 
+- Stage 10.3 added standard-library SQLite durable identity/configuration, checkpoints, candle/decision/action/fill journals and a canonical POSIX account lock. Short atomic transactions retain exact Decimal money, original IDs, one-attempt phases and a contiguous decision frontier. Added 188 offline tests, including all 49 phase pairs, rollback faults and real subprocess exclusion. Stage 10.1/10.2 remain frozen; 10.4 is next and NOT STARTED.
+
 ## Demo Trading Runtime contract
 
-[Decision 017 — Demo Trading Runtime Contract](decisions/017_demo_trading_runtime_contract.md) is Accepted and frozen by Stage 10.1 commit `b9eb945674fb450515164eb54256d7ac7270d29d`; its reviewed Stage 9 baseline is `4113ad653ccd46be40fafd165d78bf75589a2ce5`. Stage 10.2 implements only its pure state core. Decisions 010–017, existing production APIs, frozen EMA values/tolerances, next-OPEN/final-candle behavior, notebooks and research accounting remain unchanged.
+[Decision 017 — Demo Trading Runtime Contract](decisions/017_demo_trading_runtime_contract.md) is Accepted and frozen by Stage 10.1 commit `b9eb945674fb450515164eb54256d7ac7270d29d`; its reviewed Stage 9 baseline is `4113ad653ccd46be40fafd165d78bf75589a2ce5`. Stage 10.2 implements its pure state core; 10.3 adds durable primitives without changing that core. Decisions 010–017, existing production APIs, frozen EMA values/tolerances, next-OPEN/final-candle behavior, notebooks and research accounting remain unchanged.
 
 Initial scope: one Bybit Demo account/bot/strategy/symbol/hourly timeframe, Spot LONG/FLAT and MARKET actions, no borrowing, leverage or shorts. Stable `(broker_id, account_binding, bot_id)` identity survives restart; strategy code/parameters, symbol/timeframe and non-secret configuration are bound to it. Only exact persisted action/link/broker evidence proves order ownership; symbols, link prefixes and wallet holdings alone do not. Stage 9.4's account label is not a verified broker UID.
 
 The pure model now distinguishes STARTING, SYNCHRONIZING, FLAT, LONG, ORDER_PENDING, UNCERTAIN, HALTED and STOPPING, separately from desired intent, order status and partial owned exposure. Future orchestration must persist original logical action IDs/links before a possible send and retain them across restart; receipts remain separate from fills. Missing observations preserve uncertainty. The existing broker-ID lookup and seven-day execution window may leave lost-acknowledgement recovery unresolved; future bounded reconciliation must HALT rather than resend or bypass the adapter.
 
-Choose standard-library SQLite with short durable transactions (`DELETE` journal / `EXTRA` synchronization) and a process-lifetime canonical account OS file lock for later implementation. Store unique candle decisions, full action/ownership/fill history and checkpoints, excluding secrets/raw SDK payloads. Commit intent and an attempt-start marker before a broker action; broker/database atomicity is not claimed.
+Stage 10.3 implements standard-library SQLite with short durable transactions (`DELETE` journal / `EXTRA` synchronization) and a process-lifetime canonical account OS file lock. It stores unique candle decisions, action/ownership/fill history and checkpoints, excluding secrets/raw SDK payloads. Intent and a separate attempt-start marker can be committed before a future broker action; broker/database atomicity is not claimed.
 
 Reuse the unchanged hourly EMA strategy from one persisted history anchor. Bootstrap/downtime replay restores intent without historical orders; one unique committed logical decision per closed candle prevents duplicate authorization after restart. Submit only after fresh completed-candle information; Demo execution uses broker prices/timestamps, never modeled next-OPEN fills. The pure planner returns NOOP, PLACE_BUY, PLACE_SELL, WAIT, RECONCILE or HALT. Initial BUY requires an explicitly configured exact quote budget; SELL is bounded by confirmed owned base quantity. Stage 7 `position_fraction` and whole-wallet sizing are not runtime policy. No automatic cancellation/liquidation on shutdown.
 
@@ -330,18 +334,68 @@ Snapshots hold state, optional exact owned base quantity, evidence quality, inde
 
 Fifteen typed events explicitly encode startup, complete flat/long/pending evidence, validated recovery, no change, externally authorized entry/exit preparation, freshness loss, uncertainty, fatal inconsistency, shutdown, operator rearm, and separate placement/cancellation acknowledgements. Every unlisted state/event pair raises RuntimeStateError. A receipt never changes exposure or clears pending work; terminal recovery must match the exact current action ID. UNCERTAIN may recover directly on complete evidence as Decision 017 allows; HALTED remains latched until explicit rearm through SYNCHRONIZING. STOPPING retains prior state/reason/quantity/pending work and rejects every further event.
 
-RuntimeEvidence asserts already-complete caller-validated facts; this pure module cannot prove broker ownership, fill completeness, freshness or authorization. These belong to later layers. IDs are validated supplied SHA256 references, never generated. Action journal phases remain separate and unimplemented. No broker OrderStatus, SDK/client/raw payload, secret, clock, file handle, logger or database is stored or accessed.
+RuntimeEvidence asserts already-complete caller-validated facts; this pure module cannot prove broker ownership, fill completeness, freshness or authorization. These belong to later layers. IDs are validated supplied SHA256 references, never generated. Action journal phases remain separate from this pure module and are now implemented in Stage 10.3's store. No broker OrderStatus, SDK/client/raw payload, secret, clock, file handle, logger or database is stored or accessed by the state module.
 
 Validation: **188 Stage 10.2 tests**, including **120 matrix cases (42 allowed / 78 forbidden)**; unchanged Stage 9.6 integration/smoke controls **68** and frozen EMA **16** pass. Full suite **1,572 (1,384 + 188)**, zero failures/errors/skips; `pip check` and `git diff --check` pass. Existing source/tests, Decisions 001–017, notebooks, data/results and installed packages are preserved. No authenticated Demo request/smoke/order, persistence, lock implementation, planner, sizing, market-data gate, scheduler or runtime loop was added.
+
+### Durable storage and account lock — Stage 10.3
+
+`runtime/store.py` and `runtime/locking.py` add infrastructure under unchanged Decision 017. Import these submodules explicitly; the frozen package exports and `state.py` remain unchanged. No new ADR or dependency is needed.
+
+Public records are frozen/slotted: `RuntimeConfiguration`, `RuntimeCheckpoint`, `CandleRecord`, `DecisionRecord`, `ActionRecord`, and `OwnedFillRecord`. Configuration binds `(broker_id, account_binding, bot_id)`, optional supplied broker account ID, schema/contract versions, strategy/configuration SHA256 digests, exact strategy parameters, instrument/currencies/hourly interval, exact BUY quote budget, history anchor and finite age/read/reconciliation/timeout/clock policies. Initial supported configuration is `bybit-demo`, `ema_trend` with EMA20/50 and 50 warm-up candles, timeframe `"60"` and interval `3_600_000`. Digests/IDs and verified account facts must be supplied by the caller; this store does not generate or verify broker identity.
+
+Checkpoint retains the frozen snapshot, sequence, frontier, reconciliation/observation times and coverage, HALT/shutdown/rearm markers and bootstrap/replay cutoffs. Candle and decision records retain supplied OHLCV/fingerprint, hourly identity, signal, desired position, availability, disposition and action reference. Action records preserve original action/link/order/control references, exact authorized/submitted amounts and units/currency, receipts, observations, safe reasons, terminal evidence, attempt count and remaining recovery bounds. Owned fills preserve exact execution identity/ownership, quantity/price/signed fee/currency and execution/observation times. Unavailable values remain `None`/SQL NULL.
+
+`ActionPhase` has exactly PREPARED, ATTEMPT_STARTED, ACKNOWLEDGED, UNKNOWN_OUTCOME, TERMINAL_CONFIRMED, REJECTED and ABANDONED_UNSENT, separate from operational state. `JournalActionKind` is ENTRY/EXIT/CANCEL; cancellation is a subordinate explicit control. `DecisionDisposition` is BOOTSTRAP/REPLAY_ONLY/NOOP/WAIT/ACTION/HALT. No phase, disposition or stored intent causes an action.
+
+Public persistence API:
+
+```python
+RuntimeStore.open(lock, configuration, *, initialize=False) -> RuntimeStore
+store.durability_settings() -> dict
+store.get_configuration() -> RuntimeConfiguration
+store.get_checkpoint() -> RuntimeCheckpoint
+store.get_candle(candle_open_ms) -> CandleRecord | None
+store.get_decision(candle_open_ms) -> DecisionRecord | None
+store.get_action(action_id) -> ActionRecord | None
+store.get_fill(execution_id) -> OwnedFillRecord | None
+store.save_checkpoint(checkpoint, *, expected_sequence) -> None
+store.commit_decision(candle, decision, checkpoint, *, expected_sequence, action=None) -> bool
+store.prepare_cancellation(action, checkpoint, *, expected_sequence) -> None
+store.start_attempt(action_id, checkpoint, *, expected_sequence) -> None
+store.abandon_prepared(action_id, checkpoint, *, expected_sequence, terminal_at_ms) -> None
+store.record_observation(action, checkpoint, *, expected_sequence, fills=()) -> None
+store.close() -> None
+serialize_decimal(value: Decimal) -> str
+deserialize_decimal(value: str) -> Decimal
+```
+
+Schema and runtime-contract version are **1**, with tables `identity`, `checkpoint`, `candles`, `decisions`, `actions`, `fills`. Required table/index definitions, `PRAGMA user_version`, `quick_check(1)`, foreign keys and every stored record are validated on open. Unsupported/corrupt/missing existing stores fail explicitly; no reset, migration, replacement upsert or historical ID deletion exists. Initialization must use `initialize=True` for a genuinely absent DB; it refuses an existing file. Identity/configuration must match exactly on reopen.
+
+Money is finite Decimal serialized to canonical plain TEXT without float conversion or context rounding; trailing fractional zeroes/signed zero canonicalize without changing numeric value. Timestamps are validated integer UTC milliseconds, with hourly candle keys. Enums serialize explicit values and unknown stored values fail. Integrity checks are bounded at 100,000 rows per table, 256 MiB per DB, 10,000 fills per write and a conservative 4,096-character Decimal representation bound; excessive records fail rather than truncate, and writes cannot exceed store limits.
+
+Effective required PRAGMAs are `journal_mode=delete`, `synchronous=3` (EXTRA), `foreign_keys=1`, and `fullfsync=1` on supported macOS. Settings are checked before reads/writes; drift blocks access. Existing WAL stores are rejected without conversion. Fresh directories/DB entries are explicitly synced. Durability assumes functioning local storage/sync semantics; no network filesystem or distributed locking is supported.
+
+Each public write owns a short `BEGIN IMMEDIATE` transaction. Candle + decision + optional PREPARED action + pending checkpoint + frontier commit together. Identical accepted replay returns `False` without applying the supplied checkpoint; conflicting contents/references fail. New decisions advance one contiguous anchored hour; sequences compare against `expected_sequence` and advance exactly once. Original action/link IDs remain unique tombstones. ATTEMPT_STARTED durably changes attempt count from 0 to 1; a second attempt/backward phase is forbidden. Receipts or UNKNOWN_OUTCOME are separate writes and cannot establish fills. Supplied fills, terminal evidence and supplied owned-quantity checkpoint commit atomically; duplicate execution facts are idempotent, retaining first observation time, while conflicting financial/ownership facts roll back. Indeterminate commit/rollback closes the store and requires reopening/validation, never an assumption of unsent work.
+
+The store validates records, references and persistence invariants; it does not run the pure event graph, verify closure/freshness/finality, discover ownership, authorize size, calculate inventory/PnL or retrieve broker evidence. Terminal completeness and checkpoint quantity remain caller assertions for future reconciliation. Nonzero fees without known currency block terminal ownership settlement. HALT stays latched through persisted STOPPING until recorded rearm through synchronization.
+
+`RuntimeAccountLock(registry_root: Path, account_binding: str, *, broker_id="bybit-demo")` exposes `acquire()`, `release()` and context management. The root must be explicit, absolute and already exist; aliases resolve canonically. Account key is SHA256 of compact ASCII JSON `[broker_id, account_binding]`, using stable non-secret labels, never API keys. Paths are `<root>/locks/<key>.lock` and `<root>/accounts/<key>/runtime.sqlite3`, independent of bot/config/DB selection. Store APIs accept no alternate database path. All cooperating launches **must use the same registry root and account binding**; this is a local cooperative lock, not broker-verified identity or protection against unrelated clients/hostile filesystem changes.
+
+Acquire uses real `fcntl.flock(LOCK_EX | LOCK_NB)` and retains the same descriptor. Contenders fail immediately; file existence/metadata/PID is never ownership. Process death/descriptor close releases OS ownership. Explicit release/context exit never unlinks the persistent file; no metadata/secrets are written. Symlink/hardlink/replaced-path surprises and inherited-process use fail closed. Store requires the held lock and tracks open handles so the lock cannot be released first. Caller lifecycle is: acquire lock → open/validate DB → any separately approved future session/work → close future session → close all stores → release lock last. No session is constructed now. Generated `/runtime_state/` registry and fixed SQLite filenames/sidecars are ignored; tests use temporary directories only.
+
+Errors: `RuntimeStoreError(RuntimeError)`, `RuntimeStoreIntegrityError`, `RuntimeStoreConflictError`, and `RuntimeLockError(RuntimeError)` use safe fixed diagnostics, without raw SQL, file contents, SDK data, environment dumps or secret values.
+
+Validation: **188 new Stage 10.3 tests (165 storage + 23 locking)**, including all **49 phase pairs**, rollback/indeterminate-commit cases, integrity/identity/Decimal/reference/frontier checks and real subprocess exclusion/release. Stage 10.2 **188**, Stage 9.6 **68**, frozen EMA **16** pass. Full suite **1,760 (1,572 + 188)**, zero failures/errors/skips; `pip check` and `git diff --check` pass. All 121 protected tracked files, five local data/results files and 106 installed package versions match the starting baseline. No API key, pybit/HTTP/broker import, network request, authenticated Demo smoke/order, market-data gate, reconciliation service, planner/sizing, scheduler or runtime loop exists in these modules.
 
 ### Accepted Stage 10 roadmap
 
 | Milestone | Status |
 | --- | --- |
 | 10.1 — Runtime Contract / Architecture | COMPLETE; Accepted; published/frozen; documentation only. |
-| 10.2 — Runtime State Model + Pure State Machine | COMPLETE; ready for owner review; pure state core only. |
-| 10.3 — Durable Runtime Persistence + Single-Instance Lock | Next; NOT STARTED; requires explicit approval. |
-| 10.4 — Closed-Candle Market Data Gate | NOT STARTED. |
+| 10.2 — Runtime State Model + Pure State Machine | COMPLETE; published/frozen at `8b41427`; pure state core only. |
+| 10.3 — Durable Runtime Persistence + Single-Instance Lock | COMPLETE; ready for owner review; durable primitives only. |
+| 10.4 — Closed-Candle Market Data Gate | Next; NOT STARTED; requires explicit approval. |
 | 10.5 — Startup / Broker Reconciliation | NOT STARTED. |
 | 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy | NOT STARTED. |
 | 10.7 — Single-Cycle Demo Runtime Orchestration | NOT STARTED. |
@@ -549,7 +603,7 @@ Every independent IS/OOS/walk-forward segment cold-starts FLAT with its own init
 
 Sensitivity uses a predefined valid finite grid with consistent window/cost/sizing assumptions; isolated peaks are robustness warnings. Normally hold the accepted fixed `position_fraction` constant while varying time or strategy parameters. Fixed-parameter walk-forward supports the initial research; adaptive selection is not required, and no magic robustness score is introduced. Independent windows do not imply continuous compounded equity. Existing undefined metrics remain honest. The BTC snapshot is already-seen research data; chronological OOS checks within it are methodological evidence, not pristine unseen validation.
 
-Stage 8.1 was documentation/architecture only; Stage 8.2 implements the split/evaluation core, Stage 8.3 adds descriptive parameter sensitivity, Stage 8.4 analyzes local surface variation, Stage 8.5 adds independent expanding walk-forward evaluation, and Stage 8.6 summarizes precomputed IS/OOS and walk-forward results below. Stage 8.7 presents these outputs in executed notebook 06. Stage 7 remains COMPLETE and Stage 5 analytics remains frozen. Current suite: 1,572 tests, zero failures, errors, or skips; the Stage 8 baseline remains 982. `git diff --check` passes. Decision 012 remains unchanged; Stage 8.8 final audit and Stage 8 are COMPLETE.
+Stage 8.1 was documentation/architecture only; Stage 8.2 implements the split/evaluation core, Stage 8.3 adds descriptive parameter sensitivity, Stage 8.4 analyzes local surface variation, Stage 8.5 adds independent expanding walk-forward evaluation, and Stage 8.6 summarizes precomputed IS/OOS and walk-forward results below. Stage 8.7 presents these outputs in executed notebook 06. Stage 7 remains COMPLETE and Stage 5 analytics remains frozen. Current suite: 1,760 tests, zero failures, errors, or skips; the Stage 8 baseline remains 982. `git diff --check` passes. Decision 012 remains unchanged; Stage 8.8 final audit and Stage 8 are COMPLETE.
 
 ## Accepted Stage 8 roadmap
 
@@ -800,7 +854,7 @@ Reserve belongs to the same portfolio. Stage 7.5 MTM equity now includes reserve
 
 Default fraction 1.0 must reproduce Stage 6 exactly, including quantities, independent GROSS/NET accounting, equity, and downstream analytics, without loosening existing tolerances. Frozen BTC reference values are recorded in Decision 011. Prefer existing accounting schemas and derive reserve safely from canonical entry accounting; any necessary new field requires an explicit reviewed decision.
 
-The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 1,572 tests.
+The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 1,760 tests.
 
 ## Position sizing core
 
@@ -1280,9 +1334,9 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Stage 10.2 — Runtime State Model + Pure State Machine is COMPLETE and ready for owner review. Stage 10 has STARTED and remains INCOMPLETE; Stage 10.3 — Durable Runtime Persistence + Single-Instance Lock is next and NOT STARTED.
+Stage 10.3 — Durable Runtime Persistence + Single-Instance Lock is COMPLETE and ready for owner review. Stage 10 has STARTED and remains INCOMPLETE; Stage 10.4 — Closed-Candle Market Data Gate is next and NOT STARTED.
 
-Stage 9.1–9.7 and Stage 9 remain COMPLETE. Stage 10.1 and Decision 017 are frozen; 10.2 adds only immutable normalized records and deterministic pure transitions. Stage 8, Stage 5 frozen EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. No operational runtime, database/checkpoint file, lock, scheduler, polling, automatic strategy/risk wiring or broker action exists.
+Stage 9.1–9.7 and Stage 9 remain COMPLETE. Stage 10.1/10.2 and Decision 017 are frozen; 10.3 adds only local durable storage and account locking. Stage 8, Stage 5 frozen EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. No operational runtime, scheduler, polling, automatic strategy/risk wiring or broker action exists; no runtime DB/lock artifact is written into the repository by tests.
 
 ## Not implemented yet
 
@@ -1301,9 +1355,9 @@ Stage 9.1–9.7 and Stage 9 remain COMPLETE. Stage 10.1 and Decision 017 are fro
 
 ## Next milestone
 
-Stage 10.3 — Durable Runtime Persistence + Single-Instance Lock, only after explicit owner approval; NOT STARTED.
+Stage 10.4 — Closed-Candle Market Data Gate, only after explicit owner approval; NOT STARTED.
 
-Stage 10.1 is COMPLETE/frozen and 10.2 is COMPLETE/ready for owner review. Stage 10 remains INCOMPLETE and Stage 9 remains COMPLETE. The next milestone is durable SQLite state and canonical account locking under Decision 017. Do not begin 10.3, wire strategies to the exchange, implement a scheduler, or run an authenticated Demo smoke/order automatically.
+Stage 10.1/10.2 are COMPLETE/frozen and 10.3 is COMPLETE/ready for owner review. Stage 10 remains INCOMPLETE and Stage 9 remains COMPLETE. The next milestone is closed-candle market-data validation under Decision 017. Do not begin 10.4, wire strategies to the exchange, implement a scheduler, or run an authenticated Demo smoke/order automatically.
 
 ## Backtesting execution contract
 

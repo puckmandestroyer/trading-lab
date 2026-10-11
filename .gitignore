@@ -25,3 +25,11 @@ logs/
 # Generated experiment/backtest outputs
 /results/*
 !/results/.gitkeep
+
+# Local runtime registry: SQLite databases, journals and account lock files
+/runtime_state/
+**/locks/*.lock
+runtime.sqlite3
+runtime.sqlite3-journal
+runtime.sqlite3-wal
+runtime.sqlite3-shm
