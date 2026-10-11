@@ -8,9 +8,11 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 Stage 10 — Demo Trading Runtime has STARTED and remains INCOMPLETE.
 
-Stage 10.1 — Runtime Contract / Architecture is COMPLETE and ready for owner review. [Decision 017](decisions/017_demo_trading_runtime_contract.md) is Accepted under the existing contract-milestone convention; this milestone is documentation only.
+Stage 10.1 — Runtime Contract / Architecture is COMPLETE, published and frozen at `b9eb945674fb450515164eb54256d7ac7270d29d`. [Decision 017](decisions/017_demo_trading_runtime_contract.md) remains Accepted and unchanged.
 
-Stage 10.2 — Runtime State Model + Pure State Machine is next and NOT STARTED. No production runtime, persistence, scheduler or strategy/exchange auto-wiring exists yet.
+Stage 10.2 — Runtime State Model + Pure State Machine is COMPLETE and ready for owner review. Only immutable records and pure transitions exist; no operational runtime, persistence, scheduler or strategy/exchange auto-wiring.
+
+Stage 10.3 — Durable Runtime Persistence + Single-Instance Lock is next and NOT STARTED.
 
 Stage 9 — Bybit Demo Exchange Adapter is COMPLETE after Stage 9.7 — Final Stage 9 Audit + Docs.
 
@@ -306,25 +308,39 @@ Milestone entries and Accepted ADRs retain the status and test totals recorded a
 
 - Stage 10.1 defined the Demo runtime contract in Accepted Decision 017: durable identity/ownership, original-ID recovery, finite states, anchored closed-candle handling, pure planning, explicit fixed quote BUY/owned base SELL authorization, SQLite intent/checkpoints and a single-host account lock. Documentation only; no implementation, new tests/dependency, authenticated request or order. Stage 9 remains COMPLETE; Stage 10 is INCOMPLETE; Stage 10.2 is next and NOT STARTED.
 
+- Stage 10.2 implemented the broker-independent pure operational state core under unchanged Decision 017: frozen/slotted records, exact eight states, typed events/evidence/reason codes, Decimal ownership invariants, retained pending identities, explicit recovery/rearm and shutdown. Added 188 offline tests, including all 120 state/event pairs. No I/O, ID generation, action planner, sizing, journal phases, persistence, scheduler, reconciliation service or broker action. Stage 10.3 is next and NOT STARTED.
+
 ## Demo Trading Runtime contract
 
-[Decision 017 — Demo Trading Runtime Contract](decisions/017_demo_trading_runtime_contract.md) is Accepted and ready for owner review against clean published baseline `4113ad653ccd46be40fafd165d78bf75589a2ce5`. Stage 10.1 defines future behavior only. Decisions 010–016, production APIs, frozen EMA values/tolerances, next-OPEN/final-candle behavior, notebooks and research accounting remain unchanged.
+[Decision 017 — Demo Trading Runtime Contract](decisions/017_demo_trading_runtime_contract.md) is Accepted and frozen by Stage 10.1 commit `b9eb945674fb450515164eb54256d7ac7270d29d`; its reviewed Stage 9 baseline is `4113ad653ccd46be40fafd165d78bf75589a2ce5`. Stage 10.2 implements only its pure state core. Decisions 010–017, existing production APIs, frozen EMA values/tolerances, next-OPEN/final-candle behavior, notebooks and research accounting remain unchanged.
 
 Initial scope: one Bybit Demo account/bot/strategy/symbol/hourly timeframe, Spot LONG/FLAT and MARKET actions, no borrowing, leverage or shorts. Stable `(broker_id, account_binding, bot_id)` identity survives restart; strategy code/parameters, symbol/timeframe and non-secret configuration are bound to it. Only exact persisted action/link/broker evidence proves order ownership; symbols, link prefixes and wallet holdings alone do not. Stage 9.4's account label is not a verified broker UID.
 
-Runtime will distinguish STARTING, SYNCHRONIZING, FLAT, LONG, ORDER_PENDING, UNCERTAIN, HALTED and STOPPING, separately from desired intent, order status and partial owned exposure. Original logical action IDs/links are persisted before a possible send and retained across restart; receipts remain separate from fills. Missing observations preserve uncertainty. The existing broker-ID lookup and seven-day execution window may leave lost-acknowledgement recovery unresolved; bounded reconciliation then HALTs rather than resending or bypassing the adapter.
+The pure model now distinguishes STARTING, SYNCHRONIZING, FLAT, LONG, ORDER_PENDING, UNCERTAIN, HALTED and STOPPING, separately from desired intent, order status and partial owned exposure. Future orchestration must persist original logical action IDs/links before a possible send and retain them across restart; receipts remain separate from fills. Missing observations preserve uncertainty. The existing broker-ID lookup and seven-day execution window may leave lost-acknowledgement recovery unresolved; future bounded reconciliation must HALT rather than resend or bypass the adapter.
 
 Choose standard-library SQLite with short durable transactions (`DELETE` journal / `EXTRA` synchronization) and a process-lifetime canonical account OS file lock for later implementation. Store unique candle decisions, full action/ownership/fill history and checkpoints, excluding secrets/raw SDK payloads. Commit intent and an attempt-start marker before a broker action; broker/database atomicity is not claimed.
 
 Reuse the unchanged hourly EMA strategy from one persisted history anchor. Bootstrap/downtime replay restores intent without historical orders; one unique committed logical decision per closed candle prevents duplicate authorization after restart. Submit only after fresh completed-candle information; Demo execution uses broker prices/timestamps, never modeled next-OPEN fills. The pure planner returns NOOP, PLACE_BUY, PLACE_SELL, WAIT, RECONCILE or HALT. Initial BUY requires an explicitly configured exact quote budget; SELL is bounded by confirmed owned base quantity. Stage 7 `position_fraction` and whole-wallet sizing are not runtime policy. No automatic cancellation/liquidation on shutdown.
 
+### Pure runtime state core — Stage 10.2
+
+`src/trading_lab/runtime/state.py` exports `RuntimeState`, `PositionEvidence`, `PendingActionKind`, `RuntimeReason`, `RuntimeEventType`, frozen/slotted `PendingAction`, `RuntimeEvidence`, `RuntimeStateSnapshot`, `RuntimeEvent`, `RuntimeStateError(ValueError)`, and `transition_runtime_state(current: RuntimeStateSnapshot, event: RuntimeEvent) -> RuntimeStateSnapshot`. The minimal package explicitly re-exports these names.
+
+Snapshots hold state, optional exact owned base quantity, evidence quality, independent desired 0/1/unknown intent, one optional pending action reference, safe reason code and prior state for shutdown. Unknown quantity is None; stale quantity is LAST_KNOWN, not confirmed current truth. FLAT requires confirmed exact zero without pending work; LONG requires confirmed positive quantity without pending work; ORDER_PENDING requires confirmed zero/partial exposure and one unresolved lifecycle. No quantities are rounded/coerced and no quote/base conversion is performed.
+
+Fifteen typed events explicitly encode startup, complete flat/long/pending evidence, validated recovery, no change, externally authorized entry/exit preparation, freshness loss, uncertainty, fatal inconsistency, shutdown, operator rearm, and separate placement/cancellation acknowledgements. Every unlisted state/event pair raises RuntimeStateError. A receipt never changes exposure or clears pending work; terminal recovery must match the exact current action ID. UNCERTAIN may recover directly on complete evidence as Decision 017 allows; HALTED remains latched until explicit rearm through SYNCHRONIZING. STOPPING retains prior state/reason/quantity/pending work and rejects every further event.
+
+RuntimeEvidence asserts already-complete caller-validated facts; this pure module cannot prove broker ownership, fill completeness, freshness or authorization. These belong to later layers. IDs are validated supplied SHA256 references, never generated. Action journal phases remain separate and unimplemented. No broker OrderStatus, SDK/client/raw payload, secret, clock, file handle, logger or database is stored or accessed.
+
+Validation: **188 Stage 10.2 tests**, including **120 matrix cases (42 allowed / 78 forbidden)**; unchanged Stage 9.6 integration/smoke controls **68** and frozen EMA **16** pass. Full suite **1,572 (1,384 + 188)**, zero failures/errors/skips; `pip check` and `git diff --check` pass. Existing source/tests, Decisions 001–017, notebooks, data/results and installed packages are preserved. No authenticated Demo request/smoke/order, persistence, lock implementation, planner, sizing, market-data gate, scheduler or runtime loop was added.
+
 ### Accepted Stage 10 roadmap
 
 | Milestone | Status |
 | --- | --- |
-| 10.1 — Runtime Contract / Architecture | COMPLETE; Accepted; ready for owner review; documentation only. |
-| 10.2 — Runtime State Model + Pure State Machine | Next; NOT STARTED; requires explicit approval. |
-| 10.3 — Durable Runtime Persistence + Single-Instance Lock | NOT STARTED. |
+| 10.1 — Runtime Contract / Architecture | COMPLETE; Accepted; published/frozen; documentation only. |
+| 10.2 — Runtime State Model + Pure State Machine | COMPLETE; ready for owner review; pure state core only. |
+| 10.3 — Durable Runtime Persistence + Single-Instance Lock | Next; NOT STARTED; requires explicit approval. |
 | 10.4 — Closed-Candle Market Data Gate | NOT STARTED. |
 | 10.5 — Startup / Broker Reconciliation | NOT STARTED. |
 | 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy | NOT STARTED. |
@@ -533,7 +549,7 @@ Every independent IS/OOS/walk-forward segment cold-starts FLAT with its own init
 
 Sensitivity uses a predefined valid finite grid with consistent window/cost/sizing assumptions; isolated peaks are robustness warnings. Normally hold the accepted fixed `position_fraction` constant while varying time or strategy parameters. Fixed-parameter walk-forward supports the initial research; adaptive selection is not required, and no magic robustness score is introduced. Independent windows do not imply continuous compounded equity. Existing undefined metrics remain honest. The BTC snapshot is already-seen research data; chronological OOS checks within it are methodological evidence, not pristine unseen validation.
 
-Stage 8.1 was documentation/architecture only; Stage 8.2 implements the split/evaluation core, Stage 8.3 adds descriptive parameter sensitivity, Stage 8.4 analyzes local surface variation, Stage 8.5 adds independent expanding walk-forward evaluation, and Stage 8.6 summarizes precomputed IS/OOS and walk-forward results below. Stage 8.7 presents these outputs in executed notebook 06. Stage 7 remains COMPLETE and Stage 5 analytics remains frozen. Current suite: 1,384 tests, zero failures, errors, or skips; the Stage 8 baseline remains 982. `git diff --check` passes. Decision 012 remains unchanged; Stage 8.8 final audit and Stage 8 are COMPLETE.
+Stage 8.1 was documentation/architecture only; Stage 8.2 implements the split/evaluation core, Stage 8.3 adds descriptive parameter sensitivity, Stage 8.4 analyzes local surface variation, Stage 8.5 adds independent expanding walk-forward evaluation, and Stage 8.6 summarizes precomputed IS/OOS and walk-forward results below. Stage 8.7 presents these outputs in executed notebook 06. Stage 7 remains COMPLETE and Stage 5 analytics remains frozen. Current suite: 1,572 tests, zero failures, errors, or skips; the Stage 8 baseline remains 982. `git diff --check` passes. Decision 012 remains unchanged; Stage 8.8 final audit and Stage 8 are COMPLETE.
 
 ## Accepted Stage 8 roadmap
 
@@ -784,7 +800,7 @@ Reserve belongs to the same portfolio. Stage 7.5 MTM equity now includes reserve
 
 Default fraction 1.0 must reproduce Stage 6 exactly, including quantities, independent GROSS/NET accounting, equity, and downstream analytics, without loosening existing tolerances. Frozen BTC reference values are recorded in Decision 011. Prefer existing accounting schemas and derive reserve safely from canonical entry accounting; any necessary new field requires an explicit reviewed decision.
 
-The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 1,384 tests.
+The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 1,572 tests.
 
 ## Position sizing core
 
@@ -1264,9 +1280,9 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Stage 10.1 — Runtime Contract / Architecture is COMPLETE and ready for owner review. Stage 10 has STARTED and remains INCOMPLETE; Stage 10.2 — Runtime State Model + Pure State Machine is next and NOT STARTED.
+Stage 10.2 — Runtime State Model + Pure State Machine is COMPLETE and ready for owner review. Stage 10 has STARTED and remains INCOMPLETE; Stage 10.3 — Durable Runtime Persistence + Single-Instance Lock is next and NOT STARTED.
 
-Stage 9.1–9.7 and Stage 9 remain COMPLETE under unchanged Decisions 013–016. Decision 017 defines future runtime identity, ownership, reconciliation, candle handling, sizing and persistence only. Stage 8, Stage 5 frozen EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. No production runtime, database/checkpoint file, scheduler, polling, automatic strategy/risk wiring or broker action is added in 10.1.
+Stage 9.1–9.7 and Stage 9 remain COMPLETE. Stage 10.1 and Decision 017 are frozen; 10.2 adds only immutable normalized records and deterministic pure transitions. Stage 8, Stage 5 frozen EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. No operational runtime, database/checkpoint file, lock, scheduler, polling, automatic strategy/risk wiring or broker action exists.
 
 ## Not implemented yet
 
@@ -1285,9 +1301,9 @@ Stage 9.1–9.7 and Stage 9 remain COMPLETE under unchanged Decisions 013–016.
 
 ## Next milestone
 
-Stage 10.2 — Runtime State Model + Pure State Machine, only after explicit owner approval; NOT STARTED.
+Stage 10.3 — Durable Runtime Persistence + Single-Instance Lock, only after explicit owner approval; NOT STARTED.
 
-Stage 10.1 is COMPLETE; Stage 10 remains INCOMPLETE and Stage 9 remains COMPLETE. The next milestone implements only small runtime records and pure transitions under Decision 017. Do not begin 10.2, wire strategies to the exchange, implement a scheduler, or run an authenticated Demo smoke/order automatically.
+Stage 10.1 is COMPLETE/frozen and 10.2 is COMPLETE/ready for owner review. Stage 10 remains INCOMPLETE and Stage 9 remains COMPLETE. The next milestone is durable SQLite state and canonical account locking under Decision 017. Do not begin 10.3, wire strategies to the exchange, implement a scheduler, or run an authenticated Demo smoke/order automatically.
 
 ## Backtesting execution contract
 

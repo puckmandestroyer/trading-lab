@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-11 — Stage 10.2 — Runtime State Model + Pure State Machine
+
+- Added a minimal broker-independent runtime package with the exact eight operational states, frozen/slotted records, fifteen normalized events, safe reason codes and pure deterministic transitions under unchanged Decision 017. Exact Decimal quantities distinguish confirmed from last-known/unknown exposure; pending/terminal evidence binds the original action identity. Intent and acknowledgements never fabricate fills; HALT requires explicit rearm through synchronization and STOPPING preserves unresolved work.
+- Added **188 offline tests**, including all **120 state/event pairs (42 allowed / 78 forbidden)**, invariant/evidence cases and structural/behavioral purity guards. Stage 9.6 integration/smoke **68** and frozen EMA **16** pass; full suite **1,572 (1,384 + 188)**, zero failures/errors/skips. `pip check` and `git diff --check` pass.
+- Existing source/tests, Decisions 001–017, financial values/tolerances, next-OPEN behavior, notebooks, data/results and dependencies remain unchanged. No broker/network call, authenticated Demo smoke/order, ID generation, journal phases, persistence/lock, planner/sizing, reconciliation service, scheduler or runtime loop. Updated current documentation and smoke-guide status footer. Stage 9 remains COMPLETE, Stage 10.1 frozen, Stage 10.2 COMPLETE/ready for owner review; Stage 10 remains INCOMPLETE and 10.3 next/NOT STARTED.
+
 ## 2026-10-11 — Stage 10.1 — Runtime Contract / Architecture
 
 - Added Accepted Decision 017 for future single-bot Demo Spot LONG/FLAT runtime identity, owned orders/positions, deterministic action IDs, finite states, startup/restart and bounded reconciliation with explicit uncertainty; Stage 9 APIs and historical contracts remain unchanged.
