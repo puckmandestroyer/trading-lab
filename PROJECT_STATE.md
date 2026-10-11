@@ -12,9 +12,11 @@ Stage 10.1 — Runtime Contract / Architecture is COMPLETE, published and frozen
 
 Stage 10.2 — Runtime State Model + Pure State Machine is COMPLETE, published and frozen at `8b41427d669f5c17717a296113aa7b28b9dd23e3`. Its pure model, public API and tests remain unchanged.
 
-Stage 10.3 — Durable Runtime Persistence + Single-Instance Lock is COMPLETE and ready for owner review. Local durable storage and account locking are infrastructure only; no operational runtime or broker/network operation exists.
+Stage 10.3 — Durable Runtime Persistence + Single-Instance Lock is COMPLETE, published and frozen at `56584c462b1226f36941ab02726ed7a621a82dac`. Its local durable storage/account lock APIs and tests remain unchanged.
 
-Stage 10.4 — Closed-Candle Market Data Gate is next and NOT STARTED.
+Stage 10.4 — Closed-Candle Market Data Gate is COMPLETE and ready for owner review. Public/read-only market observations only; no operational runtime or authenticated trading.
+
+Stage 10.5 — Startup / Broker Reconciliation is next and NOT STARTED.
 
 Stage 9 — Bybit Demo Exchange Adapter is COMPLETE after Stage 9.7 — Final Stage 9 Audit + Docs.
 
@@ -388,15 +390,53 @@ Errors: `RuntimeStoreError(RuntimeError)`, `RuntimeStoreIntegrityError`, `Runtim
 
 Validation: **188 new Stage 10.3 tests (165 storage + 23 locking)**, including all **49 phase pairs**, rollback/indeterminate-commit cases, integrity/identity/Decimal/reference/frontier checks and real subprocess exclusion/release. Stage 10.2 **188**, Stage 9.6 **68**, frozen EMA **16** pass. Full suite **1,760 (1,572 + 188)**, zero failures/errors/skips; `pip check` and `git diff --check` pass. All 121 protected tracked files, five local data/results files and 106 installed package versions match the starting baseline. No API key, pybit/HTTP/broker import, network request, authenticated Demo smoke/order, market-data gate, reconciliation service, planner/sizing, scheduler or runtime loop exists in these modules.
 
+### Closed-candle market-data gate — Stage 10.4
+
+Under unchanged Decision 017, `data/closed_candles.py` supplies pure broker-independent observations/validation and `exchange/bybit_public_market.py` isolates Bybit public parsing/HTTP. Existing Stage 1 float64/local-clock historical machinery cannot prove exact runtime closure or provide safe response diagnostics, so it remains frozen. The new reader reuses its fixed public Kline URL and backward pagination direction. No dependency, export change or ADR is needed.
+
+Frozen/slotted `MarketCandle` holds symbol, timeframe, candle-open UTC ms and exact Decimal O/H/L/C/volume, matching durable `CandleRecord` semantics without persistence/fingerprint coupling. `MarketCandlePage` holds normalized ascending candles plus the page's reported server time. `ClosedCandlePrefix` holds symbol/timeframe, anchor, exclusive end, initial authoritative server time, latest page observation and a complete immutable candle tuple; `data_age_ms` is latest observation minus newest close (None only for an empty pure prefix).
+
+Public APIs, imported explicitly from the new submodules:
+
+```python
+BybitPublicMarketReader(*, timeout_seconds=10.0)
+reader.get_server_time() -> int
+reader.get_closed_candles(*, symbol, history_anchor_ms, max_data_age_ms,
+                         timeframe="60", end_ms=None, page_limit=1000,
+                         max_pages=100) -> ClosedCandlePrefix
+normalize_server_time(payload) -> int
+normalize_public_klines(payload, *, symbol, timeframe="60") -> MarketCandlePage
+validate_closed_prefix(candles, *, symbol, history_anchor_ms, server_time_ms,
+                       timeframe="60", end_ms=None, observed_at_ms=None) -> ClosedCandlePrefix
+validate_candle_freshness(*, newest_closed_candle_open_ms, server_time_ms,
+                         max_data_age_ms) -> int
+```
+
+The reader permits only unauthenticated GET `https://api.bybit.com/v5/market/time` and the existing `/v5/market/kline` URL, always `category="spot"`, interval `"60"`. It creates its own short-lived Session, disabling environment/netrc authentication/proxies, clearing auth and refusing redirects. Timeout is finite in (0, 30] seconds; no arbitrary URL/client, credential, private endpoint, automatic retry or sleep exists. Import/construction performs no request.
+
+Server normalization requires an integer non-bool successful `retCode`, result object, unsigned ASCII string `timeNano`/`timeSecond` and integer envelope `time`. Authority is `timeNano // 1_000_000`, cross-checked with seconds and envelope ms, within nonnegative signed-64-bit UTC ms; contradictions/missing values fail without local-clock fallback. Source nanoseconds are floored conservatively. The reader obtains this sample before Kline reads; every page's server timestamp must be at least the sample and previous page, preventing pre-close/cached facts from proving completion.
+
+Closure is exactly `server_time_ms >= open_ms + 3_600_000`. Equality is closed; one millisecond before is not. Default end is the sampled server hour boundary; explicit end is exclusive/aligned and cannot include an unclosed hour. The first default page may contain the forming candle: validate it, then exclude it. Parsed rows have exactly seven fields, matching Spot/symbol context, optional matching interval echo (Bybit does not document a required echo), hourly-grid ASCII timestamps and bounded plain decimal strings. Prices are finite/positive, volume and discarded turnover nonnegative, and low <= open/close <= high. Decimal values never pass through float/context rounding.
+
+Only broker normalization sorts/deduplicates. Identical accepted OHLCV values, including equal decimal values with different scale, may overlap; conflicting duplicates fail, never last-row wins. Pure prefix validation rejects unsorted/duplicate normalized inputs. One bounded backward read gathers complete `[anchor, end)` history, at most 100 pages × 1,000 rows and 100,000 candles. Caller page limits/capacity, row ranges, short pages, repeated/non-progressing pages and overlapping identities are checked. Missing first/last/internal hours, exhausted budget or a late HTTP/parse failure produce an explicit error and no partial result. A history anchor with no closed rows fails explicitly. At least 51 contiguous rows can be supplied for later EMA startup; this gate computes no EMA/signal.
+
+Freshness uses `age_ms = server_time_ms - (newest_open_ms + 3_600_000)`. Pure validation requires a closed candle and a caller-supplied nonnegative integer limit; `age <= limit` is fresh, `age > limit` raises `StaleMarketDataError`. The reader uses the latest page-reported server time here, so pagination elapsed time cannot conceal stale data. Explicit historical end ranges need an explicitly adequate age bound. No local clock, skew threshold, runtime transition or historical action eligibility is inferred; later orchestration owns clock-skew diagnostics and dispositions.
+
+Safe errors: `MarketDataError`, `MarketDataInputError`, `MarketDataTransportError`, `MarketDataResponseError`, `MarketDataIntegrityError`, `MarketDataContinuityError`, `StaleMarketDataError`. Network/JSON/API failures exclude raw bodies, headers and uncontrolled exception text. No account/wallet/order reads, mutations, authenticated session, store open/write, decision/action journal, state transition, reconciliation, strategy execution, sizing/planner, scheduler or runtime loop is reachable.
+
+Public response fields were checked against the official [server-time](https://bybit-exchange.github.io/docs/v5/market/time) and [Kline](https://bybit-exchange.github.io/docs/v5/market/kline) documentation on 2026-10-11. Documentation browsing did not call a market API endpoint.
+
+Validation: **97 new offline tests (34 pure + 63 Bybit boundary)**; frozen Stage 10.3 **188**, Stage 10.2 **188**, Stage 1 **13**, Stage 9.6 **68**, EMA **16** pass. Full suite **1,857 (1,760 + 97)**, zero failures/errors/skips; `pip check` and `git diff --check` pass. Frozen Stage 10.1–10.3, Stage 5 financial/timing baselines, source/tests/Decisions 001–017/notebooks/data/results and installed packages are preserved. No public HTTP smoke, credentials, authenticated Demo request/order or next milestone was executed.
+
 ### Accepted Stage 10 roadmap
 
 | Milestone | Status |
 | --- | --- |
 | 10.1 — Runtime Contract / Architecture | COMPLETE; Accepted; published/frozen; documentation only. |
 | 10.2 — Runtime State Model + Pure State Machine | COMPLETE; published/frozen at `8b41427`; pure state core only. |
-| 10.3 — Durable Runtime Persistence + Single-Instance Lock | COMPLETE; ready for owner review; durable primitives only. |
-| 10.4 — Closed-Candle Market Data Gate | Next; NOT STARTED; requires explicit approval. |
-| 10.5 — Startup / Broker Reconciliation | NOT STARTED. |
+| 10.3 — Durable Runtime Persistence + Single-Instance Lock | COMPLETE; published/frozen at `56584c4`; durable primitives only. |
+| 10.4 — Closed-Candle Market Data Gate | COMPLETE; ready for owner review; public/read-only only. |
+| 10.5 — Startup / Broker Reconciliation | Next; NOT STARTED; requires explicit approval. |
 | 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy | NOT STARTED. |
 | 10.7 — Single-Cycle Demo Runtime Orchestration | NOT STARTED. |
 | 10.8 — Long-Running Candle Scheduler | NOT STARTED. |
@@ -603,7 +643,7 @@ Every independent IS/OOS/walk-forward segment cold-starts FLAT with its own init
 
 Sensitivity uses a predefined valid finite grid with consistent window/cost/sizing assumptions; isolated peaks are robustness warnings. Normally hold the accepted fixed `position_fraction` constant while varying time or strategy parameters. Fixed-parameter walk-forward supports the initial research; adaptive selection is not required, and no magic robustness score is introduced. Independent windows do not imply continuous compounded equity. Existing undefined metrics remain honest. The BTC snapshot is already-seen research data; chronological OOS checks within it are methodological evidence, not pristine unseen validation.
 
-Stage 8.1 was documentation/architecture only; Stage 8.2 implements the split/evaluation core, Stage 8.3 adds descriptive parameter sensitivity, Stage 8.4 analyzes local surface variation, Stage 8.5 adds independent expanding walk-forward evaluation, and Stage 8.6 summarizes precomputed IS/OOS and walk-forward results below. Stage 8.7 presents these outputs in executed notebook 06. Stage 7 remains COMPLETE and Stage 5 analytics remains frozen. Current suite: 1,760 tests, zero failures, errors, or skips; the Stage 8 baseline remains 982. `git diff --check` passes. Decision 012 remains unchanged; Stage 8.8 final audit and Stage 8 are COMPLETE.
+Stage 8.1 was documentation/architecture only; Stage 8.2 implements the split/evaluation core, Stage 8.3 adds descriptive parameter sensitivity, Stage 8.4 analyzes local surface variation, Stage 8.5 adds independent expanding walk-forward evaluation, and Stage 8.6 summarizes precomputed IS/OOS and walk-forward results below. Stage 8.7 presents these outputs in executed notebook 06. Stage 7 remains COMPLETE and Stage 5 analytics remains frozen. Current suite: 1,857 tests, zero failures, errors, or skips; the Stage 8 baseline remains 982. `git diff --check` passes. Decision 012 remains unchanged; Stage 8.8 final audit and Stage 8 are COMPLETE.
 
 ## Accepted Stage 8 roadmap
 
@@ -854,7 +894,7 @@ Reserve belongs to the same portfolio. Stage 7.5 MTM equity now includes reserve
 
 Default fraction 1.0 must reproduce Stage 6 exactly, including quantities, independent GROSS/NET accounting, equity, and downstream analytics, without loosening existing tolerances. Frozen BTC reference values are recorded in Decision 011. Prefer existing accounting schemas and derive reserve safely from canonical entry accounting; any necessary new field requires an explicit reviewed decision.
 
-The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 1,760 tests.
+The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 1,857 tests.
 
 ## Position sizing core
 
@@ -1334,9 +1374,9 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Stage 10.3 — Durable Runtime Persistence + Single-Instance Lock is COMPLETE and ready for owner review. Stage 10 has STARTED and remains INCOMPLETE; Stage 10.4 — Closed-Candle Market Data Gate is next and NOT STARTED.
+Stage 10.4 — Closed-Candle Market Data Gate is COMPLETE and ready for owner review. Stage 10 has STARTED and remains INCOMPLETE; Stage 10.5 — Startup / Broker Reconciliation is next and NOT STARTED.
 
-Stage 9.1–9.7 and Stage 9 remain COMPLETE. Stage 10.1/10.2 and Decision 017 are frozen; 10.3 adds only local durable storage and account locking. Stage 8, Stage 5 frozen EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. No operational runtime, scheduler, polling, automatic strategy/risk wiring or broker action exists; no runtime DB/lock artifact is written into the repository by tests.
+Stage 9.1–9.7 and Stage 9 remain COMPLETE. Stages 10.1–10.3 and Decision 017 are frozen; 10.4 adds only validated public market observations. Stage 8, Stage 5 frozen EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. No operational runtime, scheduler, polling, automatic strategy/risk wiring or authenticated broker action exists; no runtime DB/lock artifact is written into the repository by tests.
 
 ## Not implemented yet
 
@@ -1355,9 +1395,9 @@ Stage 9.1–9.7 and Stage 9 remain COMPLETE. Stage 10.1/10.2 and Decision 017 ar
 
 ## Next milestone
 
-Stage 10.4 — Closed-Candle Market Data Gate, only after explicit owner approval; NOT STARTED.
+Stage 10.5 — Startup / Broker Reconciliation, only after explicit owner approval; NOT STARTED.
 
-Stage 10.1/10.2 are COMPLETE/frozen and 10.3 is COMPLETE/ready for owner review. Stage 10 remains INCOMPLETE and Stage 9 remains COMPLETE. The next milestone is closed-candle market-data validation under Decision 017. Do not begin 10.4, wire strategies to the exchange, implement a scheduler, or run an authenticated Demo smoke/order automatically.
+Stages 10.1–10.3 are COMPLETE/frozen and 10.4 is COMPLETE/ready for owner review. Stage 10 remains INCOMPLETE and Stage 9 remains COMPLETE. The next milestone is startup/broker reconciliation under Decision 017. Do not begin 10.5, wire strategies to the exchange, implement a scheduler, or run an authenticated Demo smoke/order automatically.
 
 ## Backtesting execution contract
 

@@ -62,7 +62,7 @@ All CLI control tests use synthetic credentials and fake clients. **No actual
 authenticated Demo smoke/order was executed during Stage 9.6.** Offline success
 proves software contracts, not actual Demo fills or profitability. No actual
 authenticated Demo smoke/order was executed during Stage 9. Stage 9.1–9.7 and
-Stage 9 remain COMPLETE. Stage 10.1/10.2 are frozen; 10.3 adds only local durable
-storage and account locking. Stage 10 is INCOMPLETE, with 10.4 next and NOT STARTED.
+Stage 9 remain COMPLETE. Stages 10.1–10.3 are frozen; 10.4 adds only public/read-only
+closed-candle observations. Stage 10 is INCOMPLETE, with 10.5 next and NOT STARTED.
 No operational runtime exists yet.
 Do not run this tool against Demo automatically.

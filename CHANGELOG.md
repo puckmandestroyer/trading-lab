@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-11 — Stage 10.4 — Closed-Candle Market Data Gate
+
+- Added pure immutable Decimal market observations, authoritative public server-time normalization, exact hourly closure, contiguous anchored coverage and explicit freshness validation. Broker-specific parsing/HTTP stays behind the public Spot reader; forming candles are excluded, conflicting duplicates/malformed OHLCV/gaps fail without repair.
+- Added bounded atomic backward pagination with safe overlap deduplication, full anchor/end coverage, monotonic page-time evidence and explicit HTTP/page/timeout limits. No partial success, automatic retry, local-clock fallback, authenticated session, account/order access, persistence write, state transition, strategy calculation or runtime loop.
+- Added **97 offline tests (34 pure + 63 Bybit)**. Frozen Stage 10.3 **188**, Stage 10.2 **188**, Stage 1 **13**, Stage 9.6 **68**, EMA **16** pass; full suite **1,857 (1,760 + 97)**, zero failures/errors/skips. `pip check` and `git diff --check` pass. Existing source/tests/ADRs/notebooks/data/results/dependencies and frozen financial/timing behavior are unchanged; no public HTTP smoke or authenticated Demo request/order.
+- Updated current documentation and the manual smoke guide's status footer only. Stage 9 COMPLETE; Stages 10.1–10.3 frozen; 10.4 COMPLETE/ready for review; Stage 10 INCOMPLETE; 10.5 next/NOT STARTED. No next milestone was started.
+
 ## 2026-10-11 — Stage 10.3 — Durable Runtime Persistence + Single-Instance Lock
 
 - Added standard-library SQLite schema/version 1 with immutable runtime identity/configuration, checkpoints, candles/decisions, one-attempt action phases and owned-fill records. Exact Decimal money uses canonical TEXT; enums/UTC milliseconds, required PRAGMAs, bounded integrity/reference checks and unique historical IDs fail closed without reset/migration.
