@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-10-11 — Owner-approved narrow Stage 10.3 persistence correction
+
+- Refined only RuntimeStore relation validation to admit UNKNOWN_OUTCOME during nonconfirmed SYNCHRONIZING and exact observed OPEN/PARTIALLY_FILLED placement recovery to ORDER_PENDING. Original IDs, missing receipts, one attempt and explicit HALT rearm remain intact; unknown cancellation work still blocks confirmed pending recovery.
+- No schema/API migration: version 1, record fields, phase graph, Decimal TEXT, checkpoint CAS, transactions/rollback and account locking are unchanged. Existing valid databases reopen without rewriting. Decision 017 and Stages 10.2/10.4/9 remain unchanged.
+- Added **22 storage tests**, changed zero existing tests; all 49 phase pairs and the general certainty guard are preserved. Storage **187**, locking **23**, Stage 10.2 **188**, Stage 10.4 **97**, Stage 9.4 **123**, EMA **16** and full suite **1,879 (1,857 + 22)** pass, zero failures/errors/skips; `pip check` and `git diff --check` pass.
+- Correction COMPLETE/ready for separate review/freeze. Stage 10.5 remains BLOCKED / NOT COMPLETE; no reconciliation production/tests or broker operation was added. Stage 10 INCOMPLETE; Stage 10.6 NOT STARTED. No credentials, actual broker request/order/cancellation, notebook/data/dependency changes or automatic next milestone.
+
+## 2026-10-11 — Stage 10.5 reconciliation contract review
+
+- Reproduced a frozen-store conflict: Stage 10.2 accepts exact uncertain-to-pending recovery, but Stage 10.3 rejects ORDER_PENDING with UNKNOWN_OUTCOME; ACKNOWLEDGED requires a receipt that lost-acknowledgement discovery cannot invent. The same invariant blocks explicit rearm through SYNCHRONIZING with unresolved UNKNOWN_OUTCOME. Temporary-store diagnostics verified complete rollback and retained HALT.
+- Documented the reproducer and proposed narrow owner-review scope in PROJECT_STATE. Stage 10.5 is INCOMPLETE; implementation stopped under the requested frozen-contract defect rule. No production/test/ADR/dependency/notebook/data changes, broker calls, credentials, orders/cancellations or next milestone. Stages 10.1–10.4 remain frozen; Stage 9 COMPLETE, Stage 10 INCOMPLETE, Stage 10.6 NOT STARTED.
+- Zero new tests; targeted Stage 10.4 **97**, 10.3 **188**, 10.2 **188**, 9.4 **123**, 9.6 **68**, EMA **16** and unchanged full suite **1,857** pass with zero failures/errors/skips. `pip check` and `git diff --check` pass. No commit/push or actual authenticated Demo request/order.
+
 ## 2026-10-11 — Stage 10.4 — Closed-Candle Market Data Gate
 
 - Added pure immutable Decimal market observations, authoritative public server-time normalization, exact hourly closure, contiguous anchored coverage and explicit freshness validation. Broker-specific parsing/HTTP stays behind the public Spot reader; forming candles are excluded, conflicting duplicates/malformed OHLCV/gaps fail without repair.

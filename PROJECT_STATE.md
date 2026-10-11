@@ -12,11 +12,11 @@ Stage 10.1 — Runtime Contract / Architecture is COMPLETE, published and frozen
 
 Stage 10.2 — Runtime State Model + Pure State Machine is COMPLETE, published and frozen at `8b41427d669f5c17717a296113aa7b28b9dd23e3`. Its pure model, public API and tests remain unchanged.
 
-Stage 10.3 — Durable Runtime Persistence + Single-Instance Lock is COMPLETE, published and frozen at `56584c462b1226f36941ab02726ed7a621a82dac`. Its local durable storage/account lock APIs and tests remain unchanged.
+Stage 10.3 — Durable Runtime Persistence + Single-Instance Lock is COMPLETE, with published baseline `56584c462b1226f36941ab02726ed7a621a82dac`. The owner-approved narrow persistence correction below is COMPLETE and ready for review/freeze; schema, public APIs, phase graph and locking remain unchanged.
 
-Stage 10.4 — Closed-Candle Market Data Gate is COMPLETE and ready for owner review. Public/read-only market observations only; no operational runtime or authenticated trading.
+Stage 10.4 — Closed-Candle Market Data Gate is COMPLETE, published and frozen at `1865435bb0310dd5d8e8ce7208d56650dc51590a`. Public/read-only market observations only; no operational runtime or authenticated trading.
 
-Stage 10.5 — Startup / Broker Reconciliation is next and NOT STARTED.
+Stage 10.5 — Startup / Broker Reconciliation has STARTED with a context/contract audit and remains BLOCKED / NOT COMPLETE until the separate Stage 10.3 correction is reviewed/frozen. No reconciliation implementation has been added or resumed. Stage 10.6 remains NOT STARTED.
 
 Stage 9 — Bybit Demo Exchange Adapter is COMPLETE after Stage 9.7 — Final Stage 9 Audit + Docs.
 
@@ -428,15 +428,50 @@ Public response fields were checked against the official [server-time](https://b
 
 Validation: **97 new offline tests (34 pure + 63 Bybit boundary)**; frozen Stage 10.3 **188**, Stage 10.2 **188**, Stage 1 **13**, Stage 9.6 **68**, EMA **16** pass. Full suite **1,857 (1,760 + 97)**, zero failures/errors/skips; `pip check` and `git diff --check` pass. Frozen Stage 10.1–10.3, Stage 5 financial/timing baselines, source/tests/Decisions 001–017/notebooks/data/results and installed packages are preserved. No public HTTP smoke, credentials, authenticated Demo request/order or next milestone was executed.
 
+### Startup / broker reconciliation — Stage 10.5 contract review
+
+This records the initial, pre-correction review. The owner-approved correction and current validation are recorded separately below.
+
+Starting HEAD: `1865435bb0310dd5d8e8ce7208d56650dc51590a` on `main`, tracking `origin/main`; the working tree was clean. Reviewed AGENTS, current project documentation, Decisions 010–017, runtime state/store/locking and their tests, Stage 10.4 source/tests, and the Stage 9 read boundary/lifecycle/integration contracts. No production implementation or new public API was added.
+
+**Blocking finding: durable UNKNOWN_OUTCOME cannot recover to observed pending state without an acceptance receipt.** Decision 017 permits exact original-link discovery and recovery of a nonterminal order after a lost acknowledgement. Stage 10.2 permits `UNCERTAIN + RECONCILED_PENDING -> ORDER_PENDING`. However, `RuntimeStore._validate_relations()` rejects any UNKNOWN_OUTCOME action unless the checkpoint is UNCERTAIN, HALTED or STOPPING, even after the exact broker ID, nonterminal status and owned fills have been discovered.
+
+Offline reproduction using a temporary store and the existing Stage 10.3 fixtures/public APIs:
+
+1. Persist PREPARED, then the single ATTEMPT_STARTED marker.
+2. Persist UNKNOWN_OUTCOME with an UNCERTAIN checkpoint and the original action/link.
+3. Supply a discovered exact broker ID, PARTIALLY_FILLED status and an owned fill; obtain ORDER_PENDING through `transition_runtime_state(..., RECONCILED_PENDING)`.
+4. Attempt the atomic `record_observation(action, checkpoint, expected_sequence=..., fills=...)` write.
+
+The pure transition succeeds, but the write raises `RuntimeStoreIntegrityError: Unknown action outcome cannot retain confirmed operational certainty.` The transaction rolls back: the original action/checkpoint remain and no fill is inserted. OPEN with zero fills has the same invariant conflict. Changing phase to ACKNOWLEDGED requires `acknowledgement_broker_ms` and a receipt; broker discovery cannot fabricate that lost receipt. Returning to ATTEMPT_STARTED is forbidden by the frozen phase graph/observation API. Terminal confirmation is not an alternative for a nonterminal order.
+
+**Related finding: explicit rearm cannot be persisted with an unresolved UNKNOWN_OUTCOME action.** After a durable HALT, Stage 10.2's explicit OPERATOR_REARMED event correctly produces SYNCHRONIZING with retained pending work. Even when `rearmed_at_ms > halted_at_ms` is supplied, `save_checkpoint` rejects SYNCHRONIZING under the same UNKNOWN_OUTCOME invariant and rolls back. HALT remains latched; no automatic rearm was attempted.
+
+Owner review is required before changing the frozen Stage 10.3 contract. Proposed narrow review scope: distinguish an absent acceptance receipt from validated current pending-order observations, and permit explicit rearm through nonconfirmed SYNCHRONIZING while retaining uncertainty/pending evidence. Preserve original IDs, one-attempt phases, receipt/fill separation, checkpoint CAS, atomic writes and default rejection of unsupported certainty. Do not synthesize ACKNOWLEDGED receipts, terminal state or another send. No frozen implementation/test/ADR was changed to bypass either finding.
+
+Stage 10.5 is **INCOMPLETE**; implementation stopped under the requested frozen-contract defect rule. No reconciliation broker acquisition, inventory calculation, persistence orchestration or new tests were introduced. Diagnostics used only temporary SQLite files and supplied records, with zero broker calls, credential/environment reads or exchange session construction. Existing regression tests retain their offline fakes/synthetic SDK fixtures. No actual authenticated request, order or cancellation occurred; no strategy, market-data integration, planner, scheduler or loop was added. Stage 10.6 is NOT STARTED and is next only after Stage 10.5 is completed/reviewed.
+
+Validation after this review: **zero new Stage 10.5 unit tests**; targeted Stage 10.4 **97**, Stage 10.3 **188**, Stage 10.2 **188**, Stage 9.4 **123**, Stage 9.6 **68** and frozen EMA **16** pass. The unchanged full suite ran once: **1,857 tests**, zero failures/errors/skips. `pip check` reports no broken requirements; `git diff --check` passes. Production files, existing tests, Decisions 001–017, notebooks, dependencies and frozen financial/timing behavior remain unchanged. No commit or push was made.
+
+### Owner-approved narrow Stage 10.3 persistence correction
+
+The correction is **COMPLETE and ready for review/freeze** against starting HEAD `1865435`. Only `RuntimeStore._validate_relations()` changes: UNKNOWN_OUTCOME may coexist with nonconfirmed SYNCHRONIZING while retaining exact pending identity and existing HALT rearm rules. ORDER_PENDING is admitted only for the sole exact unresolved UNKNOWN_OUTCOME placement with attempt_count 1, known broker order ID, observation timestamp and OPEN/PARTIALLY_FILLED status. An unknown subordinate cancellation still blocks this confirmed-state exception. Missing acknowledgement/submitted-amount fields remain missing; no receipt, terminal state or resend is fabricated.
+
+This aligns persistence with unchanged Decision 017 and Stage 10.2 recovery semantics. Schema/runtime-contract version 1, tables/columns/indexes, public signatures/record fields, phase graph, Decimal TEXT, checkpoint CAS, transactions/rollback and locking remain unchanged. Existing valid version-1 databases reopen without migration or record rewriting. Broker identity/freshness/fill completeness and inventory calculation remain future reconciliation responsibilities, not store guarantees.
+
+Validation: **22 added storage tests; zero existing tests changed**. Storage **187 (165 + 22)**, locking **23** (Stage 10.3 total **210**), frozen Stage 10.2 **188**, Stage 10.4 **97**, Stage 9.4 **123** and frozen EMA **16** pass. Full suite **1,879 (1,857 + 22)**, zero failures/errors/skips; `pip check` and `git diff --check` pass. All 49 phase-pair tests and the original general certainty guard remain unchanged. Tests cover receipt-free pending recovery, reopen/deduplication, atomic rollback, identity/status/budget/attempt rejection and explicit rearm without HALT bypass.
+
+Stage 10.5 remains **BLOCKED / NOT COMPLETE until this correction is separately reviewed/frozen**. No reconciliation module/tests, broker acquisition, order/cancellation, credentials, actual broker request, planner or scheduler was introduced; Stage 10.6 remains NOT STARTED. Stage 10 remains INCOMPLETE. Stages 10.1, 10.2, 10.4, Stage 9, Decision 017, notebooks, historical data and frozen financial/timing behavior remain unchanged. Do not resume Stage 10.5 automatically.
+
 ### Accepted Stage 10 roadmap
 
 | Milestone | Status |
 | --- | --- |
 | 10.1 — Runtime Contract / Architecture | COMPLETE; Accepted; published/frozen; documentation only. |
 | 10.2 — Runtime State Model + Pure State Machine | COMPLETE; published/frozen at `8b41427`; pure state core only. |
-| 10.3 — Durable Runtime Persistence + Single-Instance Lock | COMPLETE; published/frozen at `56584c4`; durable primitives only. |
-| 10.4 — Closed-Candle Market Data Gate | COMPLETE; ready for owner review; public/read-only only. |
-| 10.5 — Startup / Broker Reconciliation | Next; NOT STARTED; requires explicit approval. |
+| 10.3 — Durable Runtime Persistence + Single-Instance Lock | COMPLETE; baseline published at `56584c4`; approved narrow correction COMPLETE, ready for review/freeze. |
+| 10.4 — Closed-Candle Market Data Gate | COMPLETE; published/frozen at `1865435`; public/read-only only. |
+| 10.5 — Startup / Broker Reconciliation | STARTED with audit only; BLOCKED / NOT COMPLETE until the separate persistence correction is reviewed/frozen. |
 | 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy | NOT STARTED. |
 | 10.7 — Single-Cycle Demo Runtime Orchestration | NOT STARTED. |
 | 10.8 — Long-Running Candle Scheduler | NOT STARTED. |
@@ -894,7 +929,7 @@ Reserve belongs to the same portfolio. Stage 7.5 MTM equity now includes reserve
 
 Default fraction 1.0 must reproduce Stage 6 exactly, including quantities, independent GROSS/NET accounting, equity, and downstream analytics, without loosening existing tolerances. Frozen BTC reference values are recorded in Decision 011. Prefer existing accounting schemas and derive reserve safely from canonical entry accounting; any necessary new field requires an explicit reviewed decision.
 
-The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 1,857 tests.
+The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 1,879 tests.
 
 ## Position sizing core
 
@@ -1374,9 +1409,9 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Stage 10.4 — Closed-Candle Market Data Gate is COMPLETE and ready for owner review. Stage 10 has STARTED and remains INCOMPLETE; Stage 10.5 — Startup / Broker Reconciliation is next and NOT STARTED.
+Review/freeze the completed owner-approved narrow Stage 10.3 persistence correction. Stage 10.5 — Startup / Broker Reconciliation remains BLOCKED / NOT COMPLETE until that separate review; implementation has not resumed. Stage 10 remains INCOMPLETE; Stage 10.6 is NOT STARTED.
 
-Stage 9.1–9.7 and Stage 9 remain COMPLETE. Stages 10.1–10.3 and Decision 017 are frozen; 10.4 adds only validated public market observations. Stage 8, Stage 5 frozen EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. No operational runtime, scheduler, polling, automatic strategy/risk wiring or authenticated broker action exists; no runtime DB/lock artifact is written into the repository by tests.
+Stage 9.1–9.7 and Stage 9 remain COMPLETE. Stages 10.1, 10.2, 10.4 and Decision 017 remain frozen; only the approved Stage 10.3 validation correction and additional tests change. Stage 8, Stage 5 frozen EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. No operational runtime, scheduler, polling, automatic strategy/risk wiring or authenticated broker action exists; no runtime DB/lock artifact is written into the repository by tests.
 
 ## Not implemented yet
 
@@ -1395,9 +1430,9 @@ Stage 9.1–9.7 and Stage 9 remain COMPLETE. Stages 10.1–10.3 and Decision 017
 
 ## Next milestone
 
-Stage 10.5 — Startup / Broker Reconciliation, only after explicit owner approval; NOT STARTED.
+Owner review/freeze of the separate Stage 10.3 correction, before any resumed Stage 10.5 reconciliation implementation.
 
-Stages 10.1–10.3 are COMPLETE/frozen and 10.4 is COMPLETE/ready for owner review. Stage 10 remains INCOMPLETE and Stage 9 remains COMPLETE. The next milestone is startup/broker reconciliation under Decision 017. Do not begin 10.5, wire strategies to the exchange, implement a scheduler, or run an authenticated Demo smoke/order automatically.
+Stages 10.1–10.4 remain COMPLETE; the narrow Stage 10.3 correction awaits separate review/freeze. Stage 10 remains INCOMPLETE and Stage 9 remains COMPLETE. Stage 10.5 remains BLOCKED / NOT COMPLETE; Stage 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy remains NOT STARTED. Do not resume 10.5, begin 10.6, wire strategies to the exchange, implement a scheduler, or run an authenticated Demo smoke/order automatically.
 
 ## Backtesting execution contract
 

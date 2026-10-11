@@ -834,8 +834,23 @@ class RuntimeStore:
             raise RuntimeStoreIntegrityError("Checkpoint must retain the one unresolved placement.")
         if unresolved and (pending.logical_action_id != unresolved[0].logical_action_id or pending.kind.value != unresolved[0].kind.value):
             raise RuntimeStoreIntegrityError("Checkpoint pending action identity/kind mismatch.")
-        if connection.execute("SELECT 1 FROM actions WHERE phase='UNKNOWN_OUTCOME' LIMIT 1").fetchone() and checkpoint.snapshot.state not in (RuntimeState.UNCERTAIN, RuntimeState.HALTED, RuntimeState.STOPPING):
-            raise RuntimeStoreIntegrityError("Unknown action outcome cannot retain confirmed operational certainty.")
+        if connection.execute("SELECT 1 FROM actions WHERE phase='UNKNOWN_OUTCOME' LIMIT 1").fetchone() and checkpoint.snapshot.state not in (RuntimeState.SYNCHRONIZING, RuntimeState.UNCERTAIN, RuntimeState.HALTED, RuntimeState.STOPPING):
+            # A lost receipt stays missing even after exact pending-order discovery.
+            # Ownership/freshness/fill completeness remain caller assertions. The
+            # identity checks above bind the sole placement to this checkpoint.
+            observed_pending = (
+                checkpoint.snapshot.state == RuntimeState.ORDER_PENDING
+                and len(unresolved) == 1
+                and unresolved[0].phase == ActionPhase.UNKNOWN_OUTCOME
+                and unresolved[0].attempt_count == 1
+                and unresolved[0].broker_order_id is not None
+                and unresolved[0].observed_at_ms is not None
+                and unresolved[0].order_status in {"OPEN", "PARTIALLY_FILLED"}
+                # Observing a parent order does not resolve a lost cancel receipt.
+                and connection.execute("SELECT 1 FROM actions WHERE kind='CANCEL' AND phase='UNKNOWN_OUTCOME' LIMIT 1").fetchone() is None
+            )
+            if not observed_pending:
+                raise RuntimeStoreIntegrityError("Unknown action outcome cannot retain confirmed operational certainty.")
         if connection.execute("""SELECT 1 FROM actions c LEFT JOIN actions p ON c.parent_action_id=p.logical_action_id
             WHERE c.kind='CANCEL' AND (p.logical_action_id IS NULL OR p.kind='CANCEL'
             OR c.target_broker_order_id IS NOT p.broker_order_id OR
