@@ -2,6 +2,7 @@
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+import logging
 import os
 
 from pybit.unified_trading import HTTP
@@ -53,7 +54,7 @@ def create_bybit_demo_session(credentials: BybitDemoCredentials) -> HTTP:
         )
 
     # One SDK attempt prevents blind resends after an ambiguous future placement.
-    return HTTP(
+    session = HTTP(
         testnet=False,
         demo=True,
         api_key=credentials.api_key,
@@ -63,3 +64,9 @@ def create_bybit_demo_session(credentials: BybitDemoCredentials) -> HTTP:
         retry_delay=0,
         log_requests=False,
     )
+    # pybit logs raw retMsg/HTTP response text even with log_requests=False.
+    # Mute those SDK diagnostics on this client, not on its shared global logger.
+    # The adapters continue to report safe operation/code/type context.
+    session.logger = logging.Logger(__name__)
+    session.logger.disabled = True
+    return session

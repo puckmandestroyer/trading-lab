@@ -6,7 +6,7 @@ The long-term goal is to support historical market data, multiple independent st
 
 ## Current stage
 
-**Stage 9 — Bybit Demo Exchange Adapter remains INCOMPLETE. Stages 9.1–9.5 are COMPLETE; Stage 9.5 adds explicit Demo Spot Market placement/cancellation under [Decision 015](decisions/015_spot_market_order_lifecycle.md). Stage 9.4 remains the unchanged read-only state/fill boundary under Decision 014; Decision 013 remains unchanged. Stage 10 is NOT STARTED.**
+**Stage 9 — Bybit Demo Exchange Adapter remains INCOMPLETE. Stages 9.1–9.6 are COMPLETE; Stage 9.6 verifies offline adapter integration and adds a bounded opt-in manual smoke under [Decision 016](decisions/016_manual_demo_smoke.md). Decisions 013–015 and the read/action APIs remain unchanged. Stage 10 is NOT STARTED.**
 
 **Stage 8 — Strategy Robustness is COMPLETE after Stage 8.8 — Final Stage 8 Audit + Docs. All milestones 8.1–8.8 passed under Accepted [Decision 012](decisions/012_strategy_robustness.md).**
 
@@ -40,7 +40,15 @@ Stage 9.5 adds `BybitDemoOrderAdapter(session)` with only `place_market_order(re
 
 Optional caller `orderLinkId` uses 1–36 ASCII letters/digits/dashes/underscores and is forwarded unchanged with a matching response echo; caller owns uniqueness. No IDs are generated. Safe errors distinguish confirmed broker rejection, malformed acknowledgements with unknown outcome, and ambiguous transport/SDK failures. There is **no automatic placement/cancellation resend**, follow-up read or reconciliation loop. Only SDK `place_order` / `cancel_order` mutations are allowed; no amend/replace, batch, transfer, leverage, Limit/conditional placement, strategy wiring or runtime exists. [Decision 015](decisions/015_spot_market_order_lifecycle.md) records exact APIs/params and failure semantics.
 
-All **76 new Stage 9.5 tests**, unchanged Stage 9.2 **42**, Stage 9.3 **93**, Stage 9.4 **123**, and frozen EMA **16** pass. Full suite: **1,316 = 1,240 + 76**, zero failures/errors/skips; `pip check` and `git diff --check` pass. Automated tests use synthetic responses and guarded SDK sends; no real credentials, broker request, Demo placement/cancellation or manual smoke occurred.
+Stage 9.5 validation passed **76 new tests**, unchanged Stage 9.2 **42**, Stage 9.3 **93**, Stage 9.4 **123**, frozen EMA **16**, and its **1,316-test** suite, zero failures/errors/skips. Automated tests used synthetic responses and guarded SDK sends; no real credentials, broker request, Demo placement/cancellation or manual smoke occurred.
+
+Stage 9.6 adds **34 integration tests** and **34 offline smoke-control tests**. Explicit BUY/SELL flows compose credential/session creation, fresh metadata, exact normalization, placement receipts and separate state/fill reads. Tests cover cancellation races, partial/multiple fills, history fallback, bounded pagination, unknown/unobserved orders, malformed acknowledgements, metadata constraints, confirmed rejection and transport ambiguity. Shared-session routing changes fail closed; secrets stay out of models/errors/diagnostics; wallet changes cannot resize requests. Only place_order/cancel_order mutations are allowed, and Stage 9.4 stays read-only. No strategy/backtest coupling or runtime loop is added.
+
+A genuine integration bug was reproduced offline: pybit can log raw broker error/HTTP response text even with request logging disabled. The existing factory now mutes SDK diagnostics on each client using its own disabled standard-library logger; shared SDK/root loggers, constructor parameters, routing, retries, APIs and financial behavior are unchanged. Real SDK mocked-send tests cover this fix. Other earlier production code, every prior test/ADR, notebooks, data and dependencies remain unchanged.
+
+The optional [manual smoke CLI](scripts/README.md) does nothing on import or default invocation. Explicit read mode is read-only. Place/cancel require explicit operator inputs and **--confirm-demo-action**, with read-only connectivity checked first and no wallet sizing. Optional --read-after requests bounded state/fill observations after acceptance; no automatic retry, cancellation or polling. [Decision 016](decisions/016_manual_demo_smoke.md) records the stable activation/safety contract. **No actual authenticated Demo smoke/order was executed during Stage 9.6**; a future manual run requires separate owner authorization.
+
+All **68 new Stage 9.6 tests**, unchanged Stage 9.2–9.5 tests and **16 frozen EMA tests** pass. Full suite: **1,384 = 1,316 + 68**, zero failures/errors/skips; `pip check` and `git diff --check` pass. Synthetic integration proves software contracts, not profitability, actual Demo fill behavior, execution quality or production readiness. Stage 5 remains the frozen EMA baseline, including next-OPEN timing.
 
 Stage 8 evaluates stability across chronological periods and nearby strategy parameters without turning Trading Lab into an optimizer. Decision 012 requires no look-ahead and self-contained cold-start segments with warm-up inside each window, reusing existing backtest/accounting/equity/analytics. Sensitivity and fixed-parameter walk-forward are research diagnostics; no automatic best-parameter deployment or magic robustness score is introduced. The existing BTC sample has already been seen, so its OOS checks are methodological research rather than pristine unseen validation. Stage 8.1 adds documentation only.
 
@@ -66,7 +74,7 @@ Canonical BTC diagnostics retain **6,132 IS / 2,628 OOS**, boundary **2026-06-13
 
 The final audit accepts chronological cold-start OOS evaluation, deterministic sensitivity, descriptive local stability, fixed-configuration expanding walk-forward, consistent downstream diagnostics, and Notebook 06's visual research report. Stage 8 adds **235 tests** to the unchanged 747-test baseline: **982 total**, zero failures, errors, or skips. Frozen Stage 5–7 references, Decisions 010–012, notebook bytes, and BTC SHA256 are preserved. No optimizer, selected best EMA, robustness score, or stitched OOS portfolio exists. Already-seen single-asset/hourly/EMA research does not prove future profitability or provide demo/live trading evidence.
 
-Next: **Stage 9.6 — Adapter Integration + Offline Regression + Optional Manual Demo Smoke — NOT STARTED**, awaiting explicit owner approval. Stage 9 remains INCOMPLETE; Stage 10 runtime is NOT STARTED. Milestone entries below retain their original status and test totals.
+Next: **Stage 9.7 — Final Stage 9 Audit + Docs — NOT STARTED**, awaiting explicit owner approval. Stage 9 remains INCOMPLETE; Stage 10 runtime is NOT STARTED. Milestone entries below retain their original status and test totals.
 
 - Stage 1 completed: reusable historical data collection and a validated BTCUSDT hourly snapshot.
 - Stage 2 completed: statistical market analysis of returns, volatility, volume, extreme movements, and BTC buy-and-hold drawdown in `notebooks/01_data_exploration.ipynb`.
@@ -334,7 +342,7 @@ Trading Lab/
 ├── dashboard/             # Future dashboards; documentation only
 ├── results/               # Generated experiment and backtest output
 ├── tests/                 # Offline checks for reusable code
-└── scripts/               # Future small command-line utilities
+└── scripts/               # Explicit bounded manual Demo smoke and utility docs
 ```
 
 The data package contains `market_data.py`. The exchange package separates public candles (`bybit_market_data.py`), Demo configuration (`bybit_demo.py`), Spot rules (`bybit_spot_rules.py`), broker-independent snapshots (`account_state.py`), Demo read parsing (`bybit_demo_read_only.py`), authorized requests/receipts (`order_actions.py`), and explicit Demo actions (`bybit_demo_orders.py`). The strategies package contains `ema_trend.py`; the backtest package contains `execution.py`, `pipeline.py`, `trades.py`, `performance.py`, and `costs.py`. Analytics and robustness contain the reusable research helpers described above; risk contains fixed capital budgeting. Execution, database, and configuration remain placeholders. Existing `.py` files in `notebooks/` and the top-level `strategies/` are preserved. New reusable strategy code belongs in `src/trading_lab/strategies/`.

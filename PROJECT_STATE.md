@@ -18,7 +18,9 @@ Stage 9.4 — Read-Only Demo Account / Order State Adapter is COMPLETE under [De
 
 Stage 9.5 — Spot Market Order Lifecycle Adapter is COMPLETE, ready for owner review/freeze under [Decision 015](decisions/015_spot_market_order_lifecycle.md). Explicit Demo Spot Market actions only; no automated execution or local portfolio mutation.
 
-Stage 9.6 — Adapter Integration + Offline Regression + Optional Manual Demo Smoke is next and NOT STARTED. Stage 10 — Demo Trading Runtime is NOT STARTED.
+Stage 9.6 — Adapter Integration + Offline Regression + Optional Manual Demo Smoke is COMPLETE, ready for owner review/freeze. [Decision 016](decisions/016_manual_demo_smoke.md) records explicit manual activation and diagnostic safety. No actual authenticated Demo smoke/order was executed.
+
+Stage 9.7 — Final Stage 9 Audit + Docs is next and NOT STARTED. Stage 10 — Demo Trading Runtime is NOT STARTED.
 
 Stage 8 — Strategy Robustness is COMPLETE.
 
@@ -292,6 +294,8 @@ Milestone entries retain the status and test totals recorded at their completion
 
 - Stage 9.5 added immutable authorized requests and separate placement/cancellation receipts, with a Demo-only two-action adapter. All 76 new offline tests and the unchanged Stage 9.2–9.4/EMA gates pass; full suite: 1,316 tests (1,240 + 76), zero failures/errors/skips. No actual broker request, new dependency, strategy/runtime wiring or portfolio mutation. Stage 9 remains INCOMPLETE; Stage 9.6 is next and NOT STARTED.
 
+- Stage 9.6 added 34 deterministic cross-component regressions and 34 offline manual-smoke control tests, plus the explicitly opt-in bounded CLI. A verified SDK diagnostic leak required client-local log muting in the existing session factory; all public APIs, routing/retry settings and trading/financial behavior remain unchanged. Full suite: 1,384 tests (1,316 + 68), zero failures/errors/skips. No authenticated Demo request, notebook/data change or new dependency. Stage 9 remains INCOMPLETE; Stage 9.7 is next and NOT STARTED.
+
 ## Bybit Demo exchange adapter contract
 
 [Decision 013 — Bybit Demo Exchange Adapter Contract](decisions/013_bybit_demo_exchange_adapter.md) is Accepted. Stage 9.1 freezes the exchange boundary against completed baseline `83e6df19377339ccb3c937f18e1067704e357035` (`Complete Stage 8 strategy robustness`). Stages 6, 7, and 8 remain COMPLETE; Decisions 010–012 and historical strategy/execution/risk/accounting/research behavior are unchanged.
@@ -410,6 +414,20 @@ Errors distinguish confirmed nonzero broker rejection (including pinned SDK Inva
 
 Validation: **76 new Stage 9.5 tests**, unchanged Stage 9.2 **42**, Stage 9.3 **93**, Stage 9.4 **123**, frozen EMA **16**, and full suite **1,316 (1,240 + 76)** pass with zero failures/errors/skips. `pip check` and `git diff --check` pass. Offline fixtures/guards cover exact requests, normalization reuse, receipts, failures, SDK paths/send counts, Demo safety and scope. All 109 protected tracked files, five data/result files, and 106 installed package versions are unchanged; earlier production/tests/decisions/notebooks, financial values/tolerances and next-OPEN timing remain frozen. No actual Demo placement/cancellation, credentials, broker connection or manual smoke. Stage 9.1–9.5 are COMPLETE; Stage 9 remains INCOMPLETE; Stage 9.6 and Stage 10 are NOT STARTED.
 
+## Demo adapter integration and manual diagnostics
+
+Stage 9.6 is **COMPLETE**, ready for owner review/freeze against published baseline `9508eb659a22b55b5d5674bac7714ec0ea6de330`. `tests/demo_broker_fixture.py` reuses existing synthetic broker fixtures in one coherent session; production Stage 9.2–9.5 APIs perform all parsing and normalization. No fake derives fills from placement or chooses amounts/statuses. `tests/test_exchange_integration.py` contains **34 tests**; `tests/test_bybit_demo_smoke.py` contains **34 tests**.
+
+Explicit scenarios cover quote BUY/base SELL authorization through metadata/round-down normalization, separate acceptance/order/fill observations, multiple and partial fills, unused terminal quote budget, cancellation followed by CANCELLED/FILLED/PARTIALLY_FILLED/UNKNOWN observations, exact-ID history fallback, unobserved orders, pagination and late failure. Confirmed broker rejection remains separate from ambiguous timeout/reset/SDK failure or malformed acceptance; no scenario automatically resends, generates a replacement ID or invents state. Fresh metadata/preflight constraints stop invalid orders. Changed wallets cannot resize fixed requests.
+
+Cross-component guards cover every authenticated read/action with unsafe Demo routing, retry/logging flags or malformed settings, including drift between steps/pages; finite read/mutation allowlists, immutable snapshots, safe exceptions/models/diagnostics, import/construction safety, and absence of strategy/backtest coupling or runtime loops. Stage 9.4 remains strictly read-only; only Stage 9.5 SDK place_order/cancel_order are reachable mutations.
+
+**Genuine integration-bug exception:** pinned pybit logs raw retMsg/HTTP response text outside its log_requests guard. An offline real-SDK probe and initially failing regression reproduced the leak. `create_bybit_demo_session()` now assigns each client its own disabled standard-library logger; no global SDK/root logger suppression, changed constructor kwargs, retry policy or public API. All other prior production files and all prior tests/ADRs remain byte-for-byte unchanged. Adapters still provide safe operation/code/type errors; financial results/tolerances and next-OPEN timing stay frozen.
+
+`scripts/bybit_demo_smoke.py` is a manually invoked diagnostic under [Decision 016](decisions/016_manual_demo_smoke.md); [scripts/README.md](scripts/README.md) documents exact commands. No mode/help makes no request or credential read. Explicit read mode queries metadata/account/open orders, optionally executions. Place/cancel modes require explicit symbol/identifiers, placement side/amount/caller link, and additional --confirm-demo-action. BUY implies QUOTE; SELL implies BASE. Read-only account connectivity precedes the single action but never sizes it. Validated authorization is shown before Stage 9.5's fresh normalization/mutation; acknowledgements remain separate from state/fills. Optional --read-after requests bounded observations only after valid acceptance. No automatic cancellation, polling, retry, persistence or runtime. Arguments/errors never echo secrets or raw SDK text; clients close on success/failure.
+
+Validation: **68 new Stage 9.6 tests (34 integration + 34 smoke controls)**; unchanged Stage 9.2 **42**, Stage 9.3 **93**, Stage 9.4 **123**, Stage 9.5 **76**, frozen EMA **16**; full suite **1,384 (1,316 + 68)**, zero failures/errors/skips. `pip check` and `git diff --check` pass. Tests use only synthetic credentials/fixtures and guarded/mocked sends. No actual authenticated Demo smoke/order was executed; future manual execution requires separate owner authorization. Synthetic success proves software contracts, not profitability, actual Demo fills, execution quality or production readiness. Stage 9.1–9.6 are COMPLETE; Stage 9 remains INCOMPLETE; Stage 9.7 and Stage 10 are NOT STARTED.
+
 ## Accepted Stage 9 roadmap
 
 | Milestone | Direction | Status |
@@ -419,8 +437,8 @@ Validation: **76 new Stage 9.5 tests**, unchanged Stage 9.2 **42**, Stage 9.3 **
 | 9.3 — Instrument Metadata + Order Normalization | Current Spot Decimal rules, quote BUY minimum/base SELL maximum, exact round-down formatting, 93 offline tests. | COMPLETE; no wallet/orders or actual exchange requests. |
 | 9.4 — Read-Only Demo Account / Order State Adapter | Immutable account/order/fill snapshots, explicit statuses, complete bounded reads/exact-ID history fallback, 123 offline tests. | COMPLETE; read-only, no execution capability. |
 | 9.5 — Spot Market Order Lifecycle Adapter | Explicit Demo Spot Market BUY/SELL and exact-ID cancellation, separate receipts, 76 offline tests; no loop or local state mutation. | COMPLETE; ready for owner review/freeze. |
-| 9.6 — Adapter Integration + Offline Regression + Optional Manual Demo Smoke | Offline integration/error/environment/formatting regression; optional explicitly authorized Demo smoke. | Next; awaiting explicit owner approval; NOT STARTED. |
-| 9.7 — Final Stage 9 Audit + Docs | Contract/regression/scope/secret/Demo safety audit; close Stage 9 and declare Stage 10 next. | Planned; NOT STARTED. |
+| 9.6 — Adapter Integration + Offline Regression + Optional Manual Demo Smoke | 68 offline integration/control tests; bounded opt-in CLI and client-local SDK diagnostic hardening. No actual smoke. | COMPLETE; ready for owner review/freeze. |
+| 9.7 — Final Stage 9 Audit + Docs | Contract/regression/scope/secret/Demo safety audit; close Stage 9 and declare Stage 10 next. | Next; awaiting explicit owner approval; NOT STARTED. |
 
 ## Strategy robustness contract
 
@@ -430,7 +448,7 @@ Every independent IS/OOS/walk-forward segment cold-starts FLAT with its own init
 
 Sensitivity uses a predefined valid finite grid with consistent window/cost/sizing assumptions; isolated peaks are robustness warnings. Normally hold the accepted fixed `position_fraction` constant while varying time or strategy parameters. Fixed-parameter walk-forward supports the initial research; adaptive selection is not required, and no magic robustness score is introduced. Independent windows do not imply continuous compounded equity. Existing undefined metrics remain honest. The BTC snapshot is already-seen research data; chronological OOS checks within it are methodological evidence, not pristine unseen validation.
 
-Stage 8.1 was documentation/architecture only; Stage 8.2 implements the split/evaluation core, Stage 8.3 adds descriptive parameter sensitivity, Stage 8.4 analyzes local surface variation, Stage 8.5 adds independent expanding walk-forward evaluation, and Stage 8.6 summarizes precomputed IS/OOS and walk-forward results below. Stage 8.7 presents these outputs in executed notebook 06. Stage 7 remains COMPLETE and Stage 5 analytics remains frozen. Current suite: 1,316 tests, zero failures, errors, or skips; the Stage 8 baseline remains 982. `git diff --check` passes. Decision 012 remains unchanged; Stage 8.8 final audit and Stage 8 are COMPLETE.
+Stage 8.1 was documentation/architecture only; Stage 8.2 implements the split/evaluation core, Stage 8.3 adds descriptive parameter sensitivity, Stage 8.4 analyzes local surface variation, Stage 8.5 adds independent expanding walk-forward evaluation, and Stage 8.6 summarizes precomputed IS/OOS and walk-forward results below. Stage 8.7 presents these outputs in executed notebook 06. Stage 7 remains COMPLETE and Stage 5 analytics remains frozen. Current suite: 1,384 tests, zero failures, errors, or skips; the Stage 8 baseline remains 982. `git diff --check` passes. Decision 012 remains unchanged; Stage 8.8 final audit and Stage 8 are COMPLETE.
 
 ## Accepted Stage 8 roadmap
 
@@ -669,7 +687,7 @@ Each required targeted suite ran once, as did the full suite:
 
 All gates passed with **zero failures, errors, or skips**; `git diff --check` passes. Stages 8.1, 8.7, and 8.8 add no tests. Stage 7 references and Decisions 010/011/012 are unchanged. Frozen EMA remains **78 ENTRY / 77 EXIT**, **77 CLOSED / one OPEN**, last CLOSED GROSS/NET capital **9,641.111388344 / 7,652.530163437**, and final GROSS/NET MTM equity **9,451.485313939314 / 7,490.776562851941**, with original tolerances. All source, tests, decisions, `.ipynb` files, placeholders, dependencies, data/results, and frozen references are preserved during 8.8; only the four allowed documentation files change, with no new repository files.
 
-Completion means the research tools satisfy the accepted contract, not that the strategy has a proven edge. The BTC sample is already seen; evidence covers one asset, one hourly timeframe, one primary strategy family, and three canonical OOS windows. Cold-start research differs from continuous live state, and transaction costs are frozen assumptions. Historical robustness does not prove future profitability; there is no demo/live trading evidence yet. Stage 7 remains COMPLETE. Stage 9.1–9.5 are complete; Stage 9.6 awaits explicit owner approval.
+Completion means the research tools satisfy the accepted contract, not that the strategy has a proven edge. The BTC sample is already seen; evidence covers one asset, one hourly timeframe, one primary strategy family, and three canonical OOS windows. Cold-start research differs from continuous live state, and transaction costs are frozen assumptions. Historical robustness does not prove future profitability; there is no demo/live trading evidence yet. Stage 7 remains COMPLETE. Stage 9.1–9.6 are complete; Stage 9.7 awaits explicit owner approval.
 
 ## Risk and position-sizing contract
 
@@ -681,7 +699,7 @@ Reserve belongs to the same portfolio. Stage 7.5 MTM equity now includes reserve
 
 Default fraction 1.0 must reproduce Stage 6 exactly, including quantities, independent GROSS/NET accounting, equity, and downstream analytics, without loosening existing tolerances. Frozen BTC reference values are recorded in Decision 011. Prefer existing accounting schemas and derive reserve safely from canonical entry accounting; any necessary new field requires an explicit reviewed decision.
 
-The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 1,316 tests.
+The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 1,384 tests.
 
 ## Position sizing core
 
@@ -814,7 +832,7 @@ Default/explicit 1.0 exact-frame compatibility and all frozen Stage 5/6 referenc
 
 Every required targeted module and the full suite passed with zero failures, errors, or skips. No tests were added in Stage 7.9. Committed notebook 05 validates as JSON with 32 cells (15 code / 17 Markdown), sequential counts 1–15, zero saved errors, and two embedded plots; its accepted Stage 7.8 execution was inspected without re-execution or modification. It demonstrates local-only fixed-allocation budgeting, compounding, reserve-aware GROSS/NET equity, drawdown, Sharpe/Sortino, and unchanged time exposure through production APIs. Source/test/decision/notebook/dependency bytes and all data/result files were preserved during this audit; `git diff --check` passes. Closure changes only the allowed documentation.
 
-The completed scope remains single-asset LONG/FLAT fixed allocation: no leverage, shorts, dynamic sizing, stop-based sizing, multi-asset or multi-bot allocation. Stage 8 is COMPLETE under Decision 012 after its final audit; Stage 9.1's Demo adapter contract is Accepted and Stage 9.2–9.5 are complete. Stage 9.6 awaits explicit owner approval.
+The completed scope remains single-asset LONG/FLAT fixed allocation: no leverage, shorts, dynamic sizing, stop-based sizing, multi-asset or multi-bot allocation. Stage 8 is COMPLETE under Decision 012 after its final audit; Stage 9.1's Demo adapter contract is Accepted and Stage 9.2–9.6 are complete. Stage 9.7 awaits explicit owner approval.
 
 ## Final Stage 6 audit
 
@@ -1161,9 +1179,9 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Stage 9.5 is COMPLETE and ready for owner review/freeze. Stage 9.6 — Adapter Integration + Offline Regression + Optional Manual Demo Smoke is next, awaiting explicit owner approval; NOT STARTED.
+Stage 9.6 is COMPLETE and ready for owner review/freeze. Stage 9.7 — Final Stage 9 Audit + Docs is next, awaiting explicit owner approval; NOT STARTED.
 
-Stage 9.1–9.5 are COMPLETE; Decisions 013/014 remain unchanged and Decision 015 records the action boundary. Stage 9 remains INCOMPLETE. Stage 8 and its final audit remain COMPLETE; Stage 5 frozen EMA behavior, next-OPEN timing, other historical contracts, and notebooks 01–06 are preserved. Explicit Demo actions have no automated strategy/risk wiring or local portfolio mutation. Stage 10 runtime is NOT STARTED.
+Stage 9.1–9.6 are COMPLETE; Decisions 013–015 remain unchanged and Decision 016 records manual smoke safety. Stage 9 remains INCOMPLETE. Stage 8 and its final audit remain COMPLETE; Stage 5 frozen EMA behavior, next-OPEN timing, other historical contracts, and notebooks 01–06 are preserved. The sole frozen-code exception is client-local SDK diagnostic muting after a reproduced integration leak; no financial/API/routing/retry behavior changes. No actual Demo smoke/order ran. There is no automated strategy/risk wiring or local portfolio mutation. Stage 10 runtime is NOT STARTED.
 
 ## Not implemented yet
 
@@ -1182,9 +1200,9 @@ Stage 9.1–9.5 are COMPLETE; Decisions 013/014 remain unchanged and Decision 01
 
 ## Next milestone
 
-Stage 9.6 — Adapter Integration + Offline Regression + Optional Manual Demo Smoke, only after explicit owner approval; NOT STARTED.
+Stage 9.7 — Final Stage 9 Audit + Docs, only after explicit owner approval; NOT STARTED.
 
-Stages 9.1–9.5 are COMPLETE; Stage 9 remains INCOMPLETE. Stage 9.4 read snapshots and Stage 9.5 receipts do not authorize sizing or connect strategies/backtests to the broker. Do not start Stage 9.6, run a manual broker smoke, or begin Stage 10 automatically.
+Stages 9.1–9.6 are COMPLETE; Stage 9 remains INCOMPLETE. Stage 9.4 read snapshots and Stage 9.5 receipts do not authorize sizing or connect strategies/backtests to the broker. Do not start Stage 9.7, run a manual broker smoke, or begin Stage 10 automatically.
 
 ## Backtesting execution contract
 

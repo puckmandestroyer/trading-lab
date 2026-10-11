@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-10 — Stage 9.6 — Adapter Integration + Offline Regression + Optional Manual Demo Smoke
+
+- Added 34 cross-component integration regressions and 34 offline smoke-control tests using one coherent fake broker and existing production parsing/normalization. Covered explicit quote BUY/base SELL, receipts versus state/fills, partial/multiple fills, cancellation races, history/pagination, unknown outcomes, constraints, confirmed rejection and ambiguity without resend.
+- Reproduced a real pinned-SDK diagnostic leak offline: raw retMsg/HTTP text could be logged despite log_requests=False. Hardened only the existing session factory with a disabled logger per client; no shared logger suppression, routing/retry/API/financial changes. All other frozen production files and every prior test/ADR remain unchanged.
+- Added scripts/bybit_demo_smoke.py and Decision 016 for bounded opt-in diagnostics. Default/help makes no request; read mode cannot mutate; place/cancel require explicit inputs and --confirm-demo-action. Connectivity never sizes orders; optional --read-after observes state/fills after acceptance, with no automatic cancellation, retry, polling or persistence. No actual authenticated Demo smoke/order was executed.
+- All 68 new tests, unchanged Stage 9.2 42 / Stage 9.3 93 / Stage 9.4 123 / Stage 9.5 76 / frozen EMA 16 pass. Full suite: **1,384 tests (1,316 + 68), zero failures/errors/skips**; pip check and git diff --check pass. No dependencies, notebook/data/results changes, strategy wiring or runtime. Stage 9.1–9.6 are COMPLETE; Stage 9 remains INCOMPLETE; Stage 9.7 is next and NOT STARTED; Stage 10 is NOT STARTED.
+
 ## 2026-10-10 — Stage 9.5 — Spot Market Order Lifecycle Adapter
 
 - Added immutable broker-independent authorized Spot Market requests and separate placement/cancellation acknowledgements; Decision 015 records the action contract. Demo-only explicit quote BUY/base SELL uses fresh Stage 9.3 rules, exact round-down amounts and explicit isLeverage=0; exact-ID cancellation cannot become bulk/symbol-only cancellation.
