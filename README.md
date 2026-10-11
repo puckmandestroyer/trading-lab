@@ -6,7 +6,17 @@ The long-term goal is to support historical market data, multiple independent st
 
 ## Current stage
 
-**Stage 9 — Bybit Demo Exchange Adapter is COMPLETE after Stage 9.7 — Final Stage 9 Audit + Docs. All milestones 9.1–9.7 passed under unchanged Decisions 013–016. Stage 10 — Demo Trading Runtime is next and NOT STARTED.**
+**Stage 10 — Demo Trading Runtime has STARTED and remains INCOMPLETE. Stage 10.1 — Runtime Contract / Architecture is COMPLETE and ready for owner review under Accepted [Decision 017](decisions/017_demo_trading_runtime_contract.md). This milestone is documentation only: no production runtime exists yet. Stage 10.2 — Runtime State Model + Pure State Machine is next and NOT STARTED.**
+
+**Stage 9 — Bybit Demo Exchange Adapter remains COMPLETE after its final audit. All milestones 9.1–9.7 passed under unchanged Decisions 013–016.**
+
+The future runtime will start with one Demo account, bot, strategy, symbol and hourly timeframe; Spot LONG/FLAT, Market orders only, no leverage/borrowing. Stable bot identity and persisted action IDs will distinguish owned orders/fills from unrelated wallet holdings. Startup must reconcile broker evidence before new decisions; uncertain outcomes must never trigger blind resend. Strategy intent, broker observations and confirmed bot state remain separate.
+
+Decision 017 chooses local SQLite transactions and a single-host account file lock for later durable intent/checkpoints and duplicate-process protection. One recorded logical decision per completed candle will prevent duplicate authorization after restart. The unchanged EMA strategy will replay from a persisted history anchor; bootstrap/backfilled signals will not send historical orders. Future planning stays pure: NOOP, PLACE_BUY, PLACE_SELL, WAIT, RECONCILE or HALT. BUY uses an explicitly configured fixed quote budget; SELL uses confirmed owned base quantity. Stage 7 research position_fraction is not automatic runtime sizing. Demo fills will use real broker timestamps/prices, without claiming historical next-OPEN equivalence.
+
+States will be STARTING, SYNCHRONIZING, FLAT, LONG, ORDER_PENDING, UNCERTAIN, HALTED and STOPPING. HALT blocks mutations; shutdown preserves pending work without automatic cancellation/liquidation. Existing Stage 9 reads may not resolve every lost acknowledgement outside their available history; recovery must fail closed. The [Stage 10.1–10.11 roadmap](decisions/017_demo_trading_runtime_contract.md#stage-10-roadmap) covers state, persistence, candle gate, reconciliation, planning, orchestration, scheduler, recovery, integration and audit. Stages 11–15 remain future risk, monitoring, sustained Demo validation, production hardening and controlled live directions only. No code, runtime database, scheduler, polling loop, strategy/exchange auto-wiring, dependency or actual Demo run is added in 10.1.
+
+Stage 10.1 adds zero tests; the unchanged **1,384-test** full suite passes with zero failures/errors/skips, along with `pip check` and `git diff --check`. Frozen source/tests/ADRs/notebooks/data and financial results remain unchanged.
 
 **Stage 8 — Strategy Robustness is COMPLETE after Stage 8.8 — Final Stage 8 Audit + Docs. All milestones 8.1–8.8 passed under Accepted [Decision 012](decisions/012_strategy_robustness.md).**
 
@@ -78,7 +88,7 @@ Canonical BTC diagnostics retain **6,132 IS / 2,628 OOS**, boundary **2026-06-13
 
 The final audit accepts chronological cold-start OOS evaluation, deterministic sensitivity, descriptive local stability, fixed-configuration expanding walk-forward, consistent downstream diagnostics, and Notebook 06's visual research report. Stage 8 adds **235 tests** to the unchanged 747-test baseline: **982 total**, zero failures, errors, or skips. Frozen Stage 5–7 references, Decisions 010–012, notebook bytes, and BTC SHA256 are preserved. No optimizer, selected best EMA, robustness score, or stitched OOS portfolio exists. Already-seen single-asset/hourly/EMA research does not prove future profitability or provide demo/live trading evidence.
 
-Next: **Stage 10 — Demo Trading Runtime — NOT STARTED**, awaiting explicit owner approval. Stage 9.1–9.7 and Stage 9 are COMPLETE. Do not start the runtime or run an authenticated manual smoke automatically. Milestone entries below retain their original status and test totals.
+Next: **Stage 10.2 — Runtime State Model + Pure State Machine — NOT STARTED**, awaiting explicit owner approval. Stage 10.1 is COMPLETE; Stage 10 remains INCOMPLETE; Stage 9.1–9.7 and Stage 9 remain COMPLETE. Do not begin 10.2 or run an authenticated manual smoke automatically. Milestone entries and earlier audits retain their original status and test totals.
 
 - Stage 1 completed: reusable historical data collection and a validated BTCUSDT hourly snapshot.
 - Stage 2 completed: statistical market analysis of returns, volatility, volume, extreme movements, and BTC buy-and-hold drawdown in `notebooks/01_data_exploration.ipynb`.

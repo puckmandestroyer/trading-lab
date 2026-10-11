@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-11 — Stage 10.1 — Runtime Contract / Architecture
+
+- Added Accepted Decision 017 for future single-bot Demo Spot LONG/FLAT runtime identity, owned orders/positions, deterministic action IDs, finite states, startup/restart and bounded reconciliation with explicit uncertainty; Stage 9 APIs and historical contracts remain unchanged.
+- Chose later SQLite durable intent/fill/checkpoints and a canonical account OS lock. Defined anchored unchanged EMA replay, unique closed-candle decisions, persist-before-send ordering, pure planning, explicit fixed quote BUY/owned base SELL sizing, safe read bounds, HALT and shutdown without automatic liquidation/cancellation.
+- Recorded the exact Stage 10.1–10.11 roadmap and high-level Stages 11–15. Documentation only: no runtime code, database, scheduler/polling, strategy/exchange auto-wiring, new dependency/test or authenticated Demo request/order. Stage 9 remains COMPLETE; Stage 10 has STARTED and is INCOMPLETE; 10.1 is COMPLETE and ready for owner review; 10.2 is next and NOT STARTED.
+- Unchanged full suite ran once: **1,384 tests, zero failures/errors/skips**; `pip check` and `git diff --check` pass. Protected source/tests/earlier ADRs/notebooks/data/results and installed packages are unchanged. The smoke guide's status footer was updated without changing commands; no next milestone was started.
+
 ## 2026-10-11 — Stage 9.7 — Final Stage 9 Audit + Docs
 
 - Audited Accepted Decisions 013–016, all exchange/smoke implementation and Stage 9 tests, plus the six commits from Stage 8 completion through `1054917`. No blocking findings or production/test fixes; Demo routing, Decimal normalization, read-only snapshots, separate receipts/fills, place/cancel-only capability, uncertainty/no-resend semantics and client-local diagnostic hardening pass.

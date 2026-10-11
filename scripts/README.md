@@ -62,5 +62,6 @@ All CLI control tests use synthetic credentials and fake clients. **No actual
 authenticated Demo smoke/order was executed during Stage 9.6.** Offline success
 proves software contracts, not actual Demo fills or profitability. No actual
 authenticated Demo smoke/order was executed during Stage 9. Stage 9.1–9.7 and
-Stage 9 are COMPLETE after the final audit; Stage 10 — Demo Trading Runtime is
-next and NOT STARTED. Do not run this tool against Demo automatically.
+Stage 9 remain COMPLETE. Stage 10.1 defines the future runtime contract only;
+Stage 10 is INCOMPLETE, with 10.2 next and NOT STARTED. No runtime exists yet.
+Do not run this tool against Demo automatically.

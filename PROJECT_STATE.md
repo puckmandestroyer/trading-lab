@@ -6,6 +6,12 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 ## Current stage
 
+Stage 10 — Demo Trading Runtime has STARTED and remains INCOMPLETE.
+
+Stage 10.1 — Runtime Contract / Architecture is COMPLETE and ready for owner review. [Decision 017](decisions/017_demo_trading_runtime_contract.md) is Accepted under the existing contract-milestone convention; this milestone is documentation only.
+
+Stage 10.2 — Runtime State Model + Pure State Machine is next and NOT STARTED. No production runtime, persistence, scheduler or strategy/exchange auto-wiring exists yet.
+
 Stage 9 — Bybit Demo Exchange Adapter is COMPLETE after Stage 9.7 — Final Stage 9 Audit + Docs.
 
 Stage 9.1 — Demo Exchange Adapter Contract remains COMPLETE; [Decision 013](decisions/013_bybit_demo_exchange_adapter.md) is Accepted and unchanged.
@@ -20,7 +26,7 @@ Stage 9.5 — Spot Market Order Lifecycle Adapter is COMPLETE, ready for owner r
 
 Stage 9.6 — Adapter Integration + Offline Regression + Optional Manual Demo Smoke is COMPLETE, ready for owner review/freeze. [Decision 016](decisions/016_manual_demo_smoke.md) records explicit manual activation and diagnostic safety. No actual authenticated Demo smoke/order was executed.
 
-Stage 9.7 — Final Stage 9 Audit + Docs is COMPLETE. Stage 10 — Demo Trading Runtime is next and NOT STARTED.
+Stage 9.7 — Final Stage 9 Audit + Docs remains COMPLETE.
 
 Stage 8 — Strategy Robustness is COMPLETE.
 
@@ -297,6 +303,40 @@ Milestone entries and Accepted ADRs retain the status and test totals recorded a
 - Stage 9.6 added 34 deterministic cross-component regressions and 34 offline manual-smoke control tests, plus the explicitly opt-in bounded CLI. A verified SDK diagnostic leak required client-local log muting in the existing session factory; all public APIs, routing/retry settings and trading/financial behavior remain unchanged. Full suite: 1,384 tests (1,316 + 68), zero failures/errors/skips. No authenticated Demo request, notebook/data change or new dependency. Stage 9 remains INCOMPLETE; Stage 9.7 is next and NOT STARTED.
 
 - Stage 9.7 completed the Decisions 013–016 contract, six-commit scope, Demo/secret/capability/manual-smoke safety and frozen historical regression audits. No blocking findings or production fixes; documentation only, no new tests. All targeted gates and the full 1,384-test suite pass with zero failures/errors/skips; pip check and git diff --check pass. Stage 9.1–9.7 and Stage 9 are COMPLETE; Stage 10 is next and NOT STARTED. No actual authenticated Demo smoke/order was executed during Stage 9.
+
+- Stage 10.1 defined the Demo runtime contract in Accepted Decision 017: durable identity/ownership, original-ID recovery, finite states, anchored closed-candle handling, pure planning, explicit fixed quote BUY/owned base SELL authorization, SQLite intent/checkpoints and a single-host account lock. Documentation only; no implementation, new tests/dependency, authenticated request or order. Stage 9 remains COMPLETE; Stage 10 is INCOMPLETE; Stage 10.2 is next and NOT STARTED.
+
+## Demo Trading Runtime contract
+
+[Decision 017 — Demo Trading Runtime Contract](decisions/017_demo_trading_runtime_contract.md) is Accepted and ready for owner review against clean published baseline `4113ad653ccd46be40fafd165d78bf75589a2ce5`. Stage 10.1 defines future behavior only. Decisions 010–016, production APIs, frozen EMA values/tolerances, next-OPEN/final-candle behavior, notebooks and research accounting remain unchanged.
+
+Initial scope: one Bybit Demo account/bot/strategy/symbol/hourly timeframe, Spot LONG/FLAT and MARKET actions, no borrowing, leverage or shorts. Stable `(broker_id, account_binding, bot_id)` identity survives restart; strategy code/parameters, symbol/timeframe and non-secret configuration are bound to it. Only exact persisted action/link/broker evidence proves order ownership; symbols, link prefixes and wallet holdings alone do not. Stage 9.4's account label is not a verified broker UID.
+
+Runtime will distinguish STARTING, SYNCHRONIZING, FLAT, LONG, ORDER_PENDING, UNCERTAIN, HALTED and STOPPING, separately from desired intent, order status and partial owned exposure. Original logical action IDs/links are persisted before a possible send and retained across restart; receipts remain separate from fills. Missing observations preserve uncertainty. The existing broker-ID lookup and seven-day execution window may leave lost-acknowledgement recovery unresolved; bounded reconciliation then HALTs rather than resending or bypassing the adapter.
+
+Choose standard-library SQLite with short durable transactions (`DELETE` journal / `EXTRA` synchronization) and a process-lifetime canonical account OS file lock for later implementation. Store unique candle decisions, full action/ownership/fill history and checkpoints, excluding secrets/raw SDK payloads. Commit intent and an attempt-start marker before a broker action; broker/database atomicity is not claimed.
+
+Reuse the unchanged hourly EMA strategy from one persisted history anchor. Bootstrap/downtime replay restores intent without historical orders; one unique committed logical decision per closed candle prevents duplicate authorization after restart. Submit only after fresh completed-candle information; Demo execution uses broker prices/timestamps, never modeled next-OPEN fills. The pure planner returns NOOP, PLACE_BUY, PLACE_SELL, WAIT, RECONCILE or HALT. Initial BUY requires an explicitly configured exact quote budget; SELL is bounded by confirmed owned base quantity. Stage 7 `position_fraction` and whole-wallet sizing are not runtime policy. No automatic cancellation/liquidation on shutdown.
+
+### Accepted Stage 10 roadmap
+
+| Milestone | Status |
+| --- | --- |
+| 10.1 — Runtime Contract / Architecture | COMPLETE; Accepted; ready for owner review; documentation only. |
+| 10.2 — Runtime State Model + Pure State Machine | Next; NOT STARTED; requires explicit approval. |
+| 10.3 — Durable Runtime Persistence + Single-Instance Lock | NOT STARTED. |
+| 10.4 — Closed-Candle Market Data Gate | NOT STARTED. |
+| 10.5 — Startup / Broker Reconciliation | NOT STARTED. |
+| 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy | NOT STARTED. |
+| 10.7 — Single-Cycle Demo Runtime Orchestration | NOT STARTED. |
+| 10.8 — Long-Running Candle Scheduler | NOT STARTED. |
+| 10.9 — Restart / Crash / Ambiguous-Action Recovery | NOT STARTED. |
+| 10.10 — Runtime Integration Regression + Optional Explicit Demo Run | NOT STARTED; any actual run requires separate explicit authorization. |
+| 10.11 — Final Stage 10 Audit + Docs | NOT STARTED. |
+
+Stages 11–15 are high-level directions only, NOT STARTED: Runtime Risk Management; Observability & Monitoring; Long-Running Demo Validation; Live Readiness / Production Hardening; Controlled Live Trading. No detailed later contract, operational risk platform, multi-bot allocation or live-money functionality is introduced now. No actual authenticated Demo smoke/order has been executed.
+
+Stage 10.1 validation: zero new tests; unchanged full suite **1,384 tests**, zero failures/errors/skips. `pip check` and `git diff --check` pass. Source/tests, Decisions 001–016, notebooks, data/results and installed package versions remain unchanged; only Decision 017 and current documentation change. No runtime implementation, installation, notebook execution or authenticated Demo smoke/order occurred.
 
 ## Bybit Demo exchange adapter contract
 
@@ -1224,9 +1264,9 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Stage 9.7 and Stage 9 are COMPLETE. Stage 10 — Demo Trading Runtime is next, awaiting explicit owner approval; NOT STARTED.
+Stage 10.1 — Runtime Contract / Architecture is COMPLETE and ready for owner review. Stage 10 has STARTED and remains INCOMPLETE; Stage 10.2 — Runtime State Model + Pure State Machine is next and NOT STARTED.
 
-Stage 9.1–9.7 are COMPLETE under unchanged Decisions 013–016. Stage 8 remains COMPLETE; Stage 5 frozen EMA behavior, next-OPEN timing, other historical contracts and notebooks 01–06 are preserved. Stage 9.6's client-local SDK diagnostic fix remains active; this audit changes documentation only. No actual authenticated Demo smoke/order ran during Stage 9. There is no automated strategy/risk wiring, runtime or local portfolio mutation. Stage 10 is NOT STARTED.
+Stage 9.1–9.7 and Stage 9 remain COMPLETE under unchanged Decisions 013–016. Decision 017 defines future runtime identity, ownership, reconciliation, candle handling, sizing and persistence only. Stage 8, Stage 5 frozen EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. No production runtime, database/checkpoint file, scheduler, polling, automatic strategy/risk wiring or broker action is added in 10.1.
 
 ## Not implemented yet
 
@@ -1245,9 +1285,9 @@ Stage 9.1–9.7 are COMPLETE under unchanged Decisions 013–016. Stage 8 remain
 
 ## Next milestone
 
-Stage 10 — Demo Trading Runtime, only after explicit owner approval; NOT STARTED.
+Stage 10.2 — Runtime State Model + Pure State Machine, only after explicit owner approval; NOT STARTED.
 
-Stages 9.1–9.7 and Stage 9 are COMPLETE. Stage 9.4 snapshots and Stage 9.5 receipts do not authorize sizing or connect strategies/backtests to the broker. Runtime orchestration/reconciliation and strategy → action integration belong to Stage 10. Do not begin Stage 10 or run an authenticated manual broker smoke automatically.
+Stage 10.1 is COMPLETE; Stage 10 remains INCOMPLETE and Stage 9 remains COMPLETE. The next milestone implements only small runtime records and pure transitions under Decision 017. Do not begin 10.2, wire strategies to the exchange, implement a scheduler, or run an authenticated Demo smoke/order automatically.
 
 ## Backtesting execution contract
 
