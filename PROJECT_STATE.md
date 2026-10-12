@@ -16,7 +16,7 @@ Stage 10.3 — Durable Runtime Persistence + Single-Instance Lock is COMPLETE an
 
 Stage 10.4 — Closed-Candle Market Data Gate is COMPLETE, published and frozen at `1865435bb0310dd5d8e8ce7208d56650dc51590a`. Public/read-only market observations only; no operational runtime or authenticated trading.
 
-Stage 10.5 — Startup / Broker Reconciliation is COMPLETE and ready for owner review/freeze. One bounded read-only round consumes normalized Demo broker observations and public durable history, then persists safe exposure/pending/uncertain/HALT evidence. No order mutation, strategy/planner/market-data orchestration or scheduler exists. Stage 10.6 remains NOT STARTED.
+Stage 10.5 — Startup / Broker Reconciliation is COMPLETE with its exact-execution ownership correction and NOT FROZEN pending owner review. One bounded read-only round consumes normalized Demo broker observations and public durable history, then persists safe exposure/pending/uncertain/HALT evidence. No order mutation, strategy/planner/market-data orchestration or scheduler exists. Stage 10.6 remains NOT STARTED.
 
 Stage 9 — Bybit Demo Exchange Adapter is COMPLETE after Stage 9.7 — Final Stage 9 Audit + Docs.
 
@@ -524,6 +524,16 @@ Validation: **82 new Stage 10.5 tests**, zero old tests changed. RuntimeStore **
 
 Stage 10.5 is **COMPLETE / ready for owner review/freeze**. Stage 9 COMPLETE; Stages 10.1–10.4 and both Stage 10.3 corrections FROZEN; Stage 10 INCOMPLETE. Stage 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy is next and NOT STARTED. Do not begin it automatically.
 
+### Stage 10.5 exact-execution ownership correction
+
+Owner review of published Stage 10.5 (`c450025793a857132b8f29880a5e0afbcb5c600b`) identified incomplete ownership binding at the exact-order execution read. Merged views already guarded persisted known IDs, but a newly recovered ID was not yet in the durable action map: later executions with missing/unmapped links could be skipped and allow false pending or terminal confirmation.
+
+Every exact-order execution now passes through `_execution()` against the original placement and selected broker ID before merging. Missing optional links remain UNCERTAIN; explicit identity contradictions HALT, including a wrong link accompanied by stale timestamps. Matching executions reuse broker/account, symbol/side, UTC/freshness and exact quantity/price/fee validation. No execution from an incomplete/conflicting round is persisted, and an older order snapshot cannot force consistency with newly visible fills.
+
+Added **8 focused tests** covering exact-only missing/wrong/correct links, order-snapshot races, malformed identity/financial fields, stale timestamps, recovered IDs and terminal completeness with retained/earlier fills. The existing missing-link regression and all 82 prior Stage 10.5 tests are preserved. Stage 10.5 **90**, RuntimeStore **211**, locking **23**, Stage 10.2 **188**, Stage 10.4 **97**, Stage 9.4 **123**, Stage 9.6 **68**, EMA **16** pass; full suite **1,993 (1,985 + 8)** passes with zero failures/errors/skips. `pip check`, `git diff --check` and `git diff --staged --check` pass.
+
+Only Stage 10.5 production/tests and current documentation change. Public APIs, schema, RuntimeStore, state machine, both Stage 10.3 corrections, Stage 10.4, Stage 9, Decision 017, notebooks/data/dependencies and frozen financial/timing behavior remain unchanged. No credentials, actual broker request, order or cancellation. The correction is COMPLETE for owner review; Stage 10.5 remains **NOT FROZEN**, Stage 10 INCOMPLETE and Stage 10.6 NOT STARTED.
+
 ### Accepted Stage 10 roadmap
 
 | Milestone | Status |
@@ -532,7 +542,7 @@ Stage 10.5 is **COMPLETE / ready for owner review/freeze**. Stage 9 COMPLETE; St
 | 10.2 — Runtime State Model + Pure State Machine | COMPLETE; published/frozen at `8b41427`; pure state core only. |
 | 10.3 — Durable Runtime Persistence + Single-Instance Lock | COMPLETE/FROZEN; baseline `56584c4`; corrections FROZEN at `ad3aca7` and `8b3a482`. |
 | 10.4 — Closed-Candle Market Data Gate | COMPLETE; published/frozen at `1865435`; public/read-only only. |
-| 10.5 — Startup / Broker Reconciliation | COMPLETE; bounded read-only reconciliation, ready for owner review/freeze. |
+| 10.5 — Startup / Broker Reconciliation | COMPLETE; exact-execution correction ready for review; NOT FROZEN. |
 | 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy | NOT STARTED. |
 | 10.7 — Single-Cycle Demo Runtime Orchestration | NOT STARTED. |
 | 10.8 — Long-Running Candle Scheduler | NOT STARTED. |
@@ -990,7 +1000,7 @@ Reserve belongs to the same portfolio. Stage 7.5 MTM equity now includes reserve
 
 Default fraction 1.0 must reproduce Stage 6 exactly, including quantities, independent GROSS/NET accounting, equity, and downstream analytics, without loosening existing tolerances. Frozen BTC reference values are recorded in Decision 011. Prefer existing accounting schemas and derive reserve safely from canonical entry accounting; any necessary new field requires an explicit reviewed decision.
 
-The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 1,985 tests.
+The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 1,993 tests.
 
 ## Position sizing core
 
@@ -1470,7 +1480,7 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Owner review/freeze of completed Stage 10.5 — Startup / Broker Reconciliation. Stage 10 remains INCOMPLETE; Stage 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy is next and NOT STARTED.
+Owner review of the completed Stage 10.5 exact-execution ownership correction. Stage 10.5 remains NOT FROZEN. Stage 10 remains INCOMPLETE; Stage 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy is next and NOT STARTED.
 
 Stage 9.1–9.7 and Stage 9 remain COMPLETE. Stages 10.1–10.4, Decision 017 and both Stage 10.3 corrections remain frozen. Stage 8, Stage 5 frozen EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. Only bounded read-only reconciliation now exists; no planner, order orchestration, scheduler, polling, automatic strategy/risk wiring or actual authenticated broker request/action exists. Tests write runtime artifacts only in temporary directories.
 
@@ -1493,7 +1503,7 @@ Stage 9.1–9.7 and Stage 9 remain COMPLETE. Stages 10.1–10.4, Decision 017 an
 
 Stage 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy, after owner review/freeze and explicit authorization. NOT STARTED.
 
-Stages 10.1–10.4 and both Stage 10.3 corrections remain COMPLETE/FROZEN; Stage 10.5 is COMPLETE and ready for owner review/freeze. Stage 10 remains INCOMPLETE and Stage 9 remains COMPLETE. Do not begin Stage 10.6, wire strategies to the exchange, implement a scheduler, or run an authenticated Demo smoke/order automatically.
+Stages 10.1–10.4 and both Stage 10.3 corrections remain COMPLETE/FROZEN; Stage 10.5 is COMPLETE with its exact-execution correction and NOT FROZEN pending owner review. Stage 10 remains INCOMPLETE and Stage 9 remains COMPLETE. Do not begin Stage 10.6, wire strategies to the exchange, implement a scheduler, or run an authenticated Demo smoke/order automatically.
 
 ## Backtesting execution contract
 

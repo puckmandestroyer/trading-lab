@@ -167,11 +167,13 @@ def _order_identity(order, action, config, now_ms):
 
 
 def _execution(execution, action, config, now_ms):
-    _common(execution, config, now_ms)
     if (execution.symbol != action.symbol or execution.side != action.side
-            or execution.order_link_id != action.order_link_id
+            or (execution.order_link_id is not None and execution.order_link_id != action.order_link_id)
             or (action.broker_order_id is not None and execution.broker_order_id != action.broker_order_id)):
         raise _Issue(RuntimeReason.OWNERSHIP_CONFLICT, fatal=True)
+    _common(execution, config, now_ms)
+    if execution.order_link_id is None:
+        raise _Issue(RuntimeReason.EVIDENCE_MISSING)
     try:
         executed_ms = _milliseconds(execution.executed_at)
         if executed_ms < action.candle_open_ms + config.interval_ms or executed_ms > _milliseconds(execution.broker_timestamp):
@@ -484,6 +486,10 @@ def reconcile_startup(
             exact = read(broker.get_executions, order_id=order_id)
             if type(exact) is not tuple or any(not isinstance(fill, ExecutionState) or fill.broker_order_id != order_id for fill in exact):
                 raise _Issue(RuntimeReason.OWNERSHIP_CONFLICT, fatal=True)
+            # Exact-order results cannot be filtered as unrelated history. Bind
+            # every execution even when discovery has not yet persisted the ID.
+            for execution in exact:
+                _execution(execution, discovered or placement, config, limits())
             executions += exact
         now_ms = limits()
         quantity, new = _evaluate(actions, durable, retained, current, account, opens, executions, order, placement, config, now_ms)

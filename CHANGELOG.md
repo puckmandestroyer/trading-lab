@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-12 — Stage 10.5 exact-execution ownership correction
+
+- Validate every exact-order execution against the selected placement before merging, reusing normalized identity/time/Decimal checks. Missing links remain UNCERTAIN; explicit contradictions HALT. Later unresolved evidence blocks false pending/terminal settlement, including newly recovered IDs.
+- Added **8 regression tests**; Stage 10.5 **90**, full suite **1,993 (1,985 + 8)** pass. RuntimeStore **211**, locking **23**, Stage 10.2 **188**, Stage 10.4 **97**, Stage 9.4 **123**, Stage 9.6 **68**, EMA **16**, `pip check` and both diff checks pass; zero failures/errors/skips.
+- Frozen contracts/APIs/schema/Decision 017, notebooks/data/dependencies remain unchanged. No credentials, actual broker request, order/cancellation or later milestone. Correction COMPLETE for owner review; Stage 10.5 NOT FROZEN, Stage 10 INCOMPLETE, Stage 10.6 NOT STARTED.
+
 ## 2026-10-12 — Stage 10.5 startup / broker reconciliation
 
 - Added a one-round `reconcile_startup()` boundary consuming only injected ReadOnlyBroker snapshots and public RuntimeStore history. Exact action/link/order ownership, retained fills, signed Decimal fee effects, wallet coverage, fill deduplication/completeness, pending/terminal recovery and namespace conflicts fail closed without adopting unrelated assets/orders.

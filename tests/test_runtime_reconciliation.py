@@ -879,6 +879,139 @@ class ReconciliationTests(StoreCase):
                 finally:
                     case.doCleanups()
 
+    def test_exact_only_missing_execution_link_remains_uncertain_without_applying_fill(self):
+        self.known(OrderStatus.PARTIALLY_FILLED, "0.05")
+        self.broker.exact_executions = (replace(execution(), order_link_id=None),)
+        result = self.run_round()
+        self.assert_state(result, RuntimeState.UNCERTAIN, "0")
+        self.assertEqual(self.broker.executions, ())
+        self.assertEqual(self.store.list_fills(), ())
+        self.assertEqual(result.new_execution_ids, ())
+        self.assertIs(result.placement.phase, ActionPhase.ACKNOWLEDGED)
+        self.assertIsNone(result.placement.terminal_at_ms)
+
+    def test_exact_only_wrong_execution_link_halts_without_applying_fill(self):
+        self.known(OrderStatus.PARTIALLY_FILLED, "0.05")
+        self.broker.exact_executions = (replace(execution(), order_link_id="other-link"),)
+        result = self.run_round()
+        self.assert_state(result, RuntimeState.HALTED, "0")
+        self.assertIs(result.checkpoint.snapshot.reason, RuntimeReason.OWNERSHIP_CONFLICT)
+        self.assertEqual(self.store.list_fills(), ())
+        self.assertEqual(result.new_execution_ids, ())
+        self.assertIsNone(result.placement.terminal_at_ms)
+
+    def test_exact_only_matching_execution_reconciles_partial_fill(self):
+        self.known(OrderStatus.PARTIALLY_FILLED, "0.05")
+        # A missing caller label is permitted by the frozen account contract.
+        self.broker.exact_executions = (replace(execution(), account_id=None),)
+        result = self.run_round()
+        self.assert_state(result, RuntimeState.ORDER_PENDING, "0.04995")
+        self.assertEqual(self.broker.executions, ())
+        self.assertEqual(result.new_execution_ids, ("exec-1",))
+        self.assertEqual(len(self.store.list_fills()), 1)
+
+    def test_exact_only_execution_racing_with_older_order_snapshot_remains_uncertain(self):
+        self.known()  # Earlier order snapshot still reports zero executions.
+        self.broker.exact_executions = (execution(),)
+        result = self.run_round()
+        self.assert_state(result, RuntimeState.UNCERTAIN, "0")
+        self.assertEqual(self.store.list_fills(), ())
+        self.assertEqual(result.new_execution_ids, ())
+        self.assertIsNone(result.placement.terminal_at_ms)
+
+    def test_exact_only_execution_identity_and_record_contradictions_halt(self):
+        contradictions = {
+            "symbol": {"symbol": "ETHUSDT"},
+            "side": {"side": "SELL"},
+            "broker": {"broker_id": "bybit-live"},
+            "account": {"account_id": "another-profile"},
+            "order": {"broker_order_id": "other-order"},
+            "wrong_link_and_stale_time": {"order_link_id": "other-link", "broker_timestamp": utc(0), "fetched_at": utc(0)},
+            "broker_time": {"broker_timestamp": datetime(2026, 10, 12)},
+            "fetched_time": {"fetched_at": datetime(2026, 10, 12)},
+            "execution_time": {"executed_at": utc(HOUR - 1)},
+            "quantity": {"executed_quantity": D("0")},
+            "price": {"execution_price": D("0")},
+            "fee": {"execution_fee": D("NaN")},
+        }
+        for name, changes in contradictions.items():
+            with self.subTest(contradiction=name):
+                case = ReconciliationTests()
+                case.setUp()
+                try:
+                    case.known(OrderStatus.PARTIALLY_FILLED, "0.05")
+                    case.broker.exact_executions = (replace(execution(), **changes),)
+                    result = case.run_round()
+                    case.assert_state(result, RuntimeState.HALTED, "0")
+                    self.assertEqual(case.store.list_fills(), ())
+                    self.assertEqual(result.new_execution_ids, ())
+                    self.assertIsNone(result.placement.terminal_at_ms)
+                finally:
+                    case.doCleanups()
+
+    def test_exact_only_stale_execution_remains_uncertain_without_applying_fill(self):
+        self.known(OrderStatus.PARTIALLY_FILLED, "0.05")
+        self.broker.exact_executions = (replace(execution(), executed_at=utc(0),
+                                               broker_timestamp=utc(0), fetched_at=utc(0)),)
+        result = self.run_round()
+        self.assert_state(result, RuntimeState.UNCERTAIN, "0")
+        self.assertEqual(self.store.list_fills(), ())
+        self.assertEqual(result.new_execution_ids, ())
+
+    def test_recovered_order_exact_execution_missing_or_wrong_link_cannot_confirm_pending(self):
+        for link, expected in ((None, RuntimeState.UNCERTAIN), ("other-link", RuntimeState.HALTED)):
+            with self.subTest(link=link):
+                case = ReconciliationTests()
+                case.setUp()
+                try:
+                    original = case.unknown()
+                    case.broker.opens = (order(),)  # Exact link discovers the previously unknown ID.
+                    case.broker.exact_executions = (replace(execution(), order_link_id=link),)
+                    result = case.run_round()
+                    case.assert_state(result, expected, "0")
+                    self.assertEqual(case.broker.executions, ())
+                    self.assertEqual(case.store.list_fills(), ())
+                    self.assertEqual(result.new_execution_ids, ())
+                    self.assertEqual(result.placement.order_link_id, original.order_link_id)
+                    self.assertIs(result.placement.phase, ActionPhase.UNKNOWN_OUTCOME)
+                    self.assertEqual(result.placement.attempt_count, 1)
+                    self.assertIsNone(result.placement.acknowledgement_broker_ms)
+                    self.assertIsNone(result.placement.terminal_at_ms)
+                finally:
+                    case.doCleanups()
+
+    def test_later_unbound_exact_execution_blocks_otherwise_complete_terminal_settlement(self):
+        for retained in (False, True):
+            for link, expected in ((None, RuntimeState.UNCERTAIN), ("other-link", RuntimeState.HALTED)):
+                with self.subTest(retained=retained, link=link):
+                    case = ReconciliationTests()
+                    case.setUp()
+                    try:
+                        if retained:
+                            case.known(OrderStatus.PARTIALLY_FILLED, "0.05")
+                            case.broker.executions = (execution(),)
+                            case.run_round()
+                            case.broker.executions = ()
+                        else:
+                            case.unknown()
+                            case.broker.executions = (execution(),)
+                        # Durable/earlier fills agree with this terminal snapshot,
+                        # but the later exact query contains unresolved additional evidence.
+                        case.broker.order = order(OrderStatus.FILLED, quantity="0.05")
+                        case.broker.exact_executions = (replace(execution("late-2", quantity="0.01"),
+                                                               order_link_id=link),)
+                        before = case.store.list_fills()
+                        quantity = "0.04995" if retained else "0"
+                        result = case.run_round()
+                        case.assert_state(result, expected, quantity)
+                        self.assertEqual(case.store.list_fills(), before)
+                        self.assertEqual(result.new_execution_ids, ())
+                        self.assertIsNone(result.placement.terminal_at_ms)
+                        self.assertIsNotNone(result.checkpoint.snapshot.pending_action)
+                        self.assertIs(result.checkpoint.snapshot.position_evidence, PositionEvidence.LAST_KNOWN)
+                    finally:
+                        case.doCleanups()
+
 
 if __name__ == "__main__":
     unittest.main()
