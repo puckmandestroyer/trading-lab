@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-12 — Stage 10.5 startup / broker reconciliation
+
+- Added a one-round `reconcile_startup()` boundary consuming only injected ReadOnlyBroker snapshots and public RuntimeStore history. Exact action/link/order ownership, retained fills, signed Decimal fee effects, wallet coverage, fill deduplication/completeness, pending/terminal recovery and namespace conflicts fail closed without adopting unrelated assets/orders.
+- Lost acknowledgements retain original IDs, one attempt and missing receipts; UNKNOWN/not-found/races/read failures remain uncertain. Cancellation controls are discovered durably and remain separate from parent fills/status; coherent terminal races settle through short public writes, preserving recoverability across an intervening crash. No broker calls occur inside SQLite transactions.
+- Recovery tokens are reserved durably before I/O; deadlines/elapsed time are bounded, with no reset, automatic retry/resend or loop. HALT/STOPPING stay latched, and unsent intents are abandoned without replay. No credentials, session creation, order mutation, strategy/planner/market-data orchestration, PnL or scheduler.
+- Added **82 offline tests**; RuntimeStore **211**, locking **23**, Stage 10.2 **188**, Stage 10.4 **97**, Stage 9.4 **123**, Stage 9.6 **68**, EMA **16** pass; full suite **1,985 (1,903 + 82)** passes with zero failures/errors/skips. `pip check` and `git diff --check` pass. Every existing source/test, schema, Decision 017, notebook/data/dependency and frozen financial/timing contract is unchanged.
+- Stage 10.5 COMPLETE/ready for owner review/freeze. Stage 9 COMPLETE; Stages 10.1–10.4 and both Stage 10.3 corrections FROZEN; Stage 10 INCOMPLETE; Stage 10.6 next/NOT STARTED. No actual authenticated Demo smoke/account read/order/cancellation occurred; no next milestone started.
+
 ## 2026-10-12 — Owner-approved additive Stage 10.3 durable read-API correction
 
 - Added `RuntimeStore.list_actions() -> tuple[ActionRecord, ...]` and `list_fills(action_id: str | None = None) -> tuple[OwnedFillRecord, ...]` for complete local action/control and owned-fill history. Explicit ID/time ordering, exact action filtering and existing full-store decoding/integrity/row bounds fail closed without truncation or partial results.

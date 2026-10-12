@@ -12,11 +12,11 @@ Stage 10.1 — Runtime Contract / Architecture is COMPLETE, published and frozen
 
 Stage 10.2 — Runtime State Model + Pure State Machine is COMPLETE, published and frozen at `8b41427d669f5c17717a296113aa7b28b9dd23e3`. Its pure model, public API and tests remain unchanged.
 
-Stage 10.3 — Durable Runtime Persistence + Single-Instance Lock is COMPLETE, with published baseline `56584c462b1226f36941ab02726ed7a621a82dac`. The first owner-approved recovery correction is reviewed and FROZEN at `ad3aca759dbb556d736996bf39b0ba035bb0e512`. The separate owner-approved additive durable read-API correction below is COMPLETE and ready for review/freeze; schema v1, write APIs, phase graph and locking remain unchanged.
+Stage 10.3 — Durable Runtime Persistence + Single-Instance Lock is COMPLETE and FROZEN, with published baseline `56584c462b1226f36941ab02726ed7a621a82dac`. Both owner-approved corrections are reviewed and FROZEN: recovery guards at `ad3aca759dbb556d736996bf39b0ba035bb0e512`, durable read APIs at `8b3a482f1d7d2586c2f609aa52f32adf283d8a60`. Schema v1, write APIs, phase graph and locking remain unchanged.
 
 Stage 10.4 — Closed-Candle Market Data Gate is COMPLETE, published and frozen at `1865435bb0310dd5d8e8ce7208d56650dc51590a`. Public/read-only market observations only; no operational runtime or authenticated trading.
 
-Stage 10.5 — Startup / Broker Reconciliation has STARTED with a context/contract audit and remains BLOCKED / NOT COMPLETE until the separate Stage 10.3 durable read-API correction is reviewed/frozen. No reconciliation implementation has been added or resumed. Stage 10.6 remains NOT STARTED.
+Stage 10.5 — Startup / Broker Reconciliation is COMPLETE and ready for owner review/freeze. One bounded read-only round consumes normalized Demo broker observations and public durable history, then persists safe exposure/pending/uncertain/HALT evidence. No order mutation, strategy/planner/market-data orchestration or scheduler exists. Stage 10.6 remains NOT STARTED.
 
 Stage 9 — Bybit Demo Exchange Adapter is COMPLETE after Stage 9.7 — Final Stage 9 Audit + Docs.
 
@@ -469,6 +469,8 @@ Stage 10.5 remains **BLOCKED / NOT COMPLETE until this correction is separately 
 
 ### Owner-approved additive Stage 10.3 durable read-API correction
 
+Current status: reviewed and FROZEN at `8b3a482f1d7d2586c2f609aa52f32adf283d8a60`. The following paragraphs retain its original completion record; Stage 10.5 implementation is recorded separately below.
+
 The correction is **COMPLETE and ready for separate owner review/freeze** against starting HEAD `ad3aca759dbb556d736996bf39b0ba035bb0e512`, on clean `main`. Stage 10.5's resumed contract audit found that point reads required IDs that a restarted caller may not know: subordinate cancellation IDs are absent from the checkpoint, and durable execution IDs may outlive broker history. Public enumeration now exposes those local records without private SQL access or reconciliation policy.
 
 ```python
@@ -488,15 +490,49 @@ Added **24 enumeration tests**, with zero existing tests changed. Targeted resul
 
 Stage 10.5 remains **BLOCKED / NOT COMPLETE until this additive correction is separately reviewed/frozen**. No reconciliation module/tests or Stage 10.6 work was added. Stage 10 remains INCOMPLETE; Stage 9 COMPLETE; Stage 10.6 NOT STARTED. Do not resume Stage 10.5 automatically.
 
+### Startup / broker reconciliation — Stage 10.5 implementation
+
+Starting baseline: clean `main` at `8b3a482f1d7d2586c2f609aa52f32adf283d8a60`. Both Stage 10.3 corrections are owner-reviewed and FROZEN. Stage 10.5 adds only `runtime/reconciliation.py`, `tests/test_runtime_reconciliation.py` and current documentation; Decision 017 and every previously frozen source/test remain unchanged.
+
+```python
+reconcile_startup(
+    store: RuntimeStore,
+    broker: ReadOnlyBroker,
+    *,
+    utc_now: Callable[[], datetime],
+    monotonic: Callable[[], float] = monotonic_clock,
+) -> ReconciliationResult
+```
+
+`ReconciliationResult` is frozen/slotted and contains the committed checkpoint, original/recovered placement, subordinate cancellation and newly accepted execution IDs. `ReconciliationError` reports invalid caller/clock input with fixed safe diagnostics. Import the submodule explicitly; frozen package exports remain unchanged. The caller must hold the canonical account lock and supply an already-open validated store, already-constructed Demo read-only broker and aware UTC control clock. No credentials, SDK session or broker payload is accessed.
+
+Each invocation performs at most one acquisition attempt: account, complete managed-symbol open orders and available managed-symbol executions; a pending candidate additionally receives exact `get_order(order_id)` and `get_executions(order_id=...)` reads. At most five public broker calls, each retaining Stage 9's own timeout/page bounds. A lost acknowledgement searches only the exact persisted link, never a prefix; a unique validated candidate ID is retained even if the order is not yet visible. Multiple IDs, wrong ownership and unrecorded namespace activity HALT. Unrelated managed-symbol open orders block activation and are never adopted or cancelled.
+
+Public `get_configuration()`, `get_checkpoint()`, `list_actions()`, `list_fills()` and the exact pending `list_fills(action_id)` load validated durable history before broker reads. Terminal historical ownership remains authoritative after broker retention expires. A fresh explicitly initialized journal establishes zero bot-owned inventory only when successful reads reveal no owned pending/history conflict; unrelated wallet BTC is not adopted. Caller account labels are compared when present but are not authenticated exchange IDs. A configuration requiring verified broker account identity fails closed because Stage 9's label cannot prove it.
+
+Owned inventory derives from exact deduplicated owned fills. BUY adds base quantity, SELL subtracts it; signed base-currency fees reduce quantity and base rebates increase it. Quote/other-currency fees stay separate, without conversion/PnL. Nonzero fee with missing currency blocks settlement. Previously known quantity must agree with its durable fill history. Positive quantity requires the configured base `total_balance` (walletBalance, including locked holdings) to cover it; missing balance means uncertainty, insufficient coverage HALTs. Account USD aggregates/availability do not prove asset holdings or authorize sizing. A FILLED quote BUY may leave budget unused; a FILLED SELL may leave an exact positive LONG remainder. Negative owned inventory is fatal; no rounding to FLAT.
+
+Coherent OPEN/PARTIALLY_FILLED observations produce ORDER_PENDING and atomically persist ID/status/time, accepted new fills, quantity and checkpoint through `record_observation()`. UNKNOWN_OUTCOME stays UNKNOWN_OUTCOME, attempt count stays 1 and missing receipt/submitted amount remain absent. Terminal status requires cumulative execution completeness and coherent timestamps, then exact resulting quantity selects FLAT/LONG. UNKNOWN, not-found, stale/incomplete reads and non-atomic races remain UNCERTAIN; failed reads have no empty fallback. Safe UNKNOWN diagnostics can be stored, but optional external text outside the frozen safe-text format is omitted instead of being exposed or changing status.
+
+`list_actions()` discovers subordinate controls without their IDs being in the checkpoint. A cancellation receipt does not establish terminal status; observing an OPEN parent does not resolve an unknown cancellation. Coherent terminal parent/fill evidence closes the control lifecycle with the actual parent status (including FILLED if it won the race), without claiming cancellation succeeded. Control settlement is one short write retaining the uncertain pending parent, followed by atomic placement/fills/quantity/checkpoint settlement; a crash between them retains recoverable original pending work. Provably unsent PREPARED placement/control records are abandoned through the existing public API, with IDs retained and no replay.
+
+Before I/O, one reconciliation-round and read-attempt token is durably reserved per unresolved attempted action. Counts never reset across restart; no automatic retry, resend or sleep loop exists. Persisted deadlines and configured elapsed timeout are checked between calls with UTC and monotonic clocks; an in-flight bounded paginated adapter call is not interrupted. Unresolved exhausted recovery HALTs. HALTED and STOPPING return unchanged without reads; operator rearm is never fabricated. Broker reads occur outside SQLite transactions, verified against the real temporary connection in every fake broker operation. No exchange/SQLite atomicity is claimed.
+
+Operational changes use frozen `transition_runtime_state()` events: STARTUP_VALIDATED, FRESHNESS_LOST, RECOVERY_VALIDATED, RECONCILED_FLAT/LONG/PENDING, UNCERTAINTY_DETECTED and FATAL_INCONSISTENCY. Persistence uses only public `save_checkpoint()`, `record_observation()`, `abandon_prepared()` and point action reads for committed results. No private connection/SQL, action creation, strategy, planner, Stage 10.4 reader, scheduler, backtest, PnL or broker mutation path exists. Persistence failure propagates without pretending that a HALT or observation committed.
+
+Validation: **82 new Stage 10.5 tests**, zero old tests changed. RuntimeStore **211**, locking **23**, Stage 10.2 **188**, Stage 10.4 **97**, Stage 9.4 **123**, Stage 9.6 **68** and frozen EMA **16** pass. Full suite **1,985 (1,903 + 82)** passes with zero failures/errors/skips; `pip check` reports no broken requirements and `git diff --check` passes. No credentials, actual broker/account request, authenticated Demo smoke, order or cancellation was executed. Source/schema/APIs of frozen stages, Decisions 001–017, data, results, notebooks and dependencies are preserved.
+
+Stage 10.5 is **COMPLETE / ready for owner review/freeze**. Stage 9 COMPLETE; Stages 10.1–10.4 and both Stage 10.3 corrections FROZEN; Stage 10 INCOMPLETE. Stage 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy is next and NOT STARTED. Do not begin it automatically.
+
 ### Accepted Stage 10 roadmap
 
 | Milestone | Status |
 | --- | --- |
 | 10.1 — Runtime Contract / Architecture | COMPLETE; Accepted; published/frozen; documentation only. |
 | 10.2 — Runtime State Model + Pure State Machine | COMPLETE; published/frozen at `8b41427`; pure state core only. |
-| 10.3 — Durable Runtime Persistence + Single-Instance Lock | COMPLETE; baseline `56584c4`; first correction FROZEN at `ad3aca7`; additive durable read-API correction COMPLETE, ready for review/freeze. |
+| 10.3 — Durable Runtime Persistence + Single-Instance Lock | COMPLETE/FROZEN; baseline `56584c4`; corrections FROZEN at `ad3aca7` and `8b3a482`. |
 | 10.4 — Closed-Candle Market Data Gate | COMPLETE; published/frozen at `1865435`; public/read-only only. |
-| 10.5 — Startup / Broker Reconciliation | STARTED with audit only; BLOCKED / NOT COMPLETE until the additive durable read-API correction is reviewed/frozen. |
+| 10.5 — Startup / Broker Reconciliation | COMPLETE; bounded read-only reconciliation, ready for owner review/freeze. |
 | 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy | NOT STARTED. |
 | 10.7 — Single-Cycle Demo Runtime Orchestration | NOT STARTED. |
 | 10.8 — Long-Running Candle Scheduler | NOT STARTED. |
@@ -954,7 +990,7 @@ Reserve belongs to the same portfolio. Stage 7.5 MTM equity now includes reserve
 
 Default fraction 1.0 must reproduce Stage 6 exactly, including quantities, independent GROSS/NET accounting, equity, and downstream analytics, without loosening existing tolerances. Frozen BTC reference values are recorded in Decision 011. Prefer existing accounting schemas and derive reserve safely from canonical entry accounting; any necessary new field requires an explicit reviewed decision.
 
-The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 1,903 tests.
+The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 1,985 tests.
 
 ## Position sizing core
 
@@ -1434,9 +1470,9 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Review/freeze the completed owner-approved additive Stage 10.3 durable read-API correction. Stage 10.5 — Startup / Broker Reconciliation remains BLOCKED / NOT COMPLETE until that separate review; implementation has not resumed. Stage 10 remains INCOMPLETE; Stage 10.6 is NOT STARTED.
+Owner review/freeze of completed Stage 10.5 — Startup / Broker Reconciliation. Stage 10 remains INCOMPLETE; Stage 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy is next and NOT STARTED.
 
-Stage 9.1–9.7 and Stage 9 remain COMPLETE. Stages 10.1, 10.2, 10.4, Decision 017 and the first Stage 10.3 correction remain frozen; only the approved additive Stage 10.3 read methods and additional tests change. Stage 8, Stage 5 frozen EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. No operational runtime, scheduler, polling, automatic strategy/risk wiring or authenticated broker action exists; no runtime DB/lock artifact is written into the repository by tests.
+Stage 9.1–9.7 and Stage 9 remain COMPLETE. Stages 10.1–10.4, Decision 017 and both Stage 10.3 corrections remain frozen. Stage 8, Stage 5 frozen EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. Only bounded read-only reconciliation now exists; no planner, order orchestration, scheduler, polling, automatic strategy/risk wiring or actual authenticated broker request/action exists. Tests write runtime artifacts only in temporary directories.
 
 ## Not implemented yet
 
@@ -1446,7 +1482,7 @@ Stage 9.1–9.7 and Stage 9 remain COMPLETE. Stages 10.1, 10.2, 10.4, Decision 0
 - Drawdown duration/recovery and subsequent portfolio metrics.
 - Additional reusable strategies beyond the EMA crossover strategy.
 - Performance analytics beyond the 16 CLOSED-trade summary metrics, separate realized-capital drawdown, ledger-based duration/exposure, candle-level equity, candle-close portfolio drawdown, the aligned Buy-and-Hold comparison, and time-based returns/Sharpe/Sortino with support volatility/downside metrics; broader multi-strategy comparison.
-- Order modification, reconciliation, and automated live/demo execution beyond explicit Demo Spot Market actions and separate state/fill reads.
+- Order modification and automated live/demo execution beyond explicit Demo Spot Market actions, separate state/fill reads and bounded read-only startup reconciliation.
 - Multiple autonomous bot instances and order management.
 - Broader centralized risk controls beyond fixed capital allocation.
 - PostgreSQL.
@@ -1455,9 +1491,9 @@ Stage 9.1–9.7 and Stage 9 remain COMPLETE. Stages 10.1, 10.2, 10.4, Decision 0
 
 ## Next milestone
 
-Owner review/freeze of the separate additive Stage 10.3 durable read-API correction, before any resumed Stage 10.5 reconciliation implementation.
+Stage 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy, after owner review/freeze and explicit authorization. NOT STARTED.
 
-Stages 10.1–10.4 remain COMPLETE; the first Stage 10.3 correction is FROZEN and the additive durable read-API correction awaits separate review/freeze. Stage 10 remains INCOMPLETE and Stage 9 remains COMPLETE. Stage 10.5 remains BLOCKED / NOT COMPLETE; Stage 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy remains NOT STARTED. Do not resume 10.5, begin 10.6, wire strategies to the exchange, implement a scheduler, or run an authenticated Demo smoke/order automatically.
+Stages 10.1–10.4 and both Stage 10.3 corrections remain COMPLETE/FROZEN; Stage 10.5 is COMPLETE and ready for owner review/freeze. Stage 10 remains INCOMPLETE and Stage 9 remains COMPLETE. Do not begin Stage 10.6, wire strategies to the exchange, implement a scheduler, or run an authenticated Demo smoke/order automatically.
 
 ## Backtesting execution contract
 
