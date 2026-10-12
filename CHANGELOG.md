@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-12 — Stage 9.5 crash-consistent pre-submit hook correction
+
+- Added keyword-only optional `before_submit: Callable[[], None] | None = None` after complete safe placement preflight and before the single possible send. Callback failure propagates unchanged and prevents mutation/parsing/retry; successful return means readiness, not acceptance/fill. No-hook behavior, Spot MARKET/QUOTE BUY/BASE SELL parameters, fresh normalizers, receipts/error classes and cancellation remain compatible.
+- Retained the dispatch Demo guard after callback return. A refusal there is beyond the caller's durable attempt boundary and must conservatively retain attempted/uncertain evidence, never become PREPARED-safe abandonment or an automatic resend. Stage 9 gains no runtime/SQLite dependency or orchestration.
+- Added **29 offline tests (24 adapter + 5 temporary-store proofs)**. Fake mutation sees committed ATTEMPT_STARTED/count 1 with no active writer transaction; failed/indeterminate commits prevent send, safe preflight retains PREPARED, post-boundary safety refusal retains the attempted marker. Updated one existing signature assertion for the approved additive keyword; other prior tests are unchanged.
+- Stage 9.5 **100**, Stage 9.6 **68**, Stage 10.6 **79**, Stage 10.5 **90**, RuntimeStore **211**, locking **23**, Stage 10.2 **188**, Stage 10.4 **97**, Stage 9.4 **123**, EMA **16**, full suite **2,101 (2,072 + 29)**, `pip check` and both diff checks pass; zero failures/errors/skips.
+- Correction COMPLETE/pending separate owner review/freeze. Stage 9 remains COMPLETE/FROZEN except this correction; Stages 10.1–10.6 remain FROZEN. Runtime/store/state/planner/reconciliation/schema/Decisions, financial/timing regressions, notebooks/data/results/dependencies are unchanged. No credentials, actual broker request/order/cancellation or manual Demo smoke. Stage 10 INCOMPLETE; Stage 10.7 BLOCKED / NOT STARTED until correction review/freeze; Stage 10.8 and later NOT STARTED.
+
 ## 2026-10-12 — Stage 10.6 pure runtime action planner
 
 - Added immutable canonical decision/mode/plan records and pure NOOP/PLACE_BUY/PLACE_SELL/WAIT/RECONCILE/HALT planning. State, historical eligibility, integer timing/freshness, consumed IDs/collisions and exact PREPARED authorization fail closed without I/O or checkpoint changes.

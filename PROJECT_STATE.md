@@ -18,9 +18,9 @@ Stage 10.4 — Closed-Candle Market Data Gate is COMPLETE, published and frozen 
 
 Stage 10.5 — Startup / Broker Reconciliation is COMPLETE, published, owner-reviewed and FROZEN at `757682038f2a5686e5d45e98dda378e91901b392`. One bounded read-only round consumes normalized Demo broker observations and public durable history, then persists safe exposure/pending/uncertain/HALT evidence. No order mutation, strategy/planner/market-data orchestration or scheduler exists.
 
-Stage 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy is COMPLETE and ready for owner review/freeze. Pure planning/authorization only; Stage 10.7 remains NOT STARTED.
+Stage 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy is COMPLETE and FROZEN at `6865a1e38b91ab3519fe5b84e4864a59db5ff8bd`. Pure planning/authorization only; Stage 10.7 is BLOCKED / NOT STARTED until the separate Stage 9.5 pre-submit hook correction is reviewed/frozen.
 
-Stage 9 — Bybit Demo Exchange Adapter is COMPLETE after Stage 9.7 — Final Stage 9 Audit + Docs.
+Stage 9 — Bybit Demo Exchange Adapter remains COMPLETE/FROZEN except the owner-approved Stage 9.5 crash-consistent pre-submit hook correction, COMPLETE and pending separate review/freeze. No Stage 10.7 implementation is included.
 
 Stage 9.1 — Demo Exchange Adapter Contract remains COMPLETE; [Decision 013](decisions/013_bybit_demo_exchange_adapter.md) is Accepted and unchanged.
 
@@ -30,9 +30,9 @@ Stage 9.3 — Instrument Metadata + Order Normalization remains COMPLETE; its me
 
 Stage 9.4 — Read-Only Demo Account / Order State Adapter is COMPLETE under [Decision 014](decisions/014_read_only_account_and_order_state.md). Account/order/fill snapshots are immutable and broker-independent; Demo reads only, no execution capability.
 
-Stage 9.5 — Spot Market Order Lifecycle Adapter is COMPLETE, ready for owner review/freeze under [Decision 015](decisions/015_spot_market_order_lifecycle.md). Explicit Demo Spot Market actions only; no automated execution or local portfolio mutation.
+Stage 9.5 — Spot Market Order Lifecycle Adapter remains COMPLETE under [Decision 015](decisions/015_spot_market_order_lifecycle.md), with the additive pre-submit hook correction pending review/freeze. Explicit Demo Spot Market actions only; no automated execution or local portfolio mutation.
 
-Stage 9.6 — Adapter Integration + Offline Regression + Optional Manual Demo Smoke is COMPLETE, ready for owner review/freeze. [Decision 016](decisions/016_manual_demo_smoke.md) records explicit manual activation and diagnostic safety. No actual authenticated Demo smoke/order was executed.
+Stage 9.6 — Adapter Integration + Offline Regression + Optional Manual Demo Smoke remains COMPLETE/FROZEN. [Decision 016](decisions/016_manual_demo_smoke.md) records explicit manual activation and diagnostic safety. No actual authenticated Demo smoke/order was executed.
 
 Stage 9.7 — Final Stage 9 Audit + Docs remains COMPLETE.
 
@@ -586,6 +586,33 @@ Validation: **79 new offline tests**, including **32 state/intent matrix cases**
 
 No broker/account/wallet/metadata/market-data read, credential/env access, mutation adapter, order/cancel/attempt dispatch, strategy calculation, scheduler, runtime loop or Stage 10.7 orchestration exists. Planning produces data only. Stage 10.6 COMPLETE/ready for owner review; Stages 10.1–10.5 FROZEN, Stage 10 INCOMPLETE, Stage 10.7 next/NOT STARTED.
 
+### Stage 9.5 crash-consistent pre-submit hook correction
+
+Separate owner-approved correction against clean `main` at `6865a1e38b91ab3519fe5b84e4864a59db5ff8bd`; no Stage 10.7 implementation. The original placement method combined safe metadata/amount preflight with mutation. Marking ATTEMPT_STARTED before method entry could therefore leave a provably unsent preflight failure recorded as attempted; frozen storage permits ABANDONED_UNSENT only from PREPARED and REJECTED only with a real broker rejection code.
+
+Additive API:
+
+```python
+place_market_order(
+    self,
+    request: SpotMarketOrderRequest,
+    *,
+    before_submit: Callable[[], None] | None = None,
+) -> SpotMarketOrderAcknowledgement
+```
+
+Ordering: request/hook type, symbol/side/unit/link validation → Demo guard → one fresh Stage 9.3 metadata fetch/identity/status validation → unchanged amount normalization/constraints → exact fixed Spot MARKET parameters → final pre-submit Demo guard → optional zero-argument callback exactly once → dispatch Demo guard → at most one place_order → acknowledgement parsing.
+
+All safe preflight failures precede the callback and make zero placements. Callback exceptions propagate unchanged, with no send, acknowledgement parse or retry. Successful callback return means only readiness for a possible send; it supplies no broker ID, submitted amount, acceptance or fill. The adapter has no RuntimeStore/state/planner/SQLite dependency. Existing no-hook callers retain one metadata fetch, at most one placement, unchanged receipts/error classes, exact caller link and no retry. Cancellation is unchanged.
+
+The dispatch guard remains after callback return so the callback cannot enable unsafe routing/retries/logging. A safety refusal there is **after the caller's durable attempt boundary**: future runtime recovery must conservatively retain attempted/uncertain evidence, never treat it as a PREPARED-safe failure or automatically resend. No additional metadata/amount preflight follows successful callback return. Broker nonzero retCode remains confirmed rejection; malformed acknowledgement remains parsing/unknown outcome; transport/SDK failure remains ambiguous.
+
+Validation: **29 new offline tests** (**24 adapter cases + 5 temporary-store proofs**); complete Stage 9.5 **100 (76 + 24)**, Stage 9.6 **68**, Stage 10.6 **79**, Stage 10.5 **90**, RuntimeStore **211**, locking **23**, Stage 10.2 **188**, Stage 10.4 **97**, Stage 9.4 **123**, EMA **16**, full suite **2,101 (2,072 + 29)** pass with zero failures/errors/skips. `pip check` and both diff checks pass. One existing signature assertion is updated for the approved keyword-only addition; no other prior test is changed.
+
+The real temporary-store integration commits planner-generated PREPARED work first. Its callback calls frozen start_attempt(); the fake placement observes committed ATTEMPT_STARTED/attempt_count=1 through both the store and a separate SQLite reader, with no writer transaction active. Commit failure prevents send and preserves PREPARED; indeterminate post-commit failure prevents send and retains the attempted marker on reopen. Safe metadata/constraint failures leave PREPARED; a post-callback safety refusal retains ATTEMPT_STARTED. Tests do not persist receipts, reconcile, or implement an operational send workflow.
+
+Runtime/store/state/planner/reconciliation, schema v1, locking, Stage 10.4, Decisions 001–017, Stage 9.4/cancellation, strategies/backtests/financial timing, notebooks/data/results and dependencies are unchanged. No credentials, actual broker request, order/cancellation or manual Demo smoke occurred. Stage 9 remains COMPLETE/FROZEN except this correction pending review; Stages 10.1–10.6 remain FROZEN. Stage 10.7 BLOCKED / NOT STARTED until review/freeze and separate authorization; Stage 10 INCOMPLETE; Stage 10.8 and later NOT STARTED.
+
 ### Accepted Stage 10 roadmap
 
 | Milestone | Status |
@@ -595,8 +622,8 @@ No broker/account/wallet/metadata/market-data read, credential/env access, mutat
 | 10.3 — Durable Runtime Persistence + Single-Instance Lock | COMPLETE/FROZEN; baseline `56584c4`; corrections FROZEN at `ad3aca7` and `8b3a482`. |
 | 10.4 — Closed-Candle Market Data Gate | COMPLETE; published/frozen at `1865435`; public/read-only only. |
 | 10.5 — Startup / Broker Reconciliation | COMPLETE/FROZEN at `7576820`, including the exact-execution correction. |
-| 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy | COMPLETE; pure planner, ready for owner review/freeze. |
-| 10.7 — Single-Cycle Demo Runtime Orchestration | NOT STARTED. |
+| 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy | COMPLETE/FROZEN at `6865a1e`; pure planner. |
+| 10.7 — Single-Cycle Demo Runtime Orchestration | BLOCKED / NOT STARTED until the Stage 9.5 correction is reviewed/frozen. |
 | 10.8 — Long-Running Candle Scheduler | NOT STARTED. |
 | 10.9 — Restart / Crash / Ambiguous-Action Recovery | NOT STARTED. |
 | 10.10 — Runtime Integration Regression + Optional Explicit Demo Run | NOT STARTED; any actual run requires separate explicit authorization. |
@@ -704,11 +731,11 @@ Validation: **123 new Stage 9.4 tests**, **148 unchanged exchange/API tests** (4
 
 ## Explicit Demo Spot Market order actions
 
-Stage 9.5 is **COMPLETE**, ready for owner review/freeze. [Decision 015](decisions/015_spot_market_order_lifecycle.md) records the stable action contract. `exchange/order_actions.py` defines frozen/slotted broker-independent `SpotMarketOrderRequest`, `SpotMarketOrderAcknowledgement`, and `OrderCancellationAcknowledgement`. `exchange/bybit_demo_orders.py` defines `BybitDemoOrderAdapter`, `BybitDemoActionError`, `BybitDemoOrderRejectedError`, `BybitDemoActionParseError`, and `BybitDemoAmbiguousActionError`. All eight names are explicit package imports; previous wildcard exports remain unchanged.
+Stage 9.5 remains **COMPLETE/FROZEN except its separately approved pre-submit hook correction pending review/freeze**. [Decision 015](decisions/015_spot_market_order_lifecycle.md) records the original stable action contract; the additive correction is documented above without changing the ADR. `exchange/order_actions.py` defines frozen/slotted broker-independent `SpotMarketOrderRequest`, `SpotMarketOrderAcknowledgement`, and `OrderCancellationAcknowledgement`. `exchange/bybit_demo_orders.py` defines `BybitDemoOrderAdapter`, `BybitDemoActionError`, `BybitDemoOrderRejectedError`, `BybitDemoActionParseError`, and `BybitDemoAmbiguousActionError`. All eight names are explicit package imports; previous wildcard exports remain unchanged.
 
 ```python
 BybitDemoOrderAdapter(session)
-place_market_order(request: SpotMarketOrderRequest) -> SpotMarketOrderAcknowledgement
+place_market_order(request: SpotMarketOrderRequest, *, before_submit: Callable[[], None] | None = None) -> SpotMarketOrderAcknowledgement
 cancel_order(symbol: str, order_id: str) -> OrderCancellationAcknowledgement
 ```
 
@@ -1052,7 +1079,7 @@ Reserve belongs to the same portfolio. Stage 7.5 MTM equity now includes reserve
 
 Default fraction 1.0 must reproduce Stage 6 exactly, including quantities, independent GROSS/NET accounting, equity, and downstream analytics, without loosening existing tolerances. Frozen BTC reference values are recorded in Decision 011. Prefer existing accounting schemas and derive reserve safely from canonical entry accounting; any necessary new field requires an explicit reviewed decision.
 
-The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 2,072 tests.
+The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 2,101 tests.
 
 ## Position sizing core
 
@@ -1532,9 +1559,9 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Owner review/freeze of completed Stage 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy. Stages 10.1–10.5 remain FROZEN; Stage 10 INCOMPLETE; Stage 10.7 — Single-Cycle Demo Runtime Orchestration is next and NOT STARTED.
+Owner review/freeze of the separate completed Stage 9.5 crash-consistent pre-submit hook correction. Stages 10.1–10.6 remain FROZEN; Stage 10 INCOMPLETE; Stage 10.7 — Single-Cycle Demo Runtime Orchestration is BLOCKED / NOT STARTED until this correction is reviewed/frozen.
 
-Stage 9.1–9.7 and Stage 9 remain COMPLETE. Stages 10.1–10.5, Decision 017 and both Stage 10.3 corrections remain frozen. Stage 8, Stage 5 frozen EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. Bounded read-only reconciliation and pure action planning now exist; no order orchestration, scheduler, polling, automatic strategy/risk wiring or actual authenticated broker request/action exists. Tests write runtime artifacts only in temporary directories.
+Stage 9.1–9.7 and Stage 9 remain COMPLETE/FROZEN except this correction pending review. Stages 10.1–10.6, Decision 017 and both Stage 10.3 corrections remain frozen. Stage 8, Stage 5 frozen EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. Bounded read-only reconciliation and pure action planning exist; no order orchestration, scheduler, polling, automatic strategy/risk wiring or actual authenticated broker request/action exists. Tests write runtime artifacts only in temporary directories.
 
 ## Not implemented yet
 
@@ -1553,9 +1580,9 @@ Stage 9.1–9.7 and Stage 9 remain COMPLETE. Stages 10.1–10.5, Decision 017 an
 
 ## Next milestone
 
-Stage 10.7 — Single-Cycle Demo Runtime Orchestration, after owner review/freeze and explicit authorization. NOT STARTED.
+Stage 10.7 — Single-Cycle Demo Runtime Orchestration is BLOCKED / NOT STARTED, pending owner review/freeze of the separate Stage 9.5 correction and explicit implementation authorization.
 
-Stages 10.1–10.5 and both Stage 10.3 corrections remain COMPLETE/FROZEN; Stage 10.6 is COMPLETE and ready for owner review/freeze. Stage 10 remains INCOMPLETE and Stage 9 remains COMPLETE. Do not begin Stage 10.7, wire strategies to the exchange, implement a scheduler, or run an authenticated Demo smoke/order automatically.
+Stages 10.1–10.6 and both Stage 10.3 corrections remain COMPLETE/FROZEN. Stage 10 remains INCOMPLETE and Stage 9 remains COMPLETE/FROZEN except its separate Stage 9.5 correction pending review. Do not begin Stage 10.7 or later work, wire strategies to the exchange, implement a scheduler, or run an authenticated Demo smoke/order automatically.
 
 ## Backtesting execution contract
 

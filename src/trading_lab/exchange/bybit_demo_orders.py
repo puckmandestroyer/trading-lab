@@ -1,6 +1,6 @@
 """Explicit Demo Spot Market placement/cancellation; no sizing or lifecycle loop."""
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import re
@@ -148,10 +148,27 @@ class BybitDemoOrderAdapter:
         except Exception as error:
             raise BybitDemoAmbiguousActionError(f"{operation}: outcome unknown ({type(error).__name__}); no retry.") from None
 
-    def place_market_order(self, request: SpotMarketOrderRequest) -> SpotMarketOrderAcknowledgement:
-        """Submit an authorized quote BUY or base SELL; receipt is not a fill."""
+    def place_market_order(
+        self,
+        request: SpotMarketOrderRequest,
+        *,
+        before_submit: Callable[[], None] | None = None,
+    ) -> SpotMarketOrderAcknowledgement:
+        """Preflight, optional durable boundary, then at most one placement.
+
+        The zero-argument callback runs once after successful safe preflight.
+        Its exception propagates unchanged and prevents submission. Successful
+        return is readiness to send, not broker acceptance or fill evidence.
+        The caller owns persistence; this adapter has no runtime dependency.
+
+        Dispatch retains its Demo guard after the callback. If the session
+        becomes unsafe there, even that refusal is after the caller's attempt
+        boundary and must not be treated as PREPARED-safe by a future runtime.
+        """
         if not isinstance(request, SpotMarketOrderRequest):
             raise TypeError("request must be a SpotMarketOrderRequest.")
+        if before_submit is not None and not callable(before_submit):
+            raise TypeError("before_submit must be callable or None.")
         symbol = _text(request.symbol, "symbol", uppercase=True)
         if not isinstance(request.side, str) or request.side not in ("BUY", "SELL"):
             raise ValueError("side must be BUY or SELL.")
@@ -179,6 +196,11 @@ class BybitDemoOrderAdapter:
         }
         if link is not None:
             params["orderLinkId"] = link
+        # Finish deterministic preflight before exposing the durable send boundary.
+        self._validate_session()
+        if before_submit is not None:
+            before_submit()
+        # Keep dispatch's independent guard: a callback cannot enable unsafe routing.
         response = self._mutate("place_order", **params)
         order_id, reported_link, timestamp = _acknowledgement(response, "place_order", symbol=symbol)
         if reported_link != link:

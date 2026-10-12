@@ -266,6 +266,173 @@ class OrderLinkTests(OfflineTests):
         self.assertIsNone(self.adapter.place_market_order(buy_request()).order_link_id)
 
 
+class PlacementBoundaryTests(OfflineTests):
+    """Owner-approved additive pre-submit boundary; every broker call is fake."""
+
+    def assert_ordered_once(self, request=None, error_type=None):
+        trace = []
+        metadata, place = self.session.get_instruments_info, self.session.place_order
+
+        def fetch(**params):
+            trace.append("metadata")
+            return metadata(**params)
+
+        def submit(**params):
+            trace.append("place_order")
+            return place(**params)
+
+        callback = Mock(side_effect=lambda: trace.append("before_submit"))
+        with patch.object(self.session, "get_instruments_info", side_effect=fetch) as fetch_mock, \
+             patch.object(self.session, "place_order", side_effect=submit) as place_mock:
+            if error_type is None:
+                receipt = self.adapter.place_market_order(request or buy_request(), before_submit=callback)
+                self.assertIsInstance(receipt, SpotMarketOrderAcknowledgement)
+            else:
+                with self.assertRaises(error_type):
+                    self.adapter.place_market_order(request or buy_request(), before_submit=callback)
+        self.assertEqual(trace, ["metadata", "before_submit", "place_order"])
+        fetch_mock.assert_called_once_with(category="spot", symbol="BTCUSDT")
+        callback.assert_called_once_with()
+        place_mock.assert_called_once()
+        self.assertEqual(len(self.mutation_calls()), 1)
+        self.assertEqual(self.mutation_calls("cancel_order"), [])
+
+    def assert_preflight_unsent(self, request, error_type):
+        callback = Mock()
+        with self.assertRaises(error_type):
+            self.adapter.place_market_order(request, before_submit=callback)
+        callback.assert_not_called()
+        self.assertEqual(self.mutation_calls(), [])
+
+    def test_buy_metadata_callback_placement_order(self):
+        self.assert_ordered_once()
+        self.assertEqual(self.mutation_calls()[0], {
+            "category": "spot", "symbol": "BTCUSDT", "side": "Buy", "orderType": "Market",
+            "qty": "12.3456789", "marketUnit": "quoteCoin", "isLeverage": 0,
+        })
+
+    def test_sell_metadata_callback_placement_order(self):
+        self.assert_ordered_once(sell_request())
+        self.assertEqual(self.mutation_calls()[0], {
+            "category": "spot", "symbol": "BTCUSDT", "side": "Sell", "orderType": "Market",
+            "qty": "0.123456", "marketUnit": "baseCoin", "isLeverage": 0,
+        })
+
+    def test_confirmed_rejection_calls_callback_and_placement_once(self):
+        self.session.placement = {"retCode": 10001}
+        self.assert_ordered_once(error_type=BybitDemoOrderRejectedError)
+
+    def test_sdk_confirmed_rejection_calls_callback_and_placement_once(self):
+        self.session.errors["place_order"] = InvalidRequestError("offline", "offline", 10001, "offline", None)
+        self.assert_ordered_once(error_type=BybitDemoOrderRejectedError)
+
+    def test_transport_uncertainty_calls_callback_and_placement_once(self):
+        self.session.errors["place_order"] = TimeoutError(PRIVATE_MARKER)
+        self.assert_ordered_once(error_type=BybitDemoAmbiguousActionError)
+
+    def test_malformed_acknowledgement_calls_callback_and_placement_once(self):
+        self.session.placement = {"retCode": 0, "result": {}}
+        self.assert_ordered_once(error_type=BybitDemoActionParseError)
+
+    def test_callback_exception_propagates_unchanged_without_send_or_parse(self):
+        error = RuntimeError("synthetic caller failure")
+        callback = Mock(side_effect=error)
+        with patch.object(actions, "_acknowledgement") as parse:
+            with self.assertRaises(RuntimeError) as caught:
+                self.adapter.place_market_order(buy_request(), before_submit=callback)
+        self.assertIs(caught.exception, error)
+        callback.assert_called_once_with()
+        parse.assert_not_called()
+        self.assertEqual([name for name, _ in self.session.calls], ["get_instruments_info"])
+
+    def test_noncallable_hook_fails_before_metadata(self):
+        with self.assertRaises(TypeError):
+            self.adapter.place_market_order(buy_request(), before_submit=object())
+        self.assertEqual(self.session.calls, [])
+
+    def test_invalid_request_type_leaves_callback_unsent(self):
+        self.assert_preflight_unsent({}, TypeError)
+        self.assertEqual(self.session.calls, [])
+
+    def test_invalid_symbol_side_or_unit_leaves_callback_unsent(self):
+        for change in ({"symbol": "btcusdt"}, {"side": "Buy"}, {"amount_unit": "BASE"}):
+            with self.subTest(change=change):
+                self.assert_preflight_unsent(replace(buy_request(), **change), ValueError)
+        self.assert_preflight_unsent(replace(sell_request(), amount_unit="QUOTE"), ValueError)
+        self.assertEqual(self.session.calls, [])
+
+    def test_invalid_link_leaves_callback_unsent(self):
+        self.assert_preflight_unsent(buy_request("bad/link"), ValueError)
+        self.assertEqual(self.session.calls, [])
+
+    def test_unsafe_session_leaves_callback_unsent(self):
+        for field, value in SafetyAndArchitectureTests.unsafe_settings(self):
+            original = getattr(self.session, field)
+            setattr(self.session, field, value)
+            with self.subTest(field=field, value=value):
+                self.assert_preflight_unsent(buy_request(), BybitDemoConfigurationError)
+            setattr(self.session, field, original)
+        self.assertEqual(self.session.calls, [])
+
+    def test_metadata_transport_failure_leaves_callback_unsent(self):
+        self.session.errors["get_instruments_info"] = TimeoutError(PRIVATE_MARKER)
+        self.assert_preflight_unsent(buy_request(), BybitDemoActionError)
+
+    def test_metadata_shape_failure_leaves_callback_unsent(self):
+        self.session.instrument = {"retCode": 0, "result": None}
+        self.assert_preflight_unsent(buy_request(), BybitDemoActionError)
+
+    def test_non_trading_instrument_leaves_callback_unsent(self):
+        self.session.instrument["result"]["list"][0]["status"] = "Settled"
+        self.assert_preflight_unsent(buy_request(), BybitDemoActionError)
+
+    def test_wrong_instrument_leaves_callback_unsent(self):
+        self.session.instrument["result"]["list"][0]["symbol"] = "ETHUSDT"
+        self.assert_preflight_unsent(buy_request(), BybitDemoActionError)
+
+    def test_buy_below_minimum_after_round_down_leaves_callback_unsent(self):
+        self.session.instrument["result"]["list"][0]["lotSizeFilter"]["minOrderAmt"] = "12.34567895"
+        self.assert_preflight_unsent(buy_request(), BybitSpotOrderConstraintError)
+
+    def test_sell_above_maximum_after_round_down_leaves_callback_unsent(self):
+        self.assert_preflight_unsent(sell_request(amount="41.5000019"), BybitSpotOrderConstraintError)
+
+    def test_buy_and_sell_rounding_to_zero_leave_callback_unsent(self):
+        for request in (buy_request(amount="0.00000001"), sell_request(amount="0.0000001")):
+            with self.subTest(side=request.side):
+                self.assert_preflight_unsent(request, BybitSpotOrderConstraintError)
+
+    def test_invalid_amount_leaves_callback_unsent(self):
+        self.assert_preflight_unsent(buy_request(amount=1.0), BybitSpotOrderConstraintError)
+
+    def test_session_changed_during_metadata_fails_before_callback(self):
+        def fetch(**params):
+            self.session.demo = False
+            return synthetic_response()
+        with patch.object(self.session, "get_instruments_info", side_effect=fetch):
+            self.assert_preflight_unsent(buy_request(), BybitDemoConfigurationError)
+
+    def test_callback_cannot_weaken_dispatch_safety(self):
+        callback = Mock(side_effect=lambda: setattr(self.session, "demo", False))
+        with self.assertRaises(BybitDemoConfigurationError):
+            self.adapter.place_market_order(buy_request(), before_submit=callback)
+        callback.assert_called_once_with()
+        self.assertEqual(self.mutation_calls(), [])
+
+    def test_explicit_none_preserves_no_hook_calls_and_receipt(self):
+        receipt = self.adapter.place_market_order(buy_request(), before_submit=None)
+        self.assertEqual([name for name, _ in self.session.calls], ["get_instruments_info", "place_order"])
+        self.assertEqual(receipt.submitted_amount, Decimal("12.3456789"))
+        self.assertFalse(hasattr(receipt, "status"))
+
+    def test_production_adapter_has_no_runtime_or_persistence_imports(self):
+        tree = ast.parse(inspect.getsource(actions))
+        imports = [node.module or "" for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)]
+        imports += [alias.name for node in ast.walk(tree) if isinstance(node, ast.Import) for alias in node.names]
+        self.assertFalse(any(any(part in name.split(".") for part in ("runtime", "sqlite3")) for name in imports))
+        self.assertNotIn("RuntimeStore", {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)})
+
+
 class AcknowledgementTests(OfflineTests):
     def test_request_and_receipts_are_frozen_slotted_and_payload_free(self):
         request = buy_request()
@@ -559,7 +726,10 @@ class SafetyAndArchitectureTests(OfflineTests):
         methods = {name for name, value in inspect.getmembers(BybitDemoOrderAdapter, inspect.isfunction) if not name.startswith("_")}
         self.assertEqual(methods, {"place_market_order", "cancel_order"})
         self.assertEqual(list(inspect.signature(BybitDemoOrderAdapter).parameters), ["session"])
-        self.assertEqual(list(inspect.signature(BybitDemoOrderAdapter.place_market_order).parameters), ["self", "request"])
+        placement = inspect.signature(BybitDemoOrderAdapter.place_market_order).parameters
+        self.assertEqual(list(placement), ["self", "request", "before_submit"])
+        self.assertIs(placement["before_submit"].kind, inspect.Parameter.KEYWORD_ONLY)
+        self.assertIsNone(placement["before_submit"].default)
         self.assertEqual(list(inspect.signature(BybitDemoOrderAdapter.cancel_order).parameters), ["self", "symbol", "order_id"])
         for name in ("session", "client", "amend_order", "cancel_all_orders", "replace_order", "place_batch_order"):
             self.assertFalse(hasattr(self.adapter, name))
