@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-13 — Stage 10.7 single-cycle Demo runtime orchestration
+
+- Added an explicitly invoked bounded cycle using frozen reconciliation, public closed history, EMA/canonical validation, planner, public persistence and the frozen pre-submit hook. Initial BOOTSTRAP and restart REPLAY_ONLY never trade; reserved historical cutoffs protect interrupted catch-up. Exact retained candle/decision reconstruction HALTs on disagreement without rewriting history.
+- Fixed candle SHA256 bytes from sorted compact ASCII-escaped UTF-8 JSON and canonical Decimal OHLCV; only strategy closes become floats. Public data age uses decision_max_age_ms, with explicit UTC/server-time skew checks and no hidden wall clock.
+- Atomic PREPARED precedes callback-committed ATTEMPT_STARTED, then at most one placement. Safe preflight abandons only unsent work; callback/receipt persistence faults stop without follow-up repair/send. ACK preserves pending exposure; confirmed rejection clears pending then HALTs; post-boundary uncertainty retains original IDs and missing receipts. One post-send reconciliation round only, no retry/poll/cancel/scheduler.
+- Added **78 offline tests** with real temporary SQLite and transaction assertions at external boundaries. Placement-boundary **29**, Stage 9.5 **100**, Stage 9.6 **68**, Stage 10.6 **79**, Stage 10.5 **90**, RuntimeStore **211**, locking **23**, Stage 10.2 **188**, Stage 10.4 **97**, Stage 9.4 **123**, EMA **16**, full suite **2,179 (2,101 + 78)**, pip check and both diff checks pass; zero failures/errors/skips.
+- Stage 9 plus pre-submit correction `77a88fe` and Stages 10.1–10.6 remain FROZEN; all prior source/tests/APIs/schema/Decisions, notebooks/data/results/dependencies and financial/next-OPEN behavior unchanged. No real credentials/session/authenticated request/order/cancellation/manual run. Stage 10.7 COMPLETE/ready for owner review; Stage 10 INCOMPLETE; Stage 10.8 next/NOT STARTED. Explicit operator cancellation needs a separate owner-approved API contract.
+
 ## 2026-10-12 — Stage 9.5 crash-consistent pre-submit hook correction
 
 - Added keyword-only optional `before_submit: Callable[[], None] | None = None` after complete safe placement preflight and before the single possible send. Callback failure propagates unchanged and prevents mutation/parsing/retry; successful return means readiness, not acceptance/fill. No-hook behavior, Spot MARKET/QUOTE BUY/BASE SELL parameters, fresh normalizers, receipts/error classes and cancellation remain compatible.

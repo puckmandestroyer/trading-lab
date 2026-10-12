@@ -18,9 +18,11 @@ Stage 10.4 — Closed-Candle Market Data Gate is COMPLETE, published and frozen 
 
 Stage 10.5 — Startup / Broker Reconciliation is COMPLETE, published, owner-reviewed and FROZEN at `757682038f2a5686e5d45e98dda378e91901b392`. One bounded read-only round consumes normalized Demo broker observations and public durable history, then persists safe exposure/pending/uncertain/HALT evidence. No order mutation, strategy/planner/market-data orchestration or scheduler exists.
 
-Stage 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy is COMPLETE and FROZEN at `6865a1e38b91ab3519fe5b84e4864a59db5ff8bd`. Pure planning/authorization only; Stage 10.7 is BLOCKED / NOT STARTED until the separate Stage 9.5 pre-submit hook correction is reviewed/frozen.
+Stage 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy is COMPLETE and FROZEN at `6865a1e38b91ab3519fe5b84e4864a59db5ff8bd`. Pure planning/authorization only.
 
-Stage 9 — Bybit Demo Exchange Adapter remains COMPLETE/FROZEN except the owner-approved Stage 9.5 crash-consistent pre-submit hook correction, COMPLETE and pending separate review/freeze. No Stage 10.7 implementation is included.
+Stage 10.7 — Single-Cycle Demo Runtime Orchestration is COMPLETE and ready for owner review/freeze. One explicit bounded cycle only; no scheduler or actual Demo activation. Stage 10.8 remains NOT STARTED.
+
+Stage 9 — Bybit Demo Exchange Adapter remains COMPLETE/FROZEN, including the owner-reviewed Stage 9.5 pre-submit correction at `77a88fe1b1250cabde6a1a6fa4aa492db056084b`.
 
 Stage 9.1 — Demo Exchange Adapter Contract remains COMPLETE; [Decision 013](decisions/013_bybit_demo_exchange_adapter.md) is Accepted and unchanged.
 
@@ -30,7 +32,7 @@ Stage 9.3 — Instrument Metadata + Order Normalization remains COMPLETE; its me
 
 Stage 9.4 — Read-Only Demo Account / Order State Adapter is COMPLETE under [Decision 014](decisions/014_read_only_account_and_order_state.md). Account/order/fill snapshots are immutable and broker-independent; Demo reads only, no execution capability.
 
-Stage 9.5 — Spot Market Order Lifecycle Adapter remains COMPLETE under [Decision 015](decisions/015_spot_market_order_lifecycle.md), with the additive pre-submit hook correction pending review/freeze. Explicit Demo Spot Market actions only; no automated execution or local portfolio mutation.
+Stage 9.5 — Spot Market Order Lifecycle Adapter remains COMPLETE/FROZEN under [Decision 015](decisions/015_spot_market_order_lifecycle.md), including the additive pre-submit correction at `77a88fe`. Explicit Demo Spot Market actions only; no adapter-owned strategy execution or portfolio mutation.
 
 Stage 9.6 — Adapter Integration + Offline Regression + Optional Manual Demo Smoke remains COMPLETE/FROZEN. [Decision 016](decisions/016_manual_demo_smoke.md) records explicit manual activation and diagnostic safety. No actual authenticated Demo smoke/order was executed.
 
@@ -588,6 +590,8 @@ No broker/account/wallet/metadata/market-data read, credential/env access, mutat
 
 ### Stage 9.5 crash-consistent pre-submit hook correction
 
+Current status: owner-reviewed and **FROZEN at `77a88fe1b1250cabde6a1a6fa4aa492db056084b`**. The completion record below retains its original review status and test totals; Stage 10.7 uses the frozen hook without changing it.
+
 Separate owner-approved correction against clean `main` at `6865a1e38b91ab3519fe5b84e4864a59db5ff8bd`; no Stage 10.7 implementation. The original placement method combined safe metadata/amount preflight with mutation. Marking ATTEMPT_STARTED before method entry could therefore leave a provably unsent preflight failure recorded as attempted; frozen storage permits ABANDONED_UNSENT only from PREPARED and REJECTED only with a real broker rejection code.
 
 Additive API:
@@ -613,6 +617,63 @@ The real temporary-store integration commits planner-generated PREPARED work fir
 
 Runtime/store/state/planner/reconciliation, schema v1, locking, Stage 10.4, Decisions 001–017, Stage 9.4/cancellation, strategies/backtests/financial timing, notebooks/data/results and dependencies are unchanged. No credentials, actual broker request, order/cancellation or manual Demo smoke occurred. Stage 9 remains COMPLETE/FROZEN except this correction pending review; Stages 10.1–10.6 remain FROZEN. Stage 10.7 BLOCKED / NOT STARTED until review/freeze and separate authorization; Stage 10 INCOMPLETE; Stage 10.8 and later NOT STARTED.
 
+### Single-cycle Demo runtime orchestration — Stage 10.7
+
+Starting baseline: clean `main` / `origin/main` at `77a88fe1b1250cabde6a1a6fa4aa492db056084b`. Stage 9 plus its pre-submit correction and Stages 10.1–10.6 are owner-reviewed/FROZEN. Only `runtime/cycle.py`, `tests/test_runtime_cycle.py` and current documentation are added/changed.
+
+Explicit `trading_lab.runtime.cycle` API:
+
+```python
+class CycleError(ValueError): ...
+class CycleOutcome(str, Enum):
+    # BOOTSTRAP, REPLAY_ONLY, NO_NEW_DATA, NOOP, WAIT, RECONCILE,
+    # HALTED, STOPPING, OBSERVED, ABANDONED_UNSENT
+    ...
+SingleCycleResult(checkpoint, outcome, processed_candle_open_ms=(), planner_kind=None,
+                  logical_action_id=None, broker_order_id=None, new_execution_ids=(), reason=None)
+run_single_cycle(
+    store: RuntimeStore,
+    market_reader,
+    broker: ReadOnlyBroker,
+    order_adapter: BybitDemoOrderAdapter,
+    *,
+    utc_now: Callable[[], datetime],
+    monotonic: Callable[[], float] = monotonic_clock,
+) -> SingleCycleResult
+```
+
+The result is frozen/slotted, with processed_candle_count derived from its immutable timestamp tuple. It exposes only durable checkpoint/outcome/planner/action facts, new execution IDs and fixed reasons. Broker order ID is exposed only with a durably acknowledged receipt; lost-ack discovery does not invent one. OBSERVED means a bounded round completed, not necessarily a fill or terminality. CycleError has fixed diagnostics; persistence errors stop execution for reopen/recovery.
+
+Ordering: **reconcile_startup → public closed prefix → unchanged EMA + canonical validation → planner → atomic decision/PREPARED/frontier commit → Stage 9.5 metadata/normalization → callback commits ATTEMPT_STARTED → at most one placement → durable ACKNOWLEDGED/UNKNOWN_OUTCOME/REJECTED → at most one post-send reconciliation round**. Initial HALTED/STOPPING return without market/decision/action; unresolved UNCERTAIN/SYNCHRONIZING return safe evidence without planning. Every external call is outside SQLite transactions. Resources are injected and caller-owned; no lock/store/session/adapter construction or credential access.
+
+The reader receives exact configured symbol/timeframe/history anchor and **max_data_age_ms = config.decision_max_age_ms**. Only a complete revalidated ClosedCandlePrefix is accepted; no sorting, repair, forming candle or partial-history fallback. Both authoritative public timestamps must lie within the explicit UTC interval of the market read, expanded by max_clock_skew_ms. This distinguishes pagination latency from clock skew. Newest-candle freshness reuses Stage 10.4. Observations use integer UTC milliseconds with explicit microsecond flooring, matching frozen reconciliation; no hidden datetime.now().
+
+CandleRecord OHLCV remains exact Decimal. Fingerprint bytes are sorted compact ASCII-escaped UTF-8 JSON with exactly candle_open_ms, close, high, low, open, symbol, timeframe and volume; OHLCV strings use serialize_decimal. SHA256 is the full lowercase hex digest. Golden bytes:
+
+```json
+{"candle_open_ms":0,"close":"105.25","high":"110","low":"90","open":"100","symbol":"BTCUSDT","timeframe":"60","volume":"1.23456789"}
+```
+
+Golden SHA256: **c51b1a702fd5f7270194b8f349d0e955895853a59bc17ae0190f7f2aebde67bd**. Decimal scale equivalence preserves identity; observation times, indicators, signals and account facts are excluded. Float conversion occurs only for close values entering the existing EMA20/50/50 strategy. Existing pure Decision-010 validate_strategy_output checks exact row/index/timestamp/availability and integer signal/desired-state transitions; no backtest execution/fills. Every retained candle and canonical decision must reproduce before the frontier advances; disagreement HALTs without rewriting history.
+
+Fresh history (no frontier) is all BOOTSTRAP. More than one new candle after an existing frontier is all REPLAY_ONLY; neither path trades. The full historical cutoff is saved before sequential public commits so a crash cannot make the final missed candle LIVE. A remaining single candle inside a reserved cutoff stays historical. Only exactly one new contiguous candle beyond both cutoffs may be LIVE. Every decision uses public list_actions() and the frozen planner; ordered events are applied unchanged through transition_runtime_state. ORDER_PENDING decisions remain WAIT and may update desired intent without queuing/replacing/cancelling. Exact commit replay returns without invoking the adapter.
+
+| Boundary / outcome | Durable behavior |
+| --- | --- |
+| Decision/PREPARED commit failure | Stop; no adapter invocation. |
+| Adapter fails before callback entry | ABANDONED_UNSENT/count 0; exact terminal-action evidence clears pending to unchanged FLAT/LONG exposure. ID stays consumed. |
+| Callback entered, start_attempt did not return successfully | No further read/write/abandon/send; safe persistence error. Reopen discovers PREPARED or committed ATTEMPT_STARTED. |
+| Valid receipt after successful attempt commit | Validate identity/unit/exact amount/UTC timing; persist ACKNOWLEDGED with no fills/status/terminality; quantity unchanged. |
+| Confirmed nonzero broker rejection | Persist exact bounded code and REJECTED/count 1; clear pending, then HALT with INCONSISTENT_EVIDENCE. No code is assumed harmless. |
+| Ambiguous/malformed receipt or post-callback safety refusal | UNKNOWN_OUTCOME/count 1 and ACTION_OUTCOME_UNKNOWN uncertainty; retain original pending identity, no invented receipt/amount/ID. |
+| Receipt/outcome persistence failure | Stop before post-send reads; no memory-based repair/resend. Attempt/possibly committed receipt remains reopen evidence. |
+
+After successfully persisted ACKNOWLEDGED or UNKNOWN_OUTCOME, one frozen reconciliation call consumes actual order/fill evidence and may end ORDER_PENDING, LONG, FLAT, UNCERTAIN or HALTED. OPEN/partial fills stay pending; complete actual fills determine exposure. A FILLED SELL can retain a positive remainder or HALT on oversold inventory. Lost-ack discovery preserves missing receipts. No polling, sleep, retry, second ID or second placement.
+
+Validation: **78 new offline tests**; placement-boundary **29 (24 adapter + 5 integration)**, Stage 9.5 **100**, Stage 9.6 **68**, Stage 10.6 **79**, Stage 10.5 **90**, RuntimeStore **211**, locking **23**, Stage 10.2 **188**, Stage 10.4 **97**, Stage 9.4 **123**, EMA **16**, full suite **2,179 (2,101 + 78)** pass with zero failures/errors/skips; pip check and both diff checks pass. Fakes check the real temporary SQLite transaction flag at every external boundary. Tests cover historical/replay interruption, fingerprints, EMA parity, exact persistence/send/read ordering, all failure boundaries and no duplicate send.
+
+Frozen runtime/Stage 9/market gate/strategy/validator/schema/Decisions 001–017, notebooks/data/results/dependencies and financial/next-OPEN regressions are unchanged. No real credentials/session/authenticated request/Demo order/cancellation/manual run. No scheduler/Stage 10.8, automatic cancellation, wallet sizing or Stage 7/backtest fill orchestration. Explicit operator cancellation needs a separate owner-approved API contract. Stage 10.7 COMPLETE/ready for owner review; Stage 10 INCOMPLETE; Stage 10.8 next/NOT STARTED.
+
 ### Accepted Stage 10 roadmap
 
 | Milestone | Status |
@@ -623,8 +684,8 @@ Runtime/store/state/planner/reconciliation, schema v1, locking, Stage 10.4, Deci
 | 10.4 — Closed-Candle Market Data Gate | COMPLETE; published/frozen at `1865435`; public/read-only only. |
 | 10.5 — Startup / Broker Reconciliation | COMPLETE/FROZEN at `7576820`, including the exact-execution correction. |
 | 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy | COMPLETE/FROZEN at `6865a1e`; pure planner. |
-| 10.7 — Single-Cycle Demo Runtime Orchestration | BLOCKED / NOT STARTED until the Stage 9.5 correction is reviewed/frozen. |
-| 10.8 — Long-Running Candle Scheduler | NOT STARTED. |
+| 10.7 — Single-Cycle Demo Runtime Orchestration | COMPLETE; explicit bounded cycle, ready for owner review/freeze. |
+| 10.8 — Long-Running Candle Scheduler | Next; NOT STARTED. |
 | 10.9 — Restart / Crash / Ambiguous-Action Recovery | NOT STARTED. |
 | 10.10 — Runtime Integration Regression + Optional Explicit Demo Run | NOT STARTED; any actual run requires separate explicit authorization. |
 | 10.11 — Final Stage 10 Audit + Docs | NOT STARTED. |
@@ -731,7 +792,7 @@ Validation: **123 new Stage 9.4 tests**, **148 unchanged exchange/API tests** (4
 
 ## Explicit Demo Spot Market order actions
 
-Stage 9.5 remains **COMPLETE/FROZEN except its separately approved pre-submit hook correction pending review/freeze**. [Decision 015](decisions/015_spot_market_order_lifecycle.md) records the original stable action contract; the additive correction is documented above without changing the ADR. `exchange/order_actions.py` defines frozen/slotted broker-independent `SpotMarketOrderRequest`, `SpotMarketOrderAcknowledgement`, and `OrderCancellationAcknowledgement`. `exchange/bybit_demo_orders.py` defines `BybitDemoOrderAdapter`, `BybitDemoActionError`, `BybitDemoOrderRejectedError`, `BybitDemoActionParseError`, and `BybitDemoAmbiguousActionError`. All eight names are explicit package imports; previous wildcard exports remain unchanged.
+Stage 9.5 remains **COMPLETE/FROZEN, including its pre-submit correction at `77a88fe`**. [Decision 015](decisions/015_spot_market_order_lifecycle.md) records the original stable action contract; the additive correction is documented above without changing the ADR. `exchange/order_actions.py` defines frozen/slotted broker-independent `SpotMarketOrderRequest`, `SpotMarketOrderAcknowledgement`, and `OrderCancellationAcknowledgement`. `exchange/bybit_demo_orders.py` defines `BybitDemoOrderAdapter`, `BybitDemoActionError`, `BybitDemoOrderRejectedError`, `BybitDemoActionParseError`, and `BybitDemoAmbiguousActionError`. All eight names are explicit package imports; previous wildcard exports remain unchanged.
 
 ```python
 BybitDemoOrderAdapter(session)
@@ -1079,7 +1140,7 @@ Reserve belongs to the same portfolio. Stage 7.5 MTM equity now includes reserve
 
 Default fraction 1.0 must reproduce Stage 6 exactly, including quantities, independent GROSS/NET accounting, equity, and downstream analytics, without loosening existing tolerances. Frozen BTC reference values are recorded in Decision 011. Prefer existing accounting schemas and derive reserve safely from canonical entry accounting; any necessary new field requires an explicit reviewed decision.
 
-The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 2,101 tests.
+The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 2,179 tests.
 
 ## Position sizing core
 
@@ -1559,9 +1620,9 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Owner review/freeze of the separate completed Stage 9.5 crash-consistent pre-submit hook correction. Stages 10.1–10.6 remain FROZEN; Stage 10 INCOMPLETE; Stage 10.7 — Single-Cycle Demo Runtime Orchestration is BLOCKED / NOT STARTED until this correction is reviewed/frozen.
+Owner review/freeze of completed Stage 10.7 — Single-Cycle Demo Runtime Orchestration. Stage 9 plus its pre-submit correction and Stages 10.1–10.6 remain FROZEN. Stage 10 remains INCOMPLETE; Stage 10.8 — Long-Running Candle Scheduler is next and NOT STARTED.
 
-Stage 9.1–9.7 and Stage 9 remain COMPLETE/FROZEN except this correction pending review. Stages 10.1–10.6, Decision 017 and both Stage 10.3 corrections remain frozen. Stage 8, Stage 5 frozen EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. Bounded read-only reconciliation and pure action planning exist; no order orchestration, scheduler, polling, automatic strategy/risk wiring or actual authenticated broker request/action exists. Tests write runtime artifacts only in temporary directories.
+Stage 9.1–9.7, the pre-submit correction, Stages 10.1–10.6, Decision 017 and both Stage 10.3 corrections remain frozen. Stage 8, Stage 5 frozen EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. One explicitly invoked cycle now coordinates the frozen boundaries; no scheduler/polling, automatic cancellation, wallet sizing or actual authenticated broker request/action. Tests write runtime artifacts only in temporary directories.
 
 ## Not implemented yet
 
@@ -1571,7 +1632,7 @@ Stage 9.1–9.7 and Stage 9 remain COMPLETE/FROZEN except this correction pendin
 - Drawdown duration/recovery and subsequent portfolio metrics.
 - Additional reusable strategies beyond the EMA crossover strategy.
 - Performance analytics beyond the 16 CLOSED-trade summary metrics, separate realized-capital drawdown, ledger-based duration/exposure, candle-level equity, candle-close portfolio drawdown, the aligned Buy-and-Hold comparison, and time-based returns/Sharpe/Sortino with support volatility/downside metrics; broader multi-strategy comparison.
-- Order modification and automated live/demo execution beyond explicit Demo Spot Market actions, separate state/fill reads and bounded read-only startup reconciliation.
+- Order modification and long-running automated Demo execution beyond the explicitly invoked bounded single-cycle boundary; scheduler and operator-cancellation orchestration remain unimplemented.
 - Multiple autonomous bot instances and order management.
 - Broader centralized risk controls beyond fixed capital allocation.
 - PostgreSQL.
@@ -1580,9 +1641,9 @@ Stage 9.1–9.7 and Stage 9 remain COMPLETE/FROZEN except this correction pendin
 
 ## Next milestone
 
-Stage 10.7 — Single-Cycle Demo Runtime Orchestration is BLOCKED / NOT STARTED, pending owner review/freeze of the separate Stage 9.5 correction and explicit implementation authorization.
+Stage 10.8 — Long-Running Candle Scheduler is next and NOT STARTED, pending owner review/freeze of Stage 10.7 and explicit implementation authorization.
 
-Stages 10.1–10.6 and both Stage 10.3 corrections remain COMPLETE/FROZEN. Stage 10 remains INCOMPLETE and Stage 9 remains COMPLETE/FROZEN except its separate Stage 9.5 correction pending review. Do not begin Stage 10.7 or later work, wire strategies to the exchange, implement a scheduler, or run an authenticated Demo smoke/order automatically.
+Stage 9 plus its pre-submit correction and Stages 10.1–10.6 remain COMPLETE/FROZEN. Stage 10.7 is COMPLETE/ready for owner review; Stage 10 remains INCOMPLETE. Do not begin Stage 10.8 or later work or run an authenticated Demo smoke/order automatically. Explicit operator cancellation needs a separately approved API contract.
 
 ## Backtesting execution contract
 
