@@ -16,7 +16,9 @@ Stage 10.3 — Durable Runtime Persistence + Single-Instance Lock is COMPLETE an
 
 Stage 10.4 — Closed-Candle Market Data Gate is COMPLETE, published and frozen at `1865435bb0310dd5d8e8ce7208d56650dc51590a`. Public/read-only market observations only; no operational runtime or authenticated trading.
 
-Stage 10.5 — Startup / Broker Reconciliation is COMPLETE with its exact-execution ownership correction and NOT FROZEN pending owner review. One bounded read-only round consumes normalized Demo broker observations and public durable history, then persists safe exposure/pending/uncertain/HALT evidence. No order mutation, strategy/planner/market-data orchestration or scheduler exists. Stage 10.6 remains NOT STARTED.
+Stage 10.5 — Startup / Broker Reconciliation is COMPLETE, published, owner-reviewed and FROZEN at `757682038f2a5686e5d45e98dda378e91901b392`. One bounded read-only round consumes normalized Demo broker observations and public durable history, then persists safe exposure/pending/uncertain/HALT evidence. No order mutation, strategy/planner/market-data orchestration or scheduler exists.
+
+Stage 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy is COMPLETE and ready for owner review/freeze. Pure planning/authorization only; Stage 10.7 remains NOT STARTED.
 
 Stage 9 — Bybit Demo Exchange Adapter is COMPLETE after Stage 9.7 — Final Stage 9 Audit + Docs.
 
@@ -526,6 +528,8 @@ Stage 10.5 is **COMPLETE / ready for owner review/freeze**. Stage 9 COMPLETE; St
 
 ### Stage 10.5 exact-execution ownership correction
 
+Current status: owner-reviewed and FROZEN at `757682038f2a5686e5d45e98dda378e91901b392`. The following record retains its completion-time status and test totals.
+
 Owner review of published Stage 10.5 (`c450025793a857132b8f29880a5e0afbcb5c600b`) identified incomplete ownership binding at the exact-order execution read. Merged views already guarded persisted known IDs, but a newly recovered ID was not yet in the durable action map: later executions with missing/unmapped links could be skipped and allow false pending or terminal confirmation.
 
 Every exact-order execution now passes through `_execution()` against the original placement and selected broker ID before merging. Missing optional links remain UNCERTAIN; explicit identity contradictions HALT, including a wrong link accompanied by stale timestamps. Matching executions reuse broker/account, symbol/side, UTC/freshness and exact quantity/price/fee validation. No execution from an incomplete/conflicting round is persisted, and an older order snapshot cannot force consistency with newly visible fills.
@@ -533,6 +537,54 @@ Every exact-order execution now passes through `_execution()` against the origin
 Added **8 focused tests** covering exact-only missing/wrong/correct links, order-snapshot races, malformed identity/financial fields, stale timestamps, recovered IDs and terminal completeness with retained/earlier fills. The existing missing-link regression and all 82 prior Stage 10.5 tests are preserved. Stage 10.5 **90**, RuntimeStore **211**, locking **23**, Stage 10.2 **188**, Stage 10.4 **97**, Stage 9.4 **123**, Stage 9.6 **68**, EMA **16** pass; full suite **1,993 (1,985 + 8)** passes with zero failures/errors/skips. `pip check`, `git diff --check` and `git diff --staged --check` pass.
 
 Only Stage 10.5 production/tests and current documentation change. Public APIs, schema, RuntimeStore, state machine, both Stage 10.3 corrections, Stage 10.4, Stage 9, Decision 017, notebooks/data/dependencies and frozen financial/timing behavior remain unchanged. No credentials, actual broker request, order or cancellation. The correction is COMPLETE for owner review; Stage 10.5 remains **NOT FROZEN**, Stage 10 INCOMPLETE and Stage 10.6 NOT STARTED.
+
+### Runtime action planner and explicit Demo sizing — Stage 10.6
+
+Starting baseline: clean `main` at `757682038f2a5686e5d45e98dda378e91901b392`. Stage 10.5, including its exact-execution correction, is owner-reviewed and FROZEN. Only `runtime/planner.py`, `tests/test_runtime_planner.py` and current documentation are added/changed; all earlier production/tests, Decisions 001–017, schema, notebooks, data/results and dependencies are preserved.
+
+Public API, imported explicitly from `trading_lab.runtime.planner`:
+
+```python
+class PlannerError(ValueError): ...
+class PlanKind(str, Enum):  # NOOP, PLACE_BUY, PLACE_SELL, WAIT, RECONCILE, HALT
+    ...
+class DecisionMode(str, Enum):  # LIVE, BOOTSTRAP, REPLAY_ONLY
+    ...
+CanonicalDecision(symbol, timeframe, candle_open_ms, input_fingerprint,
+                  signal, desired_position, available_at_ms)
+ActionPlan(kind, decision=None, action=None, events=(), reason=None)
+plan_action(
+    config: RuntimeConfiguration,
+    checkpoint: RuntimeCheckpoint,
+    decision: CanonicalDecision,
+    *,
+    evaluated_at_ms: int,
+    mode: DecisionMode,
+    action_history: tuple[ActionRecord, ...],
+) -> ActionPlan
+```
+
+The two new records are frozen/slotted. Canonical decisions reuse frozen DecisionRecord validation without assigning a disposition/action prematurely. ActionPlan carries a complete DecisionRecord when a candle may be handled, an optional matching PREPARED ActionRecord, an ordered immutable tuple of frozen RuntimeEvents and an optional safe RuntimeReason. Control refusals (unavailable/already handled candles, consumed actions, RECONCILE or latched shutdown/HALT) can have no decision row. No checkpoint values are advanced or changed; validation reconstructs equal records without modifying inputs.
+
+State precedence: HALTED/STOPPING refuse with HALT and no rearm/event; STARTING/SYNCHRONIZING/UNCERTAIN return RECONCILE; ORDER_PENDING returns WAIT and never another action. In confirmed FLAT/LONG, fresh matching desired intent is NOOP, an eligible LONG_ENTRY from FLAT is PLACE_BUY, and an eligible LONG_EXIT from LONG is PLACE_SELL. Live HOLD/owned-state mismatches HALT. Historical BOOTSTRAP/REPLAY_ONLY never create actions and retain their matching dispositions; pending historical evaluations remain WAIT with the historical disposition. Missing/stale reconciliation blocks even historical handling in FLAT/LONG. NO_CHANGE proposals preserve holdings/pending identity while carrying latest desired intent. A journaled fatal live decision supplies NO_CHANGE followed by FATAL_INCONSISTENCY so its final proposed HALT retains the new intent required by the frozen store. Tests commit the final checkpoint atomically, not an intermediate operational state.
+
+BUY authorization is **exact `config.buy_quote_budget` / QUOTE / `config.quote_currency`**. SELL is **exact confirmed `owned_base_quantity` / BASE / `config.base_currency`**. No pre-rounding, wallet/equity/price input, fraction, fee reserve, sizing callback or Stage 7 policy. Stage 9.5 alone later fetches rules and normalizes submission downward; `submitted_amount`, broker IDs/receipts/status remain absent in these PREPARED records. No dust retry or cancellation is planned.
+
+Causal availability is candle open + 3,600,000 ms. Evaluation is explicit integer UTC milliseconds: availability equality is eligible; earlier evaluation returns WAIT without a decision. Decision age and both checkpoint reconciliation/observation ages accept equality with the configured maximum; one ms beyond blocks placement. Future reconciliation/observation timestamps HALT. Stale satisfied intent is REPLAY_ONLY; stale unmatched live intent HALTs, without catching up. Durable bootstrap/replay cutoffs cannot be overridden by LIVE. Already handled candles return WAIT without a new row; missing contiguous history returns RECONCILE. New action deadline is **available_at_ms + reconciliation_timeout_ms**, independent of evaluation time, and evaluation at/after that deadline cannot authorize. Round/read budgets are copied exactly from configuration.
+
+Canonical identity bytes are UTF-8 JSON with sorted keys, compact separators and ensure_ascii=True, exactly:
+
+```json
+{"action_kind":"ENTRY","authorized_amount":"<serialize_decimal(amount)>","candle_open_ms":0,"configuration_digest":"<sha256>","instance_key":{"account_binding":"<label>","bot_id":"<bot>","broker_id":"bybit-demo"},"runtime_contract_version":1,"side":"BUY","unit":"QUOTE"}
+```
+
+EXIT substitutes EXIT/SELL/BASE and exact owned amount. Full ID is `sha256(encoded).hexdigest()`; link is `bot_id + "-" + id[:23]` (maximum 36 characters). No evaluation time, fingerprint, wallet, price, normalized amount or process/repository data enters this encoding. The golden ENTRY example uses budget 10.123456789, candle 0, digest `b` × 64 and instance research/bot1/bybit-demo: SHA256 **7ad9ceb690c4a52e25b96d6c3408489f66924eb1ed05e002e9f1358e8c216b20**, link **bot1-7ad9ceb690c4a52e25b96d6**.
+
+Caller supplies immutable complete relevant history; no store lookup occurs. Conflicting full IDs, truncated links, same-candle placement IDs, incompatible original intent/deadline and inconsistent unresolved work HALT. Cancellation IDs share the consumed-ID protection. Exact compatible historical actions return WAIT without new authorization, irrespective of their phase; IDs and budgets are never replaced/reset. Repeated identical fresh inputs and later evaluation within the eligible window produce identical action/decision/event records.
+
+Validation: **79 new offline tests**, including **32 state/intent matrix cases**, golden bytes/SHA/link, exact sizing, timing/freshness boundaries, historical/pending behavior, collisions/consumed IDs, input/result preservation and purity. Three temporary-store round trips verify BUY, SELL and journaled HALT through unchanged public commit_decision()/reopen behavior; production imports no RuntimeStore and performs no store operation. Frozen Stage 10.5 **90**, RuntimeStore **211**, locking **23**, Stage 10.2 **188**, Stage 10.4 **97**, Stage 9.4 **123**, Stage 9.5 **76**, Stage 9.6 **68**, EMA **16** pass. Full suite **2,072 (1,993 + 79)** passes with zero failures/errors/skips; `pip check`, `git diff --check` and `git diff --staged --check` pass.
+
+No broker/account/wallet/metadata/market-data read, credential/env access, mutation adapter, order/cancel/attempt dispatch, strategy calculation, scheduler, runtime loop or Stage 10.7 orchestration exists. Planning produces data only. Stage 10.6 COMPLETE/ready for owner review; Stages 10.1–10.5 FROZEN, Stage 10 INCOMPLETE, Stage 10.7 next/NOT STARTED.
 
 ### Accepted Stage 10 roadmap
 
@@ -542,8 +594,8 @@ Only Stage 10.5 production/tests and current documentation change. Public APIs, 
 | 10.2 — Runtime State Model + Pure State Machine | COMPLETE; published/frozen at `8b41427`; pure state core only. |
 | 10.3 — Durable Runtime Persistence + Single-Instance Lock | COMPLETE/FROZEN; baseline `56584c4`; corrections FROZEN at `ad3aca7` and `8b3a482`. |
 | 10.4 — Closed-Candle Market Data Gate | COMPLETE; published/frozen at `1865435`; public/read-only only. |
-| 10.5 — Startup / Broker Reconciliation | COMPLETE; exact-execution correction ready for review; NOT FROZEN. |
-| 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy | NOT STARTED. |
+| 10.5 — Startup / Broker Reconciliation | COMPLETE/FROZEN at `7576820`, including the exact-execution correction. |
+| 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy | COMPLETE; pure planner, ready for owner review/freeze. |
 | 10.7 — Single-Cycle Demo Runtime Orchestration | NOT STARTED. |
 | 10.8 — Long-Running Candle Scheduler | NOT STARTED. |
 | 10.9 — Restart / Crash / Ambiguous-Action Recovery | NOT STARTED. |
@@ -1000,7 +1052,7 @@ Reserve belongs to the same portfolio. Stage 7.5 MTM equity now includes reserve
 
 Default fraction 1.0 must reproduce Stage 6 exactly, including quantities, independent GROSS/NET accounting, equity, and downstream analytics, without loosening existing tolerances. Frozen BTC reference values are recorded in Decision 011. Prefer existing accounting schemas and derive reserve safely from canonical entry accounting; any necessary new field requires an explicit reviewed decision.
 
-The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 1,993 tests.
+The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 2,072 tests.
 
 ## Position sizing core
 
@@ -1480,9 +1532,9 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Owner review of the completed Stage 10.5 exact-execution ownership correction. Stage 10.5 remains NOT FROZEN. Stage 10 remains INCOMPLETE; Stage 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy is next and NOT STARTED.
+Owner review/freeze of completed Stage 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy. Stages 10.1–10.5 remain FROZEN; Stage 10 INCOMPLETE; Stage 10.7 — Single-Cycle Demo Runtime Orchestration is next and NOT STARTED.
 
-Stage 9.1–9.7 and Stage 9 remain COMPLETE. Stages 10.1–10.4, Decision 017 and both Stage 10.3 corrections remain frozen. Stage 8, Stage 5 frozen EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. Only bounded read-only reconciliation now exists; no planner, order orchestration, scheduler, polling, automatic strategy/risk wiring or actual authenticated broker request/action exists. Tests write runtime artifacts only in temporary directories.
+Stage 9.1–9.7 and Stage 9 remain COMPLETE. Stages 10.1–10.5, Decision 017 and both Stage 10.3 corrections remain frozen. Stage 8, Stage 5 frozen EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. Bounded read-only reconciliation and pure action planning now exist; no order orchestration, scheduler, polling, automatic strategy/risk wiring or actual authenticated broker request/action exists. Tests write runtime artifacts only in temporary directories.
 
 ## Not implemented yet
 
@@ -1501,9 +1553,9 @@ Stage 9.1–9.7 and Stage 9 remain COMPLETE. Stages 10.1–10.4, Decision 017 an
 
 ## Next milestone
 
-Stage 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy, after owner review/freeze and explicit authorization. NOT STARTED.
+Stage 10.7 — Single-Cycle Demo Runtime Orchestration, after owner review/freeze and explicit authorization. NOT STARTED.
 
-Stages 10.1–10.4 and both Stage 10.3 corrections remain COMPLETE/FROZEN; Stage 10.5 is COMPLETE with its exact-execution correction and NOT FROZEN pending owner review. Stage 10 remains INCOMPLETE and Stage 9 remains COMPLETE. Do not begin Stage 10.6, wire strategies to the exchange, implement a scheduler, or run an authenticated Demo smoke/order automatically.
+Stages 10.1–10.5 and both Stage 10.3 corrections remain COMPLETE/FROZEN; Stage 10.6 is COMPLETE and ready for owner review/freeze. Stage 10 remains INCOMPLETE and Stage 9 remains COMPLETE. Do not begin Stage 10.7, wire strategies to the exchange, implement a scheduler, or run an authenticated Demo smoke/order automatically.
 
 ## Backtesting execution contract
 

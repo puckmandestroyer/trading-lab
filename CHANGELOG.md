@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-12 — Stage 10.6 pure runtime action planner
+
+- Added immutable canonical decision/mode/plan records and pure NOOP/PLACE_BUY/PLACE_SELL/WAIT/RECONCILE/HALT planning. State, historical eligibility, integer timing/freshness, consumed IDs/collisions and exact PREPARED authorization fail closed without I/O or checkpoint changes.
+- BUY is exact configured quote budget; SELL is exact confirmed owned base, with no wallet/Stage 7 sizing, pre-rounding or invented fee reserve. Fixed canonical sorted compact UTF-8 JSON/SHA256, 23-hex link suffix, deterministic deadline and copied recovery budgets preserve identity across replay/evaluation times.
+- Added **79 offline tests**, including **32 state/intent pairs**, golden bytes/hash/link, collisions, pure I/O guards and three frozen-store/state compatibility round trips (BUY/SELL/HALT). Journaled HALT proposes NO_CHANGE then FATAL_INCONSISTENCY, preserving latest intent through existing public contracts.
+- Stage 10.6 **79**, Stage 10.5 **90**, RuntimeStore **211**, locking **23**, Stage 10.2 **188**, Stage 10.4 **97**, Stage 9.4 **123**, Stage 9.5 **76**, Stage 9.6 **68**, EMA **16**, full suite **2,072 (1,993 + 79)** pass; zero failures/errors/skips. `pip check` and both diff checks pass.
+- Stages 10.1–10.5, including Stage 10.5 correction at `7576820`, remain owner-reviewed/FROZEN. Earlier source/tests/APIs/schema/Decisions 001–017, notebooks/data/results/dependencies and financial/timing behavior are unchanged. No credentials, actual broker request, order/cancel, metadata/strategy fetch, scheduler or orchestration. Stage 10.6 COMPLETE/ready for owner review, Stage 10 INCOMPLETE, Stage 10.7 next/NOT STARTED.
+
 ## 2026-10-12 — Stage 10.5 exact-execution ownership correction
 
 - Validate every exact-order execution against the selected placement before merging, reusing normalized identity/time/Decimal checks. Missing links remain UNCERTAIN; explicit contradictions HALT. Later unresolved evidence blocks false pending/terminal settlement, including newly recovered IDs.
