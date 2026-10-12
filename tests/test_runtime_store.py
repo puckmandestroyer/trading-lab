@@ -1357,5 +1357,249 @@ for source in ActionPhase:
         setattr(PhaseMatrixTests, "test_" + source.value.lower() + "__" + target.value.lower(), phase_case(source, target))
 
 
+class DurableEnumerationTests(StoreCase):
+    """Discover local history after restart, without broker or recovery policy."""
+
+    def history(self):
+        # Valid public writes insert ENTRY, EXIT, CANCEL in a different order
+        # from their IDs. Terminal ENTRY and unresolved EXIT/CANCEL coexist.
+        first = replace(fill("buy-z"), executed_quantity=D("0.05"), executed_at_ms=HOUR + 2)
+        second = replace(fill("buy-a"), executed_quantity=D("0.073456789"),
+                         execution_fee=D("0"), executed_at_ms=HOUR + 1)
+        self.settle(self.acknowledge(), first, second)
+        owned = self.store.get_checkpoint().snapshot.owned_base_quantity
+        exit_id = "a" * 64
+        exit_action = ActionRecord(exit_id, JournalActionKind.EXIT, "BTCUSDT", 2 * HOUR + 600000, 5, 3,
+                                   "bot1-" + exit_id[:23], HOUR, side="SELL", amount_unit="BASE",
+                                   currency="BTC", authorized_amount=owned)
+        exit_decision = DecisionRecord("BTCUSDT", "60", HOUR, "d" * 64, "LONG_EXIT", 0,
+                                       DecisionDisposition.ACTION, 2 * HOUR, exit_id)
+        pending = RuntimeStateSnapshot(RuntimeState.ORDER_PENDING, owned, PositionEvidence.CONFIRMED, 0,
+                                       PendingAction(exit_id, PendingActionKind.EXIT))
+        current = self.store.get_checkpoint()
+        self.store.commit_decision(candle(HOUR), exit_decision,
+                                   self.next_checkpoint(snapshot=pending, last_processed_candle_ms=HOUR),
+                                   expected_sequence=current.sequence, action=exit_action)
+        current = self.store.get_checkpoint()
+        self.store.start_attempt(exit_id, self.next_checkpoint(), expected_sequence=current.sequence)
+        exit_action = replace(self.store.get_action(exit_id), phase=ActionPhase.ACKNOWLEDGED,
+                              broker_order_id="order-2", submitted_amount=owned,
+                              acknowledgement_broker_ms=2 * HOUR + 1, acknowledgement_observed_ms=2 * HOUR + 2,
+                              order_status="PARTIALLY_FILLED", external_status="PartiallyFilled",
+                              observed_at_ms=2 * HOUR + 4)
+        third = OwnedFillRecord("bybit-demo", "research", "sell-fill", exit_id, "order-2",
+                               exit_action.order_link_id, "BTCUSDT", "SELL", D("0.02"),
+                               D("111.123456789"), D("0.01"), "USDT", 2 * HOUR + 3, 2 * HOUR + 4)
+        current = self.store.get_checkpoint()
+        self.store.record_observation(exit_action,
+                                      self.next_checkpoint(snapshot=replace(pending, owned_base_quantity=D("0.1034691346789"))),
+                                      expected_sequence=current.sequence, fills=(third,))
+        cancel = ActionRecord("b" * 64, JournalActionKind.CANCEL, "BTCUSDT", 2 * HOUR + 600000, 4, 2,
+                              control_id="operator-cancel", parent_action_id=exit_id, target_broker_order_id="order-2")
+        current = self.store.get_checkpoint()
+        self.store.prepare_cancellation(cancel, self.next_checkpoint(), expected_sequence=current.sequence)
+        current = self.store.get_checkpoint()
+        self.store.start_attempt(cancel.logical_action_id, self.next_checkpoint(), expected_sequence=current.sequence)
+        cancel = replace(self.store.get_action(cancel.logical_action_id), phase=ActionPhase.UNKNOWN_OUTCOME,
+                         safe_reason=RuntimeReason.ACTION_OUTCOME_UNKNOWN,
+                         remaining_reconciliation_rounds=3, remaining_read_attempts=1)
+        current = self.store.get_checkpoint()
+        uncertain = transition_runtime_state(current.snapshot, RuntimeEvent(
+            RuntimeEventType.UNCERTAINTY_DETECTED, reason=RuntimeReason.ACTION_OUTCOME_UNKNOWN))
+        self.store.record_observation(cancel, self.next_checkpoint(snapshot=uncertain), expected_sequence=current.sequence)
+        return (exit_action, cancel, self.store.get_action(ACTION_ID)), (second, first, third)
+
+    def test_empty_actions_are_an_immutable_tuple(self):
+        self.assertEqual(self.store.list_actions(), ())
+        self.assertIs(type(self.store.list_actions()), tuple)
+
+    def test_one_prepared_action_is_returned_without_attempting_it(self):
+        action = self.prepare()
+        self.assertEqual(self.store.list_actions(), (action,))
+        self.assertIs(action.phase, ActionPhase.PREPARED)
+        self.assertEqual(action.attempt_count, 0)
+
+    def test_all_action_kinds_and_terminal_history_are_returned_in_id_order(self):
+        actions, _ = self.history()
+        self.assertEqual(self.store.list_actions(), actions)
+        self.assertEqual([action.kind for action in actions],
+                         [JournalActionKind.EXIT, JournalActionKind.CANCEL, JournalActionKind.ENTRY])
+        self.assertIs(actions[-1].phase, ActionPhase.TERMINAL_CONFIRMED)
+        self.assertIs(actions[1].phase, ActionPhase.UNKNOWN_OUTCOME)
+
+    def test_cancellation_can_be_discovered_after_restart_from_parent_checkpoint(self):
+        actions, _ = self.history()
+        before = self.store.get_checkpoint()
+        expected_cancel = actions[1]
+        self.assertEqual(before.snapshot.pending_action.logical_action_id, expected_cancel.parent_action_id)
+        self.assertNotEqual(before.snapshot.pending_action.logical_action_id, expected_cancel.logical_action_id)
+        self.reopen()
+        # Discovery supplies the control ID; it is not an input to the read.
+        discovered = tuple(action for action in self.store.list_actions() if action.kind == JournalActionKind.CANCEL)
+        self.assertEqual(discovered, (expected_cancel,))
+        self.assertEqual(self.store.get_checkpoint(), before)
+        self.assertIsNone(discovered[0].observed_at_ms)
+        self.assertIsNone(discovered[0].terminal_at_ms)
+
+    def test_action_and_fill_records_remain_frozen_and_slotted(self):
+        self.settle(self.acknowledge(), fill())
+        for record in (*self.store.list_actions(), *self.store.list_fills()):
+            self.assertFalse(hasattr(record, "__dict__"))
+            with self.assertRaises(FrozenInstanceError):
+                setattr(record, fields(record)[0].name, "changed")
+        with self.assertRaises(TypeError):
+            self.store.list_actions()[0] = prepared()
+
+    def test_empty_fills_and_valid_unknown_action_return_empty_tuple(self):
+        self.assertEqual(self.store.list_fills(), ())
+        self.assertEqual(self.store.list_fills("f" * 64), ())
+
+    def test_one_fill_is_exactly_preserved(self):
+        self.settle(self.acknowledge(), fill())
+        self.assertEqual(self.store.list_fills(), (fill(),))
+        self.assertEqual(self.store.list_fills(ACTION_ID), (fill(),))
+        self.assertIs(type(self.store.list_fills()), tuple)
+
+    def test_all_fills_across_actions_are_returned_in_execution_time_order(self):
+        _, executions = self.history()
+        self.assertEqual(self.store.list_fills(), executions)
+        self.assertEqual({record.action_id for record in executions}, {ACTION_ID, "a" * 64})
+
+    def test_fill_filter_is_exact_and_unknown_action_is_empty(self):
+        _, executions = self.history()
+        self.assertEqual(self.store.list_fills(ACTION_ID), executions[:2])
+        self.assertEqual(self.store.list_fills("a" * 64), executions[2:])
+        self.assertEqual(self.store.list_fills("f" * 64), ())
+
+    def test_fill_filter_rejects_noncanonical_action_ids(self):
+        for value in (True, 1, "", "a" * 63, "a" * 65, "A" * 64, "g" * 64, " " + "a" * 64, [], {}):
+            with self.subTest(value=value), self.assertRaises(RuntimeStoreError):
+                self.store.list_fills(value)
+
+    def test_equal_execution_times_use_execution_id_order_not_insertion_order(self):
+        z = replace(fill("z-fill"), execution_fee=D("0"))
+        a = replace(fill("a-fill"), execution_fee=D("0"))
+        self.settle(self.acknowledge(), z, a)
+        self.assertEqual(self.store.list_fills(), (a, z))
+        self.assertEqual(self.store.list_fills(ACTION_ID), (a, z))
+
+    def test_retained_fills_are_discovered_after_restart_without_execution_ids(self):
+        _, executions = self.history()
+        self.reopen()
+        with localcontext() as context:
+            context.prec = 2
+            discovered = self.store.list_fills(ACTION_ID)
+        self.assertEqual(discovered, executions[:2])
+        for actual, expected in zip(discovered, executions):
+            # Dataclass equality covers IDs, ownership, exact money and times.
+            self.assertEqual(actual, expected)
+            for name in ("executed_quantity", "execution_price", "execution_fee"):
+                self.assertEqual(getattr(actual, name).as_tuple(), getattr(expected, name).as_tuple())
+
+    def test_signed_fees_and_fee_currencies_are_not_inferred_or_changed(self):
+        _, executions = self.history()
+        self.assertEqual([record.execution_fee for record in self.store.list_fills()],
+                         [D("0"), D("-0.0000123456789"), D("0.01")])
+        self.assertEqual([record.fee_currency for record in executions], ["BTC", "BTC", "USDT"])
+
+    def test_zero_fee_with_unavailable_currency_remains_unavailable(self):
+        execution = replace(fill(), execution_fee=D("0"), fee_currency=None)
+        self.settle(self.acknowledge(), execution)
+        self.reopen()
+        self.assertEqual(self.store.list_fills(), (execution,))
+
+    def test_enumeration_does_not_change_checkpoint_journal_or_database_bytes(self):
+        actions, executions = self.history()
+        checkpoint = self.store.get_checkpoint()
+        before = self.lock.database_path.read_bytes()
+        changes = self.store._connection.total_changes
+        self.assertFalse(self.store._connection.in_transaction)
+        for _ in range(2):
+            self.assertEqual(self.store.list_actions(), actions)
+            self.assertEqual(self.store.list_fills(), executions)
+            self.assertEqual(self.store.list_fills(ACTION_ID), executions[:2])
+        self.assertFalse(self.store._connection.in_transaction)
+        self.assertEqual(self.store._connection.total_changes, changes)
+        self.assertEqual(self.lock.database_path.read_bytes(), before)
+        self.assertEqual(self.store.get_checkpoint(), checkpoint)
+        for action in actions:
+            self.assertEqual(self.store.get_action(action.logical_action_id), action)
+        for execution in executions:
+            self.assertEqual(self.store.get_fill(execution.broker_execution_id), execution)
+        self.reopen()
+        self.assertEqual(self.store.list_actions(), actions)
+        self.assertEqual(self.store.list_fills(), executions)
+
+    def test_corrupt_later_action_fails_entire_enumeration_without_repair(self):
+        self.history()
+        self.store._connection.execute("UPDATE actions SET authorized_amount='not-decimal' WHERE logical_action_id=?", (ACTION_ID,))
+        before = self.lock.database_path.read_bytes()
+        with self.assertRaises(RuntimeStoreIntegrityError):
+            self.store.list_actions()
+        self.assertEqual(self.lock.database_path.read_bytes(), before)
+
+    def test_corrupt_later_fill_fails_entire_enumeration_without_repair(self):
+        self.history()
+        self.store._connection.execute("UPDATE fills SET execution_fee='NaN' WHERE broker_execution_id='sell-fill'")
+        before = self.lock.database_path.read_bytes()
+        with self.assertRaises(RuntimeStoreIntegrityError):
+            self.store.list_fills()
+        self.assertEqual(self.lock.database_path.read_bytes(), before)
+
+    def test_filtered_read_does_not_hide_corrupt_durable_history(self):
+        self.history()
+        self.store._connection.execute("UPDATE fills SET execution_price='invalid' WHERE broker_execution_id='sell-fill'")
+        with self.assertRaises(RuntimeStoreIntegrityError):
+            self.store.list_fills(ACTION_ID)
+
+    def test_action_count_over_existing_bound_fails_without_truncation(self):
+        self.history()
+        with patch.object(module, "_MAX_ROWS", 2), self.assertRaises(RuntimeStoreIntegrityError):
+            self.store.list_actions()
+
+    def test_fill_count_over_existing_bound_fails_even_for_filtered_query(self):
+        self.settle(self.acknowledge(), fill("fill-1"), fill("fill-2"), fill("fill-3"))
+        with patch.object(module, "_MAX_ROWS", 2):
+            for action_id in (None, ACTION_ID, "f" * 64):
+                with self.subTest(action_id=action_id), self.assertRaises(RuntimeStoreIntegrityError):
+                    self.store.list_fills(action_id)
+
+    def test_complete_history_at_row_bound_returns_every_record(self):
+        actions, executions = self.history()
+        with patch.object(module, "_MAX_ROWS", 3):
+            self.assertEqual(self.store.list_actions(), actions)
+            self.assertEqual(self.store.list_fills(), executions)
+
+    def test_both_enumerations_fail_closed_on_durability_setting_drift(self):
+        self.store._connection.execute("PRAGMA foreign_keys=OFF")
+        for read in (self.store.list_actions, self.store.list_fills):
+            with self.subTest(read=read.__name__), self.assertRaises(RuntimeStoreIntegrityError):
+                read()
+
+    def test_both_enumerations_require_a_live_store(self):
+        self.store.close()
+        for read in (self.store.list_actions, self.store.list_fills):
+            with self.subTest(read=read.__name__), self.assertRaises(RuntimeStoreError):
+                read()
+
+    def test_final_sqlite_query_failure_is_safe_and_returns_no_partial_history(self):
+        self.history()
+        connection = self.store._connection
+
+        class FailedEnumeration:
+            def execute(self, query, *args):
+                if " ORDER BY " in query:
+                    raise sqlite3.OperationalError("synthetic-private-query-detail")
+                return connection.execute(query, *args)
+
+        for read in (self.store.list_actions, self.store.list_fills):
+            with self.subTest(read=read.__name__), patch.object(self.store, "_connection", FailedEnumeration()):
+                with self.assertRaises(RuntimeStoreIntegrityError) as caught:
+                    read()
+                self.assertNotIn("synthetic-private", str(caught.exception))
+                self.assertIsNone(caught.exception.__cause__)
+                self.assertTrue(caught.exception.__suppress_context__)
+
+
 if __name__ == "__main__":
     unittest.main()

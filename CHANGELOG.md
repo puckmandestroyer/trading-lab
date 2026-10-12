@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-12 — Owner-approved additive Stage 10.3 durable read-API correction
+
+- Added `RuntimeStore.list_actions() -> tuple[ActionRecord, ...]` and `list_fills(action_id: str | None = None) -> tuple[OwnedFillRecord, ...]` for complete local action/control and owned-fill history. Explicit ID/time ordering, exact action filtering and existing full-store decoding/integrity/row bounds fail closed without truncation or partial results.
+- Restart tests discover subordinate cancellation controls and retained executions without already knowing their IDs. Reads preserve all records/checkpoints/phases/budgets; empty local results are not broker evidence. No reconciliation policy, inventory/PnL or network access.
+- Schema v1 and existing write APIs, phase graph, Decimal TEXT, CAS, transactions, PRAGMAs and locking remain unchanged; no migration. First correction `ad3aca7`, state machine, Stage 10.4, Stage 9 and Decision 017 remain frozen. Existing tests, including all 49 phase pairs and 22 first-correction tests, are unchanged.
+- Added **24 tests**; RuntimeStore **211**, locking **23**, Stage 10.2 **188**, Stage 10.4 **97**, Stage 9.4 **123**, Stage 9.6 **68** and EMA **16** pass; full suite **1,903 (1,879 + 24)** passes with zero failures/errors/skips. `pip check` and `git diff --check` pass.
+- Correction COMPLETE/ready for separate owner review/freeze. Stage 10.5 BLOCKED / NOT COMPLETE until that review; no reconciliation code/tests added. Stage 10 INCOMPLETE; Stage 10.6 NOT STARTED. No credentials, authenticated request, account read, order/cancellation, notebook/data/dependency changes or next milestone.
+
 ## 2026-10-11 — Owner-approved narrow Stage 10.3 persistence correction
 
 - Refined only RuntimeStore relation validation to admit UNKNOWN_OUTCOME during nonconfirmed SYNCHRONIZING and exact observed OPEN/PARTIALLY_FILLED placement recovery to ORDER_PENDING. Original IDs, missing receipts, one attempt and explicit HALT rearm remain intact; unknown cancellation work still blocks confirmed pending recovery.

@@ -766,6 +766,41 @@ class RuntimeStore:
         _text(execution_id)
         return self._one("fills", "broker_id=? AND account_binding=? AND broker_execution_id=?", (self._configuration.broker_id, self._configuration.account_binding, execution_id))
 
+    def list_actions(self) -> tuple[ActionRecord, ...]:
+        """Complete durable action history, ordered by logical_action_id ASC.
+
+        Includes cancellation controls and terminal history without resolving
+        anything. Full validation enforces the existing row bounds and binding;
+        corruption fails the entire read rather than returning a partial tuple.
+        """
+        self._validate_all()
+        try:
+            return tuple(_decode("actions", row) for row in self._connection.execute(
+                "SELECT * FROM actions ORDER BY logical_action_id ASC"))
+        except sqlite3.Error:
+            raise RuntimeStoreIntegrityError("Cannot enumerate durable action history.") from None
+
+    def list_fills(self, action_id: str | None = None) -> tuple[OwnedFillRecord, ...]:
+        """Complete bound-account fills, optionally for one exact action ID.
+
+        Order is executed_at_ms ASC, broker_execution_id ASC. An empty tuple
+        describes only this local query, not whether an exchange order filled.
+        No inventory, completeness or reconciliation policy is calculated here.
+        """
+        if action_id is not None:
+            _digest(action_id)
+        self._validate_all()
+        query = "SELECT * FROM fills WHERE broker_id=? AND account_binding=?"
+        arguments = (self._configuration.broker_id, self._configuration.account_binding)
+        if action_id is not None:
+            query += " AND action_id=?"
+            arguments += (action_id,)
+        query += " ORDER BY executed_at_ms ASC, broker_execution_id ASC"
+        try:
+            return tuple(_decode("fills", row) for row in self._connection.execute(query, arguments))
+        except sqlite3.Error:
+            raise RuntimeStoreIntegrityError("Cannot enumerate durable fill history.") from None
+
     def _validate_all(self):
         self._verify_settings()
         connection = self._connection

@@ -12,11 +12,11 @@ Stage 10.1 — Runtime Contract / Architecture is COMPLETE, published and frozen
 
 Stage 10.2 — Runtime State Model + Pure State Machine is COMPLETE, published and frozen at `8b41427d669f5c17717a296113aa7b28b9dd23e3`. Its pure model, public API and tests remain unchanged.
 
-Stage 10.3 — Durable Runtime Persistence + Single-Instance Lock is COMPLETE, with published baseline `56584c462b1226f36941ab02726ed7a621a82dac`. The owner-approved narrow persistence correction below is COMPLETE and ready for review/freeze; schema, public APIs, phase graph and locking remain unchanged.
+Stage 10.3 — Durable Runtime Persistence + Single-Instance Lock is COMPLETE, with published baseline `56584c462b1226f36941ab02726ed7a621a82dac`. The first owner-approved recovery correction is reviewed and FROZEN at `ad3aca759dbb556d736996bf39b0ba035bb0e512`. The separate owner-approved additive durable read-API correction below is COMPLETE and ready for review/freeze; schema v1, write APIs, phase graph and locking remain unchanged.
 
 Stage 10.4 — Closed-Candle Market Data Gate is COMPLETE, published and frozen at `1865435bb0310dd5d8e8ce7208d56650dc51590a`. Public/read-only market observations only; no operational runtime or authenticated trading.
 
-Stage 10.5 — Startup / Broker Reconciliation has STARTED with a context/contract audit and remains BLOCKED / NOT COMPLETE until the separate Stage 10.3 correction is reviewed/frozen. No reconciliation implementation has been added or resumed. Stage 10.6 remains NOT STARTED.
+Stage 10.5 — Startup / Broker Reconciliation has STARTED with a context/contract audit and remains BLOCKED / NOT COMPLETE until the separate Stage 10.3 durable read-API correction is reviewed/frozen. No reconciliation implementation has been added or resumed. Stage 10.6 remains NOT STARTED.
 
 Stage 9 — Bybit Demo Exchange Adapter is COMPLETE after Stage 9.7 — Final Stage 9 Audit + Docs.
 
@@ -361,6 +361,8 @@ store.get_candle(candle_open_ms) -> CandleRecord | None
 store.get_decision(candle_open_ms) -> DecisionRecord | None
 store.get_action(action_id) -> ActionRecord | None
 store.get_fill(execution_id) -> OwnedFillRecord | None
+store.list_actions() -> tuple[ActionRecord, ...]
+store.list_fills(action_id: str | None = None) -> tuple[OwnedFillRecord, ...]
 store.save_checkpoint(checkpoint, *, expected_sequence) -> None
 store.commit_decision(candle, decision, checkpoint, *, expected_sequence, action=None) -> bool
 store.prepare_cancellation(action, checkpoint, *, expected_sequence) -> None
@@ -455,6 +457,8 @@ Validation after this review: **zero new Stage 10.5 unit tests**; targeted Stage
 
 ### Owner-approved narrow Stage 10.3 persistence correction
 
+Current status: reviewed and FROZEN at `ad3aca759dbb556d736996bf39b0ba035bb0e512`. The following paragraphs retain its original completion record; the separate additive read correction is recorded below.
+
 The correction is **COMPLETE and ready for review/freeze** against starting HEAD `1865435`. Only `RuntimeStore._validate_relations()` changes: UNKNOWN_OUTCOME may coexist with nonconfirmed SYNCHRONIZING while retaining exact pending identity and existing HALT rearm rules. ORDER_PENDING is admitted only for the sole exact unresolved UNKNOWN_OUTCOME placement with attempt_count 1, known broker order ID, observation timestamp and OPEN/PARTIALLY_FILLED status. An unknown subordinate cancellation still blocks this confirmed-state exception. Missing acknowledgement/submitted-amount fields remain missing; no receipt, terminal state or resend is fabricated.
 
 This aligns persistence with unchanged Decision 017 and Stage 10.2 recovery semantics. Schema/runtime-contract version 1, tables/columns/indexes, public signatures/record fields, phase graph, Decimal TEXT, checkpoint CAS, transactions/rollback and locking remain unchanged. Existing valid version-1 databases reopen without migration or record rewriting. Broker identity/freshness/fill completeness and inventory calculation remain future reconciliation responsibilities, not store guarantees.
@@ -463,15 +467,36 @@ Validation: **22 added storage tests; zero existing tests changed**. Storage **1
 
 Stage 10.5 remains **BLOCKED / NOT COMPLETE until this correction is separately reviewed/frozen**. No reconciliation module/tests, broker acquisition, order/cancellation, credentials, actual broker request, planner or scheduler was introduced; Stage 10.6 remains NOT STARTED. Stage 10 remains INCOMPLETE. Stages 10.1, 10.2, 10.4, Stage 9, Decision 017, notebooks, historical data and frozen financial/timing behavior remain unchanged. Do not resume Stage 10.5 automatically.
 
+### Owner-approved additive Stage 10.3 durable read-API correction
+
+The correction is **COMPLETE and ready for separate owner review/freeze** against starting HEAD `ad3aca759dbb556d736996bf39b0ba035bb0e512`, on clean `main`. Stage 10.5's resumed contract audit found that point reads required IDs that a restarted caller may not know: subordinate cancellation IDs are absent from the checkpoint, and durable execution IDs may outlive broker history. Public enumeration now exposes those local records without private SQL access or reconciliation policy.
+
+```python
+RuntimeStore.list_actions() -> tuple[ActionRecord, ...]
+RuntimeStore.list_fills(action_id: str | None = None) -> tuple[OwnedFillRecord, ...]
+```
+
+`list_actions()` returns all ENTRY/EXIT/CANCEL records, unresolved and terminal, ordered by `logical_action_id ASC`. `list_fills()` returns all fills bound to the configured broker/account, or only the exact canonical full SHA256 action ID supplied, ordered by `executed_at_ms ASC, broker_execution_id ASC`. A syntactically valid unknown action ID returns `()`. Empty results describe only the local query, not whether an exchange order filled.
+
+Both methods return immutable tuples of existing validated records. They run the existing complete-store validation before enumeration, including schema/binding, integrity/FK checks, record decoding and the 100,000-row-per-table bound. Corrupt or excessive history fails the whole call, including filtered reads; no LIMIT, skipped rows, partial success or repair occurs. SQLite read failures use safe RuntimeStore errors without raw exception text.
+
+These primitives permit later discovery of cancellation phase/control/parent/target/budgets and retained fill identities/amounts/signed fees/timestamps after reopen. They do not resolve actions, infer fills, calculate inventory/PnL, change checkpoints/phases/budgets, perform transitions, access a broker or retry anything.
+
+Schema/runtime-contract version **1**, tables/columns/indexes, existing write signatures, phase graph, one-attempt rule, Decimal TEXT, checkpoint CAS, transaction/rollback implementation, PRAGMAs and account lock remain unchanged. **No migration or data rewrite**; existing valid databases reopen normally. The first correction's SYNCHRONIZING/observed-pending guards, unknown cancellation block, receipt absence and explicit HALT rearm remain FROZEN. State machine, Stage 10.4, Stage 9, Decision 017, notebooks, historical data and dependencies are unchanged.
+
+Added **24 enumeration tests**, with zero existing tests changed. Targeted results: RuntimeStore **211 (187 + 24)**, locking **23**, frozen Stage 10.2 **188**, Stage 10.4 **97**, Stage 9.4 **123**, Stage 9.6 integration/smoke **68**, EMA **16** all pass. Full suite **1,903 (1,879 + 24)** passes with zero failures/errors/skips; `pip check` reports no broken requirements and `git diff --check` passes. Tests use local temporary databases and offline fixtures only, with no credentials, authenticated requests, account reads, orders or cancellations.
+
+Stage 10.5 remains **BLOCKED / NOT COMPLETE until this additive correction is separately reviewed/frozen**. No reconciliation module/tests or Stage 10.6 work was added. Stage 10 remains INCOMPLETE; Stage 9 COMPLETE; Stage 10.6 NOT STARTED. Do not resume Stage 10.5 automatically.
+
 ### Accepted Stage 10 roadmap
 
 | Milestone | Status |
 | --- | --- |
 | 10.1 — Runtime Contract / Architecture | COMPLETE; Accepted; published/frozen; documentation only. |
 | 10.2 — Runtime State Model + Pure State Machine | COMPLETE; published/frozen at `8b41427`; pure state core only. |
-| 10.3 — Durable Runtime Persistence + Single-Instance Lock | COMPLETE; baseline published at `56584c4`; approved narrow correction COMPLETE, ready for review/freeze. |
+| 10.3 — Durable Runtime Persistence + Single-Instance Lock | COMPLETE; baseline `56584c4`; first correction FROZEN at `ad3aca7`; additive durable read-API correction COMPLETE, ready for review/freeze. |
 | 10.4 — Closed-Candle Market Data Gate | COMPLETE; published/frozen at `1865435`; public/read-only only. |
-| 10.5 — Startup / Broker Reconciliation | STARTED with audit only; BLOCKED / NOT COMPLETE until the separate persistence correction is reviewed/frozen. |
+| 10.5 — Startup / Broker Reconciliation | STARTED with audit only; BLOCKED / NOT COMPLETE until the additive durable read-API correction is reviewed/frozen. |
 | 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy | NOT STARTED. |
 | 10.7 — Single-Cycle Demo Runtime Orchestration | NOT STARTED. |
 | 10.8 — Long-Running Candle Scheduler | NOT STARTED. |
@@ -929,7 +954,7 @@ Reserve belongs to the same portfolio. Stage 7.5 MTM equity now includes reserve
 
 Default fraction 1.0 must reproduce Stage 6 exactly, including quantities, independent GROSS/NET accounting, equity, and downstream analytics, without loosening existing tolerances. Frozen BTC reference values are recorded in Decision 011. Prefer existing accounting schemas and derive reserve safely from canonical entry accounting; any necessary new field requires an explicit reviewed decision.
 
-The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 1,879 tests.
+The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 1,903 tests.
 
 ## Position sizing core
 
@@ -1409,9 +1434,9 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Review/freeze the completed owner-approved narrow Stage 10.3 persistence correction. Stage 10.5 — Startup / Broker Reconciliation remains BLOCKED / NOT COMPLETE until that separate review; implementation has not resumed. Stage 10 remains INCOMPLETE; Stage 10.6 is NOT STARTED.
+Review/freeze the completed owner-approved additive Stage 10.3 durable read-API correction. Stage 10.5 — Startup / Broker Reconciliation remains BLOCKED / NOT COMPLETE until that separate review; implementation has not resumed. Stage 10 remains INCOMPLETE; Stage 10.6 is NOT STARTED.
 
-Stage 9.1–9.7 and Stage 9 remain COMPLETE. Stages 10.1, 10.2, 10.4 and Decision 017 remain frozen; only the approved Stage 10.3 validation correction and additional tests change. Stage 8, Stage 5 frozen EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. No operational runtime, scheduler, polling, automatic strategy/risk wiring or authenticated broker action exists; no runtime DB/lock artifact is written into the repository by tests.
+Stage 9.1–9.7 and Stage 9 remain COMPLETE. Stages 10.1, 10.2, 10.4, Decision 017 and the first Stage 10.3 correction remain frozen; only the approved additive Stage 10.3 read methods and additional tests change. Stage 8, Stage 5 frozen EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. No operational runtime, scheduler, polling, automatic strategy/risk wiring or authenticated broker action exists; no runtime DB/lock artifact is written into the repository by tests.
 
 ## Not implemented yet
 
@@ -1430,9 +1455,9 @@ Stage 9.1–9.7 and Stage 9 remain COMPLETE. Stages 10.1, 10.2, 10.4 and Decisio
 
 ## Next milestone
 
-Owner review/freeze of the separate Stage 10.3 correction, before any resumed Stage 10.5 reconciliation implementation.
+Owner review/freeze of the separate additive Stage 10.3 durable read-API correction, before any resumed Stage 10.5 reconciliation implementation.
 
-Stages 10.1–10.4 remain COMPLETE; the narrow Stage 10.3 correction awaits separate review/freeze. Stage 10 remains INCOMPLETE and Stage 9 remains COMPLETE. Stage 10.5 remains BLOCKED / NOT COMPLETE; Stage 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy remains NOT STARTED. Do not resume 10.5, begin 10.6, wire strategies to the exchange, implement a scheduler, or run an authenticated Demo smoke/order automatically.
+Stages 10.1–10.4 remain COMPLETE; the first Stage 10.3 correction is FROZEN and the additive durable read-API correction awaits separate review/freeze. Stage 10 remains INCOMPLETE and Stage 9 remains COMPLETE. Stage 10.5 remains BLOCKED / NOT COMPLETE; Stage 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy remains NOT STARTED. Do not resume 10.5, begin 10.6, wire strategies to the exchange, implement a scheduler, or run an authenticated Demo smoke/order automatically.
 
 ## Backtesting execution contract
 
