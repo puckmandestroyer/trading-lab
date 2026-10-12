@@ -40,6 +40,10 @@ class CycleError(ValueError):
     """Invalid cycle input/boundary; fixed diagnostic text only."""
 
 
+class _PreSubmitTimingRefusal(CycleError):
+    """Known unsent timing refusal before invoking attempt persistence."""
+
+
 class CycleOutcome(str, Enum):
     BOOTSTRAP = "BOOTSTRAP"
     REPLAY_ONLY = "REPLAY_ONLY"
@@ -222,6 +226,13 @@ def run_single_cycle(
         store.save_checkpoint(proposed, expected_sequence=cp.sequence)
         return result(CycleOutcome.HALTED, reason)
 
+    def market_unavailable(outcome=CycleOutcome.WAIT):
+        cp = store.get_checkpoint()
+        if cp.snapshot.state in (RuntimeState.FLAT, RuntimeState.LONG):
+            proposed = _proposed(cp, (RuntimeEvent(RuntimeEventType.FRESHNESS_LOST),), now())
+            store.save_checkpoint(proposed, expected_sequence=cp.sequence)
+        return result(outcome, RuntimeReason.EVIDENCE_MISSING)
+
     if current.snapshot.state == RuntimeState.HALTED:
         return result(CycleOutcome.HALTED)
     if current.snapshot.state == RuntimeState.STOPPING:
@@ -237,7 +248,7 @@ def run_single_cycle(
     except (MarketDataIntegrityError, MarketDataInputError):
         return halt(RuntimeReason.INCONSISTENT_EVIDENCE)
     except Exception:
-        return result(CycleOutcome.WAIT, RuntimeReason.EVIDENCE_MISSING)
+        return market_unavailable()
     after_market_ms = now()
     try:
         if type(prefix) is not ClosedCandlePrefix:
@@ -259,12 +270,12 @@ def run_single_cycle(
            for sample in (prefix.server_time_ms, prefix.observed_at_ms)):
         return halt(RuntimeReason.INVALID_CONFIGURATION)
     if not prefix.candles:
-        return result(CycleOutcome.NO_NEW_DATA)
+        return market_unavailable(CycleOutcome.NO_NEW_DATA)
     try:
         validate_candle_freshness(newest_closed_candle_open_ms=prefix.candles[-1].candle_open_ms,
                                   server_time_ms=prefix.observed_at_ms, max_data_age_ms=config.decision_max_age_ms)
     except Exception:
-        return result(CycleOutcome.WAIT, RuntimeReason.EVIDENCE_MISSING)
+        return market_unavailable()
     try:
         records, decisions = _strategy_decisions(prefix, config)
     except Exception:
@@ -274,25 +285,30 @@ def run_single_cycle(
     first = 0 if current.last_processed_candle_ms is None else (current.last_processed_candle_ms - config.history_anchor_ms) // config.interval_ms + 1
     if first == len(records):
         return result(CycleOutcome.NO_NEW_DATA)
-    if current.last_processed_candle_ms is None:
-        mode = DecisionMode.BOOTSTRAP
-    elif len(records) - first > 1:
-        mode = DecisionMode.REPLAY_ONLY
-    elif current.bootstrap_until_ms is not None and records[first].candle_open_ms <= current.bootstrap_until_ms:
-        mode = DecisionMode.BOOTSTRAP
-    elif current.replay_until_ms is not None and records[first].candle_open_ms <= current.replay_until_ms:
-        mode = DecisionMode.REPLAY_ONLY
-    else:
-        mode = DecisionMode.LIVE
-    if mode != DecisionMode.LIVE:
-        cutoff_field = "bootstrap_until_ms" if mode == DecisionMode.BOOTSTRAP else "replay_until_ms"
-        cutoff = max(getattr(current, cutoff_field) or 0, records[-1].candle_open_ms)
-        if getattr(current, cutoff_field) != cutoff:
-            proposed = replace(current, sequence=current.sequence + 1, **{cutoff_field: cutoff})
-            store.save_checkpoint(proposed, expected_sequence=current.sequence)
+    # Reserve history before commits, but never extend an interrupted bootstrap.
+    # Its cutoff is durable even if the first decision never committed.
+    cutoffs = {}
+    if (current.last_processed_candle_ms is None and current.bootstrap_until_ms is None
+            and current.replay_until_ms is None):
+        cutoffs["bootstrap_until_ms"] = records[-1].candle_open_ms
+    elif (len(records) - first > 1
+          and (current.bootstrap_until_ms is None or records[-1].candle_open_ms > current.bootstrap_until_ms)
+          and (current.replay_until_ms is None or records[-1].candle_open_ms > current.replay_until_ms)):
+        cutoffs["replay_until_ms"] = records[-1].candle_open_ms
+    if cutoffs:
+        proposed = replace(current, sequence=current.sequence + 1, **cutoffs)
+        store.save_checkpoint(proposed, expected_sequence=current.sequence)
 
     for record, decision in zip(records[first:], decisions[first:]):
         current = store.get_checkpoint()
+        # A restarted prefix can contain both unfinished bootstrap and later
+        # backlog. Classify each candle from the reserved cutoffs, in that order.
+        if current.bootstrap_until_ms is not None and record.candle_open_ms <= current.bootstrap_until_ms:
+            mode = DecisionMode.BOOTSTRAP
+        elif current.replay_until_ms is not None and record.candle_open_ms <= current.replay_until_ms:
+            mode = DecisionMode.REPLAY_ONLY
+        else:
+            mode = DecisionMode.LIVE
         evaluated_ms = now()
         plan = plan_action(config, current, decision, evaluated_at_ms=evaluated_ms,
                            mode=mode, action_history=store.list_actions())
@@ -322,26 +338,43 @@ def run_single_cycle(
         action_id = plan.action.logical_action_id
         request = SpotMarketOrderRequest(plan.action.symbol, plan.action.side, plan.action.authorized_amount,
                                          plan.action.amount_unit, plan.action.order_link_id)
-        callback_entered = attempt_commit_returned = False
+        callback_entered = pre_submit_timing_accepted = False
+        start_attempt_call_begun = attempt_commit_returned = False
 
         def before_submit():
-            nonlocal callback_entered, attempt_commit_returned
+            nonlocal callback_entered, pre_submit_timing_accepted, start_attempt_call_begun, attempt_commit_returned
             if callback_entered:
                 raise CycleError("The attempt boundary may be entered only once.")
             callback_entered = True
+            submit_ms = now()
+            if (submit_ms < decision.available_at_ms
+                    or submit_ms - decision.available_at_ms > config.decision_max_age_ms
+                    or submit_ms >= plan.action.reconciliation_deadline_ms):
+                raise _PreSubmitTimingRefusal("Pre-submit authorization timing is no longer valid.")
+            pre_submit_timing_accepted = True
             cp = store.get_checkpoint()
-            store.start_attempt(action_id, replace(cp, sequence=cp.sequence + 1), expected_sequence=cp.sequence)
+            attempted_checkpoint = replace(cp, sequence=cp.sequence + 1)
+            start_attempt_call_begun = True
+            store.start_attempt(action_id, attempted_checkpoint, expected_sequence=cp.sequence)
             attempt_commit_returned = True
 
         failure = None
         try:
             receipt = order_adapter.place_market_order(request, before_submit=before_submit)
         except Exception as error:
-            if callback_entered and not attempt_commit_returned:
+            if start_attempt_call_begun and not attempt_commit_returned:
                 # No further read/write: the commit may actually have completed.
                 raise RuntimeStoreError("Attempt persistence requires reopening; no further cycle action.") from None
+            if (callback_entered and not attempt_commit_returned
+                    and not (isinstance(error, _PreSubmitTimingRefusal) and not pre_submit_timing_accepted)):
+                # A failed clock/read is not a known timing refusal. Stop safely
+                # without trying another store read, abandon or placement.
+                if isinstance(error, RuntimeStoreError):
+                    raise RuntimeStoreError("Pre-submit persistence read requires reopening; no further cycle action.") from None
+                raise CycleError("Pre-submit control failed; reopen and reconcile.") from None
             failure = error
-        if not callback_entered:
+        if not callback_entered or (isinstance(failure, _PreSubmitTimingRefusal)
+                                    and not pre_submit_timing_accepted and not start_attempt_call_begun):
             if failure is None:
                 raise CycleError("Adapter did not confirm the required attempt boundary.")
             cp = store.get_checkpoint()

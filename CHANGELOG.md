@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-13 — Stage 10.7 historical/freshness boundary correction
+
+- Classify each candle from durable bootstrap/replay cutoffs. Interrupted original bootstrap stays BOOTSTRAP, later missed history is REPLAY_ONLY, and a reserved bootstrap cutoff survives even a crash before the first decision commit. Neither historical mode places orders.
+- Recheck injected UTC decision availability, inclusive maximum age and exclusive action deadline after metadata preflight, before start_attempt. Track callback entry, timing acceptance, persistence invocation and commit return separately. Known timing refusal retires PREPARED as ABANDONED_UNSENT; invoked-but-unconfirmed attempt commits still stop without further read/write/abandon/resend.
+- Persist frozen FRESHNESS_LOST from operational FLAT/LONG on stale/missing/transient/empty market observations, retaining LAST_KNOWN exposure in SYNCHRONIZING. Preserve pending lifecycles and fatal integrity/configuration classification; reconcile before subsequent planning.
+- Added **19 offline regressions**: Stage 10.7 **97**, placement-boundary **29**, Stage 9.5 **100**, Stage 9.6 **68**, Stage 10.6 **79**, Stage 10.5 **90**, RuntimeStore **211**, locking **23**, Stage 10.2 **188**, Stage 10.4 **97**, Stage 9.4 **123**, EMA **16**, full suite **2,198 (2,179 + 19)** pass with zero failures/errors/skips; pip check and both diff checks pass.
+- Only cycle source/tests and current documentation change. Frozen APIs/source/tests/Decisions/schema, notebooks/data/results/dependencies and financial/next-OPEN regressions remain unchanged. No credentials, actual broker request/order/cancellation or Demo activation. Stage 10.7 correction COMPLETE for owner review; Stage 10.7 NOT FROZEN; Stage 10 INCOMPLETE; Stage 10.8 NOT STARTED.
+
 ## 2026-10-13 — Stage 10.7 single-cycle Demo runtime orchestration
 
 - Added an explicitly invoked bounded cycle using frozen reconciliation, public closed history, EMA/canonical validation, planner, public persistence and the frozen pre-submit hook. Initial BOOTSTRAP and restart REPLAY_ONLY never trade; reserved historical cutoffs protect interrupted catch-up. Exact retained candle/decision reconstruction HALTs on disagreement without rewriting history.

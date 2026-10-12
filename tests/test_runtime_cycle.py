@@ -29,7 +29,7 @@ import trading_lab.runtime.cycle as module
 from trading_lab.runtime.planner import DecisionMode, PlanKind
 from trading_lab.runtime.locking import RuntimeAccountLock
 from trading_lab.runtime.reconciliation import reconcile_startup
-from trading_lab.runtime.state import RuntimeEvent, RuntimeEventType, RuntimeReason, RuntimeState, transition_runtime_state
+from trading_lab.runtime.state import PositionEvidence, RuntimeEvent, RuntimeEventType, RuntimeReason, RuntimeState, transition_runtime_state
 from trading_lab.runtime.store import ActionPhase, DecisionDisposition, RuntimeStore, RuntimeStoreError
 from trading_lab.strategies.ema_trend import generate_ema_signals
 from tests.test_bybit_demo_orders import FakeActionSession, ack_response
@@ -180,11 +180,14 @@ class FakeOrderAdapter:
 
 
 class CycleCase(StoreCase):
+    def runtime_configuration(self):
+        # Explicit test policy: permit a pending order across an hourly close.
+        return replace(configuration(), reconciliation_timeout_ms=3 * HOUR)
+
     def setUp(self):
         self.directory = self.enterContext(TemporaryDirectory())
         self.lock = self.enterContext(RuntimeAccountLock(Path(self.directory), "research"))
-        # Explicit test policy: permit a pending order across an hourly close.
-        self.config = replace(configuration(), reconciliation_timeout_ms=3 * HOUR)
+        self.config = self.runtime_configuration()
         self.store = RuntimeStore.open(self.lock, self.config, initialize=True)
         self.addCleanup(self.store.close)
         self.enterContext(patch.object(requests.Session, "send", side_effect=AssertionError("No broker network")))
@@ -356,6 +359,296 @@ class HistoryAndProgressTests(CycleCase):
             result = self.run_cycle()
         self.assertIs(result.outcome, CycleOutcome.HALTED)
         self.assertEqual(self.store.get_decision(49 * HOUR), original)
+        self.assert_no_send()
+
+
+class HistoricalSegmentationCorrectionTests(CycleCase):
+    def interrupt_before(self, index):
+        commit = self.store.commit_decision
+
+        def interrupt(record, *args, **kwargs):
+            if record.candle_open_ms == index * HOUR:
+                raise RuntimeStoreError("Synthetic interruption")
+            return commit(record, *args, **kwargs)
+
+        with patch.object(self.store, "commit_decision", side_effect=interrupt), self.assertRaises(RuntimeStoreError):
+            self.run_cycle()
+        self.reopen()
+
+    def assert_bootstrap_range(self, end=50):
+        self.assertTrue(all(self.store.get_decision(i * HOUR).disposition == DecisionDisposition.BOOTSTRAP
+                            for i in range(end)))
+
+    def test_early_bootstrap_crash_keeps_all_remaining_original_history(self):
+        self.interrupt_before(11)
+        self.assertEqual(self.store.get_checkpoint().last_processed_candle_ms, 10 * HOUR)
+        result = self.run_cycle()
+        self.assertEqual(result.processed_candle_open_ms, tuple(i * HOUR for i in range(11, 50)))
+        self.assert_bootstrap_range()
+        self.assertEqual(result.checkpoint.bootstrap_until_ms, 49 * HOUR)
+        self.assertIsNone(result.checkpoint.replay_until_ms)
+        self.assert_no_send()
+
+    def test_early_bootstrap_crash_and_later_backlog_use_separate_cutoffs(self):
+        self.interrupt_before(11)
+        self.advance(*(["110"] * 6))
+        result = self.run_cycle()
+        self.assert_bootstrap_range()
+        self.assertTrue(all(self.store.get_decision(i * HOUR).disposition == DecisionDisposition.REPLAY_ONLY
+                            for i in range(50, 56)))
+        self.assertEqual(result.checkpoint.bootstrap_until_ms, 49 * HOUR)
+        self.assertEqual(result.checkpoint.replay_until_ms, 55 * HOUR)
+        self.assertEqual(result.processed_candle_count, 45)
+        self.assertEqual(self.store.list_actions(), ())
+        self.assert_no_send()
+
+    def test_first_future_candle_after_mixed_history_may_be_live(self):
+        self.interrupt_before(11)
+        self.advance(*(["100"] * 6))
+        self.run_cycle()
+        self.assert_no_send()
+        self.advance("110")
+        result = self.run_cycle()
+        self.assertIs(result.planner_kind, PlanKind.PLACE_BUY)
+        self.assertIs(self.store.get_decision(56 * HOUR).disposition, DecisionDisposition.ACTION)
+        self.assertEqual(result.processed_candle_open_ms, (56 * HOUR,))
+        self.assertEqual(result.checkpoint.bootstrap_until_ms, 49 * HOUR)
+        self.assertEqual(result.checkpoint.replay_until_ms, 55 * HOUR)
+        self.assertEqual(sum(name == "place_order" for name, _ in self.session.calls), 1)
+
+    def test_interrupted_replay_with_multiple_remaining_candles_stays_replay(self):
+        self.bootstrap()
+        self.advance(*(["110"] * 6))
+        self.interrupt_before(52)
+        result = self.run_cycle()
+        self.assert_bootstrap_range()
+        self.assertTrue(all(self.store.get_decision(i * HOUR).disposition == DecisionDisposition.REPLAY_ONLY
+                            for i in range(50, 56)))
+        self.assertEqual(result.processed_candle_open_ms, tuple(i * HOUR for i in range(52, 56)))
+        self.assertEqual(result.checkpoint.bootstrap_until_ms, 49 * HOUR)
+        self.assertEqual(result.checkpoint.replay_until_ms, 55 * HOUR)
+        self.assert_no_send()
+
+    def test_reserved_bootstrap_survives_crash_before_first_decision(self):
+        self.interrupt_before(0)
+        self.assertIsNone(self.store.get_checkpoint().last_processed_candle_ms)
+        self.assertEqual(self.store.get_checkpoint().bootstrap_until_ms, 49 * HOUR)
+        self.advance("110", "110")
+        result = self.run_cycle()
+        self.assert_bootstrap_range()
+        for index in (50, 51):
+            self.assertIs(self.store.get_decision(index * HOUR).disposition, DecisionDisposition.REPLAY_ONLY)
+        self.assertEqual(result.checkpoint.bootstrap_until_ms, 49 * HOUR)
+        self.assertEqual(result.checkpoint.replay_until_ms, 51 * HOUR)
+        self.assert_no_send()
+
+
+class PreSubmitTimingCase(CycleCase):
+    def run_with_metadata_time(self, target_ms):
+        metadata = self.session.get_instruments_info
+        place = self.order_adapter.place_market_order
+        self.boundary = Mock()
+
+        def delayed_metadata(**kwargs):
+            response = metadata(**kwargs)
+            self.now_ms = target_ms
+            return response
+
+        def with_boundary(request, *, before_submit):
+            def callback():
+                self.boundary()
+                return before_submit()
+            return place(request, before_submit=callback)
+
+        with patch.object(self.session, "get_instruments_info", side_effect=delayed_metadata), \
+             patch.object(self.order_adapter, "place_market_order", side_effect=with_boundary), \
+             patch.object(self.store, "start_attempt", wraps=self.store.start_attempt) as attempt:
+            self.attempt = attempt
+            return self.run_cycle()
+
+    def assert_unsent_consumed(self, result, previous_sends=0):
+        self.boundary.assert_called_once_with()
+        self.attempt.assert_not_called()
+        action = self.action(result)
+        self.assertIs(result.outcome, CycleOutcome.ABANDONED_UNSENT)
+        self.assertIs(action.phase, ActionPhase.ABANDONED_UNSENT)
+        self.assertEqual(action.attempt_count, 0)
+        self.assertIsNone(result.checkpoint.snapshot.pending_action)
+        decision = self.store.get_decision(action.candle_open_ms)
+        self.assertIs(decision.disposition, DecisionDisposition.ACTION)
+        self.assertEqual(decision.action_id, action.logical_action_id)
+        self.assertEqual(sum(name == "place_order" for name, _ in self.session.calls), previous_sends)
+        self.assertIn(action, self.store.list_actions())
+        # A subsequent invocation reconciles, but cannot resend this consumed ID.
+        self.market.error = StaleMarketDataError("Synthetic stale market")
+        calls = len(self.order_adapter.calls)
+        self.run_cycle()
+        self.assertEqual(len(self.order_adapter.calls), calls)
+        self.assertEqual(self.store.get_action(action.logical_action_id), action)
+        self.assertEqual(sum(name == "place_order" for name, _ in self.session.calls), previous_sends)
+
+
+class PreSubmitFreshnessCorrectionTests(PreSubmitTimingCase):
+    def test_metadata_delay_at_exact_decision_age_limit_may_send(self):
+        self.bootstrap()
+        self.advance("110")
+        result = self.run_with_metadata_time(51 * HOUR + self.config.decision_max_age_ms)
+        self.boundary.assert_called_once_with()
+        self.attempt.assert_called_once()
+        self.assertIs(result.outcome, CycleOutcome.OBSERVED)
+        self.assertEqual(sum(name == "place_order" for name, _ in self.session.calls), 1)
+
+    def test_metadata_delay_one_ms_past_decision_age_is_abandoned_unsent(self):
+        self.bootstrap()
+        self.advance("110")
+        result = self.run_with_metadata_time(51 * HOUR + self.config.decision_max_age_ms + 1)
+        self.assert_unsent_consumed(result)
+        self.assertIs(result.checkpoint.snapshot.state, RuntimeState.FLAT)
+        self.assertEqual(result.checkpoint.snapshot.owned_base_quantity, D("0"))
+
+    def test_expired_sell_preserves_exact_long_inventory(self):
+        self.broker.buy_quantity = D("0.0500009")
+        self.entry()
+        self.advance("80")
+        result = self.run_with_metadata_time(52 * HOUR + self.config.decision_max_age_ms + 1)
+        self.assert_unsent_consumed(result, previous_sends=1)
+        self.assertIs(result.checkpoint.snapshot.state, RuntimeState.LONG)
+        self.assertEqual(result.checkpoint.snapshot.owned_base_quantity, D("0.0500009"))
+
+    def test_regressing_metadata_clock_stops_without_attempt_or_abandon(self):
+        self.bootstrap()
+        self.advance("110")
+        with patch.object(self.store, "abandon_prepared") as abandon, self.assertRaises(CycleError):
+            self.run_with_metadata_time(self.now_ms - 1)
+        self.boundary.assert_called_once_with()
+        self.attempt.assert_not_called()
+        abandon.assert_not_called()
+        self.assertIs(self.store.get_action(self.pending_id()).phase, ActionPhase.PREPARED)
+        self.assert_no_send()
+
+
+class PreSubmitDeadlineCorrectionTests(PreSubmitTimingCase):
+    def runtime_configuration(self):
+        # Keep the decision fresh long enough to isolate the action deadline.
+        return replace(super().runtime_configuration(), decision_max_age_ms=4 * HOUR, observation_max_age_ms=4 * HOUR)
+
+    def test_metadata_delay_one_ms_before_action_deadline_may_send(self):
+        self.bootstrap()
+        self.advance("110")
+        result = self.run_with_metadata_time(51 * HOUR + self.config.reconciliation_timeout_ms - 1)
+        self.boundary.assert_called_once_with()
+        self.attempt.assert_called_once()
+        self.assertIs(result.outcome, CycleOutcome.OBSERVED)
+        self.assertEqual(sum(name == "place_order" for name, _ in self.session.calls), 1)
+
+    def test_metadata_delay_at_action_deadline_is_abandoned_unsent(self):
+        self.bootstrap()
+        self.advance("110")
+        result = self.run_with_metadata_time(51 * HOUR + self.config.reconciliation_timeout_ms)
+        self.assert_unsent_consumed(result)
+
+
+class MarketFreshnessCorrectionTests(CycleCase):
+    def assert_freshness_lost(self, result, quantity, transitions):
+        snapshot = result.checkpoint.snapshot
+        self.assertIs(snapshot.state, RuntimeState.SYNCHRONIZING)
+        self.assertIs(snapshot.position_evidence, PositionEvidence.LAST_KNOWN)
+        self.assertEqual(snapshot.owned_base_quantity, quantity)
+        self.assertIsNone(snapshot.pending_action)
+        self.assertEqual(snapshot, self.store.get_checkpoint().snapshot)
+        self.assertTrue(any(call.args[0].state in (RuntimeState.FLAT, RuntimeState.LONG)
+                            and call.args[1].kind == RuntimeEventType.FRESHNESS_LOST
+                            for call in transitions.call_args_list))
+        self.assertIs(result.reason, RuntimeReason.EVIDENCE_MISSING)
+        self.assertEqual(result.processed_candle_count, 0)
+
+    def stale_read(self):
+        self.market.error = StaleMarketDataError("Synthetic stale market")
+        with patch.object(module, "transition_runtime_state", wraps=transition_runtime_state) as transitions:
+            result = self.run_cycle()
+        return result, transitions
+
+    def stale_prefix(self):
+        self.advance("110")
+        self.now_ms += self.config.decision_max_age_ms
+        with patch.object(module, "transition_runtime_state", wraps=transition_runtime_state) as transitions:
+            result = self.run_cycle()
+        return result, transitions
+
+    def test_stale_reader_from_flat_persists_synchronizing_last_known_zero(self):
+        self.bootstrap()
+        result, transitions = self.stale_read()
+        self.assert_freshness_lost(result, D("0"), transitions)
+        self.assert_no_send()
+
+    def test_stale_reader_from_long_persists_exact_last_known_exposure(self):
+        self.entry()
+        result, transitions = self.stale_read()
+        self.assert_freshness_lost(result, D("0.05"), transitions)
+        self.assertEqual(sum(name == "place_order" for name, _ in self.session.calls), 1)
+
+    def test_locally_stale_prefix_from_flat_persists_freshness_loss(self):
+        self.bootstrap()
+        result, transitions = self.stale_prefix()
+        self.assert_freshness_lost(result, D("0"), transitions)
+        self.assertIsNone(self.store.get_decision(50 * HOUR))
+        self.assert_no_send()
+
+    def test_locally_stale_prefix_from_long_persists_freshness_loss(self):
+        self.entry()
+        result, transitions = self.stale_prefix()
+        self.assert_freshness_lost(result, D("0.05"), transitions)
+        self.assertIsNone(self.store.get_decision(51 * HOUR))
+        self.assertEqual(sum(name == "place_order" for name, _ in self.session.calls), 1)
+
+    def test_next_invocation_reconciles_before_planning_after_freshness_loss(self):
+        self.bootstrap()
+        self.stale_read()
+        self.market.error = None
+        self.advance("100")
+        self.trace.clear()
+        planner = module.plan_action
+
+        def plan(*args, **kwargs):
+            self.trace.append("plan")
+            self.assertIs(args[1].snapshot.state, RuntimeState.FLAT)
+            self.assertIs(args[1].snapshot.position_evidence, PositionEvidence.CONFIRMED)
+            return planner(*args, **kwargs)
+
+        with patch.object(module, "reconcile_startup", wraps=reconcile_startup) as reconcile, \
+             patch.object(module, "plan_action", side_effect=plan):
+            result = self.run_cycle()
+        reconcile.assert_called_once()
+        self.assertLess(self.trace.index("broker:account"), self.trace.index("market"))
+        self.assertLess(self.trace.index("market"), self.trace.index("plan"))
+        self.assertIs(result.outcome, CycleOutcome.NOOP)
+        self.assert_no_send()
+
+    def test_stale_market_does_not_apply_invalid_event_to_pending_state(self):
+        self.entry(status=OrderStatus.OPEN)
+        pending = self.store.get_checkpoint().snapshot.pending_action
+        result, transitions = self.stale_read()
+        self.assertIs(result.checkpoint.snapshot.state, RuntimeState.ORDER_PENDING)
+        self.assertEqual(result.checkpoint.snapshot.pending_action, pending)
+        self.assertFalse(any(call.args[1].kind == RuntimeEventType.FRESHNESS_LOST
+                             for call in transitions.call_args_list))
+        self.assertEqual(sum(name == "place_order" for name, _ in self.session.calls), 1)
+
+    def test_transient_market_timeout_synchronizes_without_halt(self):
+        self.bootstrap()
+        self.market.error = MarketDataTransportError("Synthetic timeout")
+        with patch.object(module, "transition_runtime_state", wraps=transition_runtime_state) as transitions:
+            result = self.run_cycle()
+        self.assert_freshness_lost(result, D("0"), transitions)
+        self.assertIs(result.outcome, CycleOutcome.WAIT)
+        self.assert_no_send()
+
+    def test_empty_market_cannot_leave_operational_freshness_claim(self):
+        self.prices, self.now_ms = [], 1000
+        with patch.object(module, "transition_runtime_state", wraps=transition_runtime_state) as transitions:
+            result = self.run_cycle()
+        self.assert_freshness_lost(result, D("0"), transitions)
+        self.assertIs(result.outcome, CycleOutcome.NO_NEW_DATA)
         self.assert_no_send()
 
 
