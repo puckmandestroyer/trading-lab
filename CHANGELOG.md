@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-13 — Stage 10.8 serialized hourly Demo scheduler
+
+- Added caller-invoked synchronous hourly control around frozen run_single_cycle. Immediate startup reserves its next UTC boundary before work; crossed/missed boundaries get one catch-up batch, then jump to the first future absolute hour. Interruptible event waits handle spurious wakes without early cycles or grid drift.
+- Only normal transient WAIT/RECONCILE/NO_NEW_DATA results permit at most three attempts with 1s/2s backoff, one configured monotonic elapsed budget and scheduled decision-age bound. No immediate mutation-bearing/pending polling retry; cycle exceptions propagate with no retry, repair, shutdown write or cleanup.
+- Confirmed stop persists frozen SHUTDOWN_REQUESTED through public checkpoint CAS, preserving exact exposure, pending lifecycle, desired intent and uncertainty/HALT metadata. Existing STOPPING/HALT exits remain safe; caller owns resource closure. No concurrency, signal handlers, direct broker/market/action access, cancellation/liquidation, credentials, session/launcher or actual Demo activation.
+- Added **79 offline tests**, including real temporary-store shutdown and frozen-cycle/fake-broker integrations. Stage 10.7 **97**, 10.6 **79**, 10.5 **90**, placement boundary **29**, 9.5 **100**, 9.6 **68**, RuntimeStore **211**, locking **23**, 10.2 **188**, 10.4 **97**, 9.4 **123**, EMA **16**, full suite **2,277 (2,198 + 79)**, pip check and both diff checks pass; zero failures/errors/skips.
+- Stage 9 with all approved corrections and Stages 10.1–10.7 remain FROZEN at the accepted baseline `728bf6d`. Frozen source/tests/APIs/schema/Decisions, financial/next-OPEN behavior, notebooks/data/results/dependencies are unchanged. Stage 10.8 COMPLETE/ready for owner review/freeze; Stage 10 INCOMPLETE; Stage 10.9 next/NOT STARTED.
+
 ## 2026-10-13 — Stage 10.7 historical/freshness boundary correction
 
 - Classify each candle from durable bootstrap/replay cutoffs. Interrupted original bootstrap stays BOOTSTRAP, later missed history is REPLAY_ONLY, and a reserved bootstrap cutoff survives even a crash before the first decision commit. Neither historical mode places orders.
