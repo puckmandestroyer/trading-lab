@@ -12,7 +12,7 @@ Stage 10.1 — Runtime Contract / Architecture is COMPLETE, published and frozen
 
 Stage 10.2 — Runtime State Model + Pure State Machine is COMPLETE, published and frozen at `8b41427d669f5c17717a296113aa7b28b9dd23e3`. Its pure model, public API and tests remain unchanged.
 
-Stage 10.3 — Durable Runtime Persistence + Single-Instance Lock is COMPLETE and FROZEN, with published baseline `56584c462b1226f36941ab02726ed7a621a82dac`. Both owner-approved corrections are reviewed and FROZEN: recovery guards at `ad3aca759dbb556d736996bf39b0ba035bb0e512`, durable read APIs at `8b3a482f1d7d2586c2f609aa52f32adf283d8a60`. Schema v1, write APIs, phase graph and locking remain unchanged.
+Stage 10.3 — Durable Runtime Persistence + Single-Instance Lock is COMPLETE and FROZEN, with published baseline `56584c462b1226f36941ab02726ed7a621a82dac`. Owner-approved corrections are reviewed and FROZEN: recovery guards at `ad3aca759dbb556d736996bf39b0ba035bb0e512`, durable read APIs at `8b3a482f1d7d2586c2f609aa52f32adf283d8a60`, STARTING/UNKNOWN_OUTCOME restart validation at `a22199f9abd1ce2484aa6dbde500ad126cb66b21`. Schema v1, write APIs, phase graph and locking remain unchanged.
 
 Stage 10.4 — Closed-Candle Market Data Gate is COMPLETE, published and frozen at `1865435bb0310dd5d8e8ce7208d56650dc51590a`. Public/read-only market observations only; no operational runtime or authenticated trading.
 
@@ -24,7 +24,7 @@ Stage 10.7 — Single-Cycle Demo Runtime Orchestration and its historical/freshn
 
 Stage 10.8 — Long-Running Candle Scheduler is COMPLETE, owner-approved and FROZEN at `f3e9fe6bb9770031c121314c67e4177d0299e095`. Serialized UTC-hour control calls the frozen cycle, with bounded safe retries and durable shutdown. No actual Demo activation.
 
-The separately approved Stage 10.3 / RuntimeStore additive restart-validation correction is COMPLETE for owner review/freeze. It permits nonconfirmed STARTING to retain durable UNKNOWN_OUTCOME evidence. Stages 10.1–10.8 remain FROZEN; Stage 10.9 remains BLOCKED pending review/freeze of this correction, with no recovery implementation. Stage 10.10 remains NOT STARTED.
+Stage 10.9 — Restart / Crash / Ambiguous-Action Recovery is COMPLETE / ready for owner review/freeze. Caller-invoked process-entry normalization retains exact durable lifecycle evidence before frozen reconciliation; restart never resends unresolved actions. Stages 10.1–10.8 and the RuntimeStore restart-validation correction remain FROZEN. Stage 10 remains INCOMPLETE; Stage 10.10 remains NOT STARTED. No actual Demo activation.
 
 Stage 9 — Bybit Demo Exchange Adapter remains COMPLETE/FROZEN, including the owner-reviewed Stage 9.5 pre-submit correction at `77a88fe1b1250cabde6a1a6fa4aa492db056084b`.
 
@@ -725,7 +725,7 @@ The first target is reserved before startup work using **(utc_ms // config.inter
 
 Retry is limited to normally returned **WAIT / RECONCILE / NO_NEW_DATA** with **EVIDENCE_MISSING / ACTION_OUTCOME_UNKNOWN**; frozen cycle semantics guarantee these paths dispatched no new placement. Each startup/wake batch has **at most three total attempts**, fixed **1s then 2s** interruptible backoff, and one original monotonic elapsed window bounded by **config.reconciliation_timeout_ms**. Backoff and retry starts must fit that budget, including equality; it never resets per attempt. Scheduled retries must also fit **utc_ms - scheduled_boundary_ms <= config.decision_max_age_ms**, checked before backoff and again before retry. In-flight cycles cannot be interrupted. Spurious backoff returns wait the remaining monotonic delay.
 
-No immediate retry for **OBSERVED, ABANDONED_UNSENT, NOOP, BOOTSTRAP, REPLAY_ONLY, HALTED or STOPPING**, a pending WAIT without a transient reason, or a permanent reason. No automatic order/fill polling, adapter/page retries, placement resend or special uncertain-action recovery. Every exception from run_single_cycle propagates unchanged: no retry/wait, broker read, finally/shutdown write, local repair, close or release. Stage 10.9 recovery remains unimplemented.
+No immediate retry for **OBSERVED, ABANDONED_UNSENT, NOOP, BOOTSTRAP, REPLAY_ONLY, HALTED or STOPPING**, a pending WAIT without a transient reason, or a permanent reason. No automatic order/fill polling, adapter/page retries, placement resend or special uncertain-action recovery. Every exception from run_single_cycle propagates unchanged: no retry/wait, broker read, finally/shutdown write, local repair, close or release. The scheduler contains no restart normalization; caller-owned process entry belongs to separate Stage 10.9.
 
 An already-set stop skips startup. Stop during boundary wait/backoff prevents the next cycle; stop during a normally returning cycle is handled after that bounded call, before any retry/wake. Ordinary stop loads the public checkpoint; unless already STOPPING, apply frozen **SHUTDOWN_REQUESTED**, preserve all unrelated fields, increment sequence once, set **shutdown_at_ms** from explicit UTC, and public **save_checkpoint(..., expected_sequence=old_sequence)**. Exact owned quantity, pending action, desired intent, uncertainty/HALT reason, halted_at_ms and stopped_from are retained; known exposure becomes LAST_KNOWN, unknown stays unknown. No cancellation, SELL/liquidation, pending clearing or false FLAT claim. Store write errors propagate without another attempt.
 
@@ -737,6 +737,8 @@ At Stage 10.8 completion: COMPLETE/ready for owner review/freeze; Stage 10 INCOM
 
 ### Stage 10.3 / RuntimeStore additive restart-validation correction
 
+Current status: owner-reviewed and FROZEN at `a22199f9abd1ce2484aa6dbde500ad126cb66b21`. The completion record below retains its original test totals and scope.
+
 Starting baseline: clean `main` / `origin/main` at `f3e9fe6bb9770031c121314c67e4177d0299e095`. Owner approval covers only the store validation correction, focused tests and documentation; Stage 10.9 recovery is not implemented.
 
 `RuntimeStore._validate_relations()` previously allowed durable UNKNOWN_OUTCOME in SYNCHRONIZING, UNCERTAIN, HALTED or STOPPING, plus the strict observed ORDER_PENDING exception. Its general allowance now also includes STARTING. This single-condition change permits a future new process to persist nonconfirmed STARTING while retaining unresolved original action evidence. STARTING does not resolve the action or license mutation; frozen reconciliation remains responsible for recovery.
@@ -747,7 +749,57 @@ FLAT/LONG still reject unresolved unknown actions. The observed ORDER_PENDING ex
 
 Validation: correction **19**, complete RuntimeStore **230 (211 + 19)**, Stage 10.5 **90**, Stage 10.7 **97**, Stage 10.8 **79**, Stage 10.6 **79**, locking **23**, Stage 10.2 **188**, Stage 10.4 **97**, Stage 9.4 **123**, Stage 9.5 **100**, placement boundary **29**, Stage 9.6 **68**, frozen EMA **16**, full suite **2,296 (2,277 + 19)**; zero failures/errors/skips. `pip check`, `git diff --check` and `git diff --staged --check` pass. The scheduler test's store-source hash and explanatory comment are refreshed for the approved change; scheduler production code, assertions and 79-test count are unchanged. Other frozen production/tests, Decisions 001–017, financial/next-OPEN behavior, notebooks/data/results and dependencies are preserved. No credentials, actual broker request/order/cancellation or Demo activation occurred.
 
-Correction COMPLETE for owner review/freeze. Stages 10.1–10.8 remain FROZEN. Stage 10.9 remains BLOCKED until this correction is reviewed/frozen; no `recovery.py` or other Stage 10.9 implementation exists. Stage 10 remains INCOMPLETE; Stage 10.10 remains NOT STARTED.
+At correction completion: COMPLETE for owner review/freeze; Stages 10.1–10.8 FROZEN; Stage 10.9 BLOCKED until correction review/freeze, with no recovery implementation. Stage 10 remained INCOMPLETE and Stage 10.10 NOT STARTED. The correction is now FROZEN; Stage 10.9 is recorded separately below.
+
+### Restart / crash / ambiguous-action recovery — Stage 10.9
+
+Starting baseline: clean `main` / `origin/main` at `a22199f9abd1ce2484aa6dbde500ad126cb66b21`. Stages 10.1–10.8, the RuntimeStore restart-validation correction and approved Stage 9 corrections are FROZEN. Only new `runtime/recovery.py`, `tests/test_runtime_restart_recovery.py` and current documentation change; no old test expectation needs updating.
+
+Import explicitly from `trading_lab.runtime.recovery`:
+
+```python
+class RestartRecoveryError(RuntimeError): ...
+prepare_process_restart(store: RuntimeStore) -> RuntimeCheckpoint
+```
+
+This small process-entry boundary accepts an already-open existing store and uses only public `get_checkpoint()` and at most one `save_checkpoint(proposed, expected_sequence=current.sequence)`. No broker/market/adapter/scheduler argument, implicit clock, loop, private store access, SQL, action read/write, phase change, budget decrement/reset, resource construction or corruption repair exists. Persistence errors propagate unchanged with no second read/write/retry; reopen determines old/new durable truth. Invalid store input raises fixed RestartRecoveryError.
+
+| Durable state | Process-entry result |
+| --- | --- |
+| STARTING | Exact checkpoint unchanged; no write or sequence increment. |
+| SYNCHRONIZING | STARTING; retained quantity becomes LAST_KNOWN, or UNKNOWN for None. |
+| FLAT | STARTING with exact zero / LAST_KNOWN; fresh reconciliation must prove FLAT again. |
+| LONG | STARTING with exact positive quantity / LAST_KNOWN; no second BUY. |
+| ORDER_PENDING | STARTING with exact pending ID/kind and LAST_KNOWN exposure. |
+| UNCERTAIN | STARTING with LAST_KNOWN/UNKNOWN exposure; only snapshot reason is cleared. |
+| HALTED | Exact checkpoint/latch unchanged; no write, rearm or broker call. |
+| STOPPING from a non-HALTED state | STARTING; consume shutdown marker and clear stopped_from/reason. |
+| STOPPING from HALTED | HALTED; consume shutdown marker, retaining exact reason/halted_at_ms. |
+
+Every changed checkpoint advances sequence exactly once. Exact quantity, desired intent, pending action, frontier, reconciliation/observation times, coverage, rearm timestamp and bootstrap/replay cutoffs survive. STARTING has no halted/shutdown marker; retained HALTED keeps the original halted timestamp. Action/link/broker IDs, origin candle, side/unit/authorization/kind, fills, original recovery counters and deadline are untouched. No PROCESS_RESTARTED event or frozen transition change is added.
+
+Canonical activation order:
+
+```text
+process N: crash / graceful STOPPING → process exits
+process N+1:
+  acquire canonical RuntimeAccountLock
+  → RuntimeStore.open(..., initialize=False)
+  → prepare_process_restart(store)
+  → construct caller-owned external resources
+  → frozen reconciliation / run_single_cycle / run_hourly_scheduler
+  → only a genuinely future eligible decision may authorize a new order
+```
+
+Call preparation only at new-process entry, before any trading in that process; it is not a reset button. **Restart never resends an unresolved action.** Frozen reconciliation retires PREPARED as ABANDONED_UNSENT, retaining its ACTION decision/frontier/consumed IDs. ATTEMPT_STARTED conservatively becomes UNKNOWN_OUTCOME even if the old process died before sending. Exact-link/order observations recover OPEN/partial/final evidence without fabricating receipts. Missing history remains uncertain until retained finite budgets/deadline HALT with RECOVERY_EXHAUSTED. No restart extends a deadline or restores tokens.
+
+**89 new offline tests** cross real temporary SQLite close/release/new-lock/open(initialize=False) boundaries. Crash A–H cover rolled-back PREPARED transactions, committed unsent intent, attempted-before-send, lost ACK, retained ACK, partial/deduplicated/new/conflicting fills, durable UNKNOWN_OUTCOME and terminal commits whose return was lost. Terminal LONG survives an empty newer execution window; FILLED SELL zero/remainder remains FLAT/LONG respectively. Rejected/HALT and subordinate cancellation evidence, opposite pending intent, original historical cutoffs and ownership conflicts remain safe. Missing/corrupt/config-mismatched/schema-invalid stores fail without initialization/repair/migration. Failed/indeterminate preparation commits and CAS conflicts propagate without follow-up activity; a second restart of committed STARTING is idempotent.
+
+Real frozen-cycle proofs include PREPARED, ATTEMPT_STARTED, lost-ACK OPEN/FILLED and terminal/partial cases. Real frozen scheduler proofs exhaust original ATTEMPT_STARTED/UNKNOWN_OUTCOME budgets without resend, plus graceful pending shutdown/restart. Placement and cancellation guards assert no invocation on recovery paths. Network, credential lookup and real sleep are blocked; all broker observations/mutations are synthetic test fixtures only.
+
+Validation: Stage 10.9 **89**, RuntimeStore **230**, Stage 10.8 **79**, Stage 10.7 **97**, Stage 10.6 **79**, Stage 10.5 **90**, locking **23**, Stage 10.2 **188**, Stage 10.4 **97**, Stage 9.4 **123**, Stage 9.5 **100**, placement boundary **29**, Stage 9.6 **68**, frozen EMA **16**, full suite **2,385 (2,296 + 89)**; zero failures/errors/skips. `pip check` and both diff checks pass. All frozen production/tests, public APIs/schema, Decisions 001–017, financial/next-OPEN behavior, notebooks/data/results and dependencies are unchanged. No credentials, real network request, authenticated Demo session/order/cancellation, launch layer or Stage 10.10 work.
+
+Stage 10.9 COMPLETE / ready for owner review/freeze. Stages 10.1–10.8, the RuntimeStore restart-validation correction and approved Stage 9 corrections remain FROZEN. Stage 10 INCOMPLETE; Stage 10.10 next / NOT STARTED. Do not begin it or activate Demo trading automatically.
 
 ### Accepted Stage 10 roadmap
 
@@ -755,13 +807,13 @@ Correction COMPLETE for owner review/freeze. Stages 10.1–10.8 remain FROZEN. S
 | --- | --- |
 | 10.1 — Runtime Contract / Architecture | COMPLETE; Accepted; published/frozen; documentation only. |
 | 10.2 — Runtime State Model + Pure State Machine | COMPLETE; published/frozen at `8b41427`; pure state core only. |
-| 10.3 — Durable Runtime Persistence + Single-Instance Lock | COMPLETE/FROZEN; baseline `56584c4`; corrections FROZEN at `ad3aca7` and `8b3a482`. |
+| 10.3 — Durable Runtime Persistence + Single-Instance Lock | COMPLETE/FROZEN; baseline `56584c4`; corrections FROZEN at `ad3aca7`, `8b3a482` and `a22199f`. |
 | 10.4 — Closed-Candle Market Data Gate | COMPLETE; published/frozen at `1865435`; public/read-only only. |
 | 10.5 — Startup / Broker Reconciliation | COMPLETE/FROZEN at `7576820`, including the exact-execution correction. |
 | 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy | COMPLETE/FROZEN at `6865a1e`; pure planner. |
 | 10.7 — Single-Cycle Demo Runtime Orchestration | COMPLETE/FROZEN at `728bf6d`, including the correction. |
 | 10.8 — Long-Running Candle Scheduler | COMPLETE/FROZEN at `f3e9fe6`; serialized hourly control. |
-| 10.9 — Restart / Crash / Ambiguous-Action Recovery | BLOCKED pending owner review/freeze of the separate RuntimeStore restart-validation correction; implementation NOT STARTED. |
+| 10.9 — Restart / Crash / Ambiguous-Action Recovery | COMPLETE / ready for owner review/freeze; checkpoint-only process entry and offline crash proofs. |
 | 10.10 — Runtime Integration Regression + Optional Explicit Demo Run | NOT STARTED; any actual run requires separate explicit authorization. |
 | 10.11 — Final Stage 10 Audit + Docs | NOT STARTED. |
 
@@ -1215,7 +1267,7 @@ Reserve belongs to the same portfolio. Stage 7.5 MTM equity now includes reserve
 
 Default fraction 1.0 must reproduce Stage 6 exactly, including quantities, independent GROSS/NET accounting, equity, and downstream analytics, without loosening existing tolerances. Frozen BTC reference values are recorded in Decision 011. Prefer existing accounting schemas and derive reserve safely from canonical entry accounting; any necessary new field requires an explicit reviewed decision.
 
-The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 2,296 tests.
+The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 2,385 tests.
 
 ## Position sizing core
 
@@ -1695,9 +1747,9 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Owner review/freeze of the completed Stage 10.3 / RuntimeStore additive restart-validation correction. Stage 9 plus its approved corrections and Stages 10.1–10.8 remain FROZEN. Stage 10 remains INCOMPLETE; Stage 10.9 — Restart / Crash / Ambiguous-Action Recovery remains BLOCKED until this correction is reviewed/frozen. Stage 10.10 remains NOT STARTED.
+Owner review/freeze of completed Stage 10.9 — Restart / Crash / Ambiguous-Action Recovery. Stage 9 plus its approved corrections, Stages 10.1–10.8 and the RuntimeStore restart-validation correction at `a22199f` remain FROZEN. Stage 10 remains INCOMPLETE; Stage 10.10 is next and NOT STARTED.
 
-Stage 9.1–9.7, its approved corrections, Stages 10.1–10.8 and Decision 017 remain frozen; the separate store correction awaits review. Stage 8, Stage 5 frozen EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. The caller-invoked scheduler serializes the frozen cycle without automatic cancellation, wallet sizing or actual Demo activation. Tests write runtime artifacts only in temporary directories.
+Stage 9.1–9.7, its approved corrections, Stages 10.1–10.8, the store correction and Decision 017 remain frozen. Stage 8, Stage 5 frozen EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. Process-entry preparation retains unresolved truth before caller-invoked frozen cycle/scheduler work; no automatic resend/cancellation, wallet sizing or actual Demo activation. Tests write runtime artifacts only in temporary directories.
 
 ## Not implemented yet
 
@@ -1716,9 +1768,9 @@ Stage 9.1–9.7, its approved corrections, Stages 10.1–10.8 and Decision 017 r
 
 ## Next milestone
 
-Stage 10.9 — Restart / Crash / Ambiguous-Action Recovery remains BLOCKED pending owner review/freeze of the separate RuntimeStore restart-validation correction. Its implementation has not started.
+Stage 10.10 — Runtime Integration Regression + Optional Explicit Demo Run is next and NOT STARTED, pending owner review/freeze of Stage 10.9 and explicit implementation authorization. Any actual authenticated Demo run requires separate explicit owner authorization.
 
-Stage 9 plus its approved corrections and Stages 10.1–10.8 remain COMPLETE/FROZEN. The store correction is COMPLETE for owner review/freeze; Stage 10 remains INCOMPLETE and Stage 10.10 remains NOT STARTED. Do not begin Stage 10.9 or later work or run an authenticated Demo smoke/order automatically. Explicit operator cancellation needs a separately approved API contract.
+Stage 9 plus its approved corrections, Stages 10.1–10.8 and the store correction remain COMPLETE/FROZEN. Stage 10.9 is COMPLETE / ready for owner review/freeze; Stage 10 remains INCOMPLETE. Do not begin Stage 10.10 or later work or run an authenticated Demo smoke/order automatically. Explicit operator cancellation needs a separately approved API contract.
 
 ## Backtesting execution contract
 

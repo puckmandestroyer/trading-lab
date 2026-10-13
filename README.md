@@ -6,7 +6,7 @@ The long-term goal is to support historical market data, multiple independent st
 
 ## Current stage
 
-**Stage 10 — Demo Trading Runtime remains INCOMPLETE. Stage 10.8 — Long-Running Candle Scheduler is COMPLETE/FROZEN at `f3e9fe6`. Stage 9 with its approved corrections, Stages 10.1–10.8 and Accepted Decision 017 remain FROZEN. The separate Stage 10.3 / RuntimeStore additive restart-validation correction is COMPLETE for owner review/freeze. Stage 10.9 remains BLOCKED pending that review; Stage 10.10 remains NOT STARTED. No actual Demo activation or launch layer exists.**
+**Stage 10 — Demo Trading Runtime remains INCOMPLETE. Stage 10.9 — Restart / Crash / Ambiguous-Action Recovery is COMPLETE / ready for owner review/freeze. Stage 9 with its approved corrections, Stages 10.1–10.8, the RuntimeStore restart-validation correction at `a22199f` and Accepted Decision 017 remain FROZEN. Stage 10.10 is next and NOT STARTED. No actual Demo activation or launch layer exists.**
 
 **Stage 9 — Bybit Demo Exchange Adapter remains COMPLETE after its final audit. All milestones 9.1–9.7 passed under unchanged Decisions 013–016.**
 
@@ -136,7 +136,32 @@ The **Stage 10.3 / RuntimeStore additive restart-validation correction** changes
 
 Exact pending identity, one unresolved placement, cancellation/fill ownership, deadlines, recovery budgets, frontier and HALT guards are preserved. No automatic transition, broker query, action conversion, budget reset or recovery API is added. Schema version 1, public APIs, Decimal storage, SQLite durability, CAS, phase graph and account lock are unchanged; existing valid Stage 10.3 databases remain readable without migration.
 
-**19 new offline regressions** prove real close/release/new-lock/reopen with exact zero/positive/unknown exposure, action/fill/history records, missing receipts and counters, plus unchanged negative guards. RuntimeStore **230 (211 + 19)** and full suite **2,296 (2,277 + 19)** pass with zero failures/errors/skips, along with all required frozen suites, `pip check` and both diff checks. The scheduler test updates only its store-source hash and explanatory comment; scheduler code, assertions and its 79-test count remain unchanged. See [the correction record](PROJECT_STATE.md#stage-103--runtimestore-additive-restart-validation-correction). No credentials, actual broker request/order/cancellation or Demo activation occurred. The correction awaits owner review/freeze; Stage 10.9 remains BLOCKED and unimplemented, including no `recovery.py`. Stage 10 remains INCOMPLETE; Stage 10.10 remains NOT STARTED.
+**19 new offline regressions** prove real close/release/new-lock/reopen with exact zero/positive/unknown exposure, action/fill/history records, missing receipts and counters, plus unchanged negative guards. RuntimeStore **230 (211 + 19)** and full suite **2,296 (2,277 + 19)** passed with zero failures/errors/skips, along with all required frozen suites, `pip check` and both diff checks. The scheduler test updated only its store-source hash and explanatory comment; scheduler code, assertions and its 79-test count remained unchanged. See [the correction record](PROJECT_STATE.md#stage-103--runtimestore-additive-restart-validation-correction). No credentials, actual broker request/order/cancellation or Demo activation occurred. These are the correction's completion results; it is now owner-reviewed/FROZEN at `a22199f`. Stage 10.9 is documented separately below.
+
+Stage 10.9 adds [runtime/recovery.py](src/trading_lab/runtime/recovery.py), imported explicitly:
+
+```python
+class RestartRecoveryError(RuntimeError): ...
+prepare_process_restart(store: RuntimeStore) -> RuntimeCheckpoint
+```
+
+This is a small boundary for a **new process**, not an in-process reset. It only reads the checkpoint and saves at most once through public CAS. STARTING and HALTED return the exact checkpoint unchanged. SYNCHRONIZING/FLAT/LONG/ORDER_PENDING/UNCERTAIN become STARTING; exact known quantity becomes LAST_KNOWN, while None stays UNKNOWN. Ordinary STOPPING becomes STARTING and consumes its shutdown marker. STOPPING from HALTED instead restores HALTED with its exact reason and halted timestamp. Changed checkpoints increment sequence once; pending identity, desired intent, all history/frontier/coverage/cutoff fields and action/fill/counter/deadline records survive unchanged.
+
+Canonical lifecycle:
+
+```text
+process N: crash / graceful STOPPING → process exits
+process N+1: acquire canonical account lock
+  → open existing RuntimeStore with initialize=False
+  → prepare_process_restart(store)
+  → construct caller-owned external resources
+  → frozen reconciliation / cycle / scheduler
+  → only a genuinely future eligible decision may authorize a new order
+```
+
+**Restart never resends an unresolved action.** Frozen reconciliation retires PREPARED without reauthorization and treats ATTEMPT_STARTED as potentially sent even if death preceded the send. Lost ACK recovery uses the original exact link/known broker ID; receipts remain absent when unobserved. Partial fills deduplicate, terminal durable ownership survives expired broker history, and missing evidence stays uncertain until original finite budgets/deadline HALT. No automatic cancellation, rearm, repair, clock, network, phase rewrite or retry is added to process entry. Missing/corrupt/config-mismatched stores fail closed without initialization or migration. Persistence errors propagate unchanged; reopen determines old/new durable truth, and committed STARTING is idempotent on the next restart.
+
+**89 new offline Stage 10.9 tests** prove real close/release/new-lock/reopen, crash A–H, all restart states, retained cancellation/ownership/history evidence, persistence uncertainty and no-resend through the actual frozen cycle/scheduler. RuntimeStore **230** and every required frozen suite remain green. Full suite: **2,385 (2,296 + 89)**, zero failures/errors/skips; `pip check` and both diff checks pass. See [the restart record](PROJECT_STATE.md#restart--crash--ambiguous-action-recovery--stage-109) for the matrix and exact validation counts. Frozen source/tests/APIs/schema/Decisions, financial/next-OPEN behavior, notebooks/data/results and dependencies remain unchanged. No real credentials, network request, authenticated Demo session/order/cancellation or Stage 10.10 work. Stage 10.9 COMPLETE / ready for owner review/freeze; Stage 10 INCOMPLETE; Stage 10.10 next / NOT STARTED.
 
 **Stage 8 — Strategy Robustness is COMPLETE after Stage 8.8 — Final Stage 8 Audit + Docs. All milestones 8.1–8.8 passed under Accepted [Decision 012](decisions/012_strategy_robustness.md).**
 
@@ -176,7 +201,7 @@ The separate **Stage 9.5 crash-consistent pre-submit hook correction** adds opti
 
 Dispatch still refuses unsafe Demo routing, retries or logging after callback return. A refusal at that point is after the caller's durable attempt boundary and future runtime recovery must retain attempted/uncertain evidence; it must never be treated as a PREPARED-safe failure or trigger automatic resend. No metadata/amount preflight follows the callback. Confirmed rejection, malformed acknowledgement and transport uncertainty retain their existing error classes; cancellation is unchanged. [Correction details](PROJECT_STATE.md#stage-95-crash-consistent-pre-submit-hook-correction).
 
-At correction completion, **29 new offline tests** covered 24 adapter cases and five temporary-store proofs. Fake placement observes durably committed ATTEMPT_STARTED/count 1 through a separate SQLite reader with no writer transaction active; commit failure prevents send, safe preflight leaves PREPARED, and post-boundary refusal retains the attempt. Stage 9.5 **100 (76 + 24)**, Stage 9.6 **68**, Stage 10.6 **79**, Stage 10.5 **90**, RuntimeStore **211**, locking **23**, Stage 10.2 **188**, Stage 10.4 **97**, Stage 9.4 **123**, EMA **16**, full suite **2,101 (2,072 + 29)**, `pip check` and both diff checks pass with zero failures/errors/skips. Only the production action adapter changes; runtime/store/state/planner/reconciliation/schema/Decisions, financial timing, notebooks/data/results/dependencies are preserved. No actual broker request, credentials, order/cancellation or manual Demo smoke. These are the correction’s completion results; it is now owner-reviewed/FROZEN at `77a88fe`. Stage 10.8 is documented above; Stage 10.9 remains BLOCKED and later milestones remain NOT STARTED.
+At correction completion, **29 new offline tests** covered 24 adapter cases and five temporary-store proofs. Fake placement observes durably committed ATTEMPT_STARTED/count 1 through a separate SQLite reader with no writer transaction active; commit failure prevents send, safe preflight leaves PREPARED, and post-boundary refusal retains the attempt. Stage 9.5 **100 (76 + 24)**, Stage 9.6 **68**, Stage 10.6 **79**, Stage 10.5 **90**, RuntimeStore **211**, locking **23**, Stage 10.2 **188**, Stage 10.4 **97**, Stage 9.4 **123**, EMA **16**, full suite **2,101 (2,072 + 29)**, `pip check` and both diff checks pass with zero failures/errors/skips. Only the production action adapter changes; runtime/store/state/planner/reconciliation/schema/Decisions, financial timing, notebooks/data/results/dependencies are preserved. No actual broker request, credentials, order/cancellation or manual Demo smoke. These are the correction’s completion results; it is now owner-reviewed/FROZEN at `77a88fe`. Stages 10.8–10.9 are documented above; later milestones remain NOT STARTED.
 
 Stage 9.6 adds **34 integration tests** and **34 offline smoke-control tests**. Explicit BUY/SELL flows compose credential/session creation, fresh metadata, exact normalization, placement receipts and separate state/fill reads. Tests cover cancellation races, partial/multiple fills, history fallback, bounded pagination, unknown/unobserved orders, malformed acknowledgements, metadata constraints, confirmed rejection and transport ambiguity. Shared-session routing changes fail closed; secrets stay out of models/errors/diagnostics; wallet changes cannot resize requests. Only place_order/cancel_order mutations are allowed, and Stage 9.4 stays read-only. No strategy/backtest coupling or runtime loop is added.
 
@@ -214,7 +239,7 @@ Canonical BTC diagnostics retain **6,132 IS / 2,628 OOS**, boundary **2026-06-13
 
 The final audit accepts chronological cold-start OOS evaluation, deterministic sensitivity, descriptive local stability, fixed-configuration expanding walk-forward, consistent downstream diagnostics, and Notebook 06's visual research report. Stage 8 adds **235 tests** to the unchanged 747-test baseline: **982 total**, zero failures, errors, or skips. Frozen Stage 5–7 references, Decisions 010–012, notebook bytes, and BTC SHA256 are preserved. No optimizer, selected best EMA, robustness score, or stitched OOS portfolio exists. Already-seen single-asset/hourly/EMA research does not prove future profitability or provide demo/live trading evidence.
 
-Current focus: owner review/freeze of the **Stage 10.3 / RuntimeStore additive restart-validation correction — COMPLETE**. Stage 9 with its approved corrections, Stages 10.1–10.8 and Decision 017 remain FROZEN; Stage 10 remains INCOMPLETE. **Stage 10.9 — Restart / Crash / Ambiguous-Action Recovery remains BLOCKED** until this correction is reviewed/frozen. **Stage 10.10 remains NOT STARTED.** Do not begin recovery, later milestones or an authenticated Demo run automatically. Explicit operator cancellation needs a separate owner-approved API contract. Milestone entries and earlier audits retain their original test totals.
+Current focus: owner review/freeze of **Stage 10.9 — Restart / Crash / Ambiguous-Action Recovery — COMPLETE**. Stage 9 with its approved corrections, Stages 10.1–10.8, the RuntimeStore restart-validation correction at `a22199f` and Decision 017 remain FROZEN; Stage 10 remains INCOMPLETE. **Stage 10.10 is next and NOT STARTED.** Do not begin it, later milestones or an authenticated Demo run automatically. Explicit operator cancellation needs a separate owner-approved API contract. Milestone entries and earlier audits retain their original test totals.
 
 - Stage 1 completed: reusable historical data collection and a validated BTCUSDT hourly snapshot.
 - Stage 2 completed: statistical market analysis of returns, volatility, volume, extreme movements, and BTC buy-and-hold drawdown in `notebooks/01_data_exploration.ipynb`.
@@ -474,7 +499,7 @@ Trading Lab/
 │   ├── analytics/         # Trade metrics, realized drawdown, time, CLOSE equity
 │   ├── robustness/        # IS/OOS, grids, local variation, walk-forward, diagnostics
 │   ├── exchange/          # Public market data and Demo-only read/action adapters
-│   ├── runtime/           # State, durable journal, cycle and hourly scheduler
+│   ├── runtime/           # State, journal, restart preparation, cycle and scheduler
 │   ├── execution/         # Future order and execution management
 │   ├── risk/              # Future centralized risk checks
 │   ├── database/          # Future storage integration

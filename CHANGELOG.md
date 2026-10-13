@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-13 — Stage 10.9 crash-safe runtime restart recovery
+
+- Added checkpoint-only prepare_process_restart for new-process entry after canonical lock acquisition and existing-store validation, before caller-owned external resources/cycle/scheduler. STARTING/HALTED stay exact; other nonterminal states enter nonconfirmed STARTING. STOPPING consumes shutdown evidence while retaining exposure/pending/intent; STOPPING from HALTED restores the exact latch without rearm.
+- Preserve all action/fill/history/identity/counter/deadline records and checkpoint frontier/coverage/cutoffs. At most one public checkpoint CAS save; store errors propagate without retry or follow-up. No broker/network/clock/SQL/action API or reset/repair capability. Restart never resends an unresolved action; frozen reconciliation retains ownership of lifecycle recovery.
+- Added **89 offline tests** with real close/release/new-lock/reopen, crash A–H, idempotent normalization, original-ID/fill/ownership/cancellation/HALT preservation, bounded recovery exhaustion and persistence uncertainty. Actual frozen-cycle and scheduler recovery paths assert no placement/cancellation invocation; broker/SDK observations and sends are synthetic fixtures only.
+- Stage 10.9 **89**, RuntimeStore **230**, 10.8 **79**, 10.7 **97**, 10.6 **79**, 10.5 **90**, locking **23**, 10.2 **188**, 10.4 **97**, 9.4 **123**, 9.5 **100**, placement boundary **29**, 9.6 **68**, EMA **16**, full suite **2,385 (2,296 + 89)** pass; zero failures/errors/skips. `pip check` and both diff checks pass.
+- RuntimeStore restart correction is owner-reviewed/FROZEN at `a22199f`; all frozen production/tests/APIs/schema/Decisions, financial/next-OPEN behavior, notebooks/data/results/dependencies remain unchanged. No credentials, real network, authenticated Demo session/order/cancellation, launch layer or Stage 10.10 work. Stage 10.9 COMPLETE/ready for owner review/freeze; Stage 10 INCOMPLETE; Stage 10.10 next/NOT STARTED.
+
 ## 2026-10-13 — Stage 10.3 / RuntimeStore additive restart-validation correction
 
 - Added STARTING to the existing nonconfirmed UNKNOWN_OUTCOME allowance in one store validation condition. STARTING neither resolves the action nor licenses mutation; frozen reconciliation remains responsible for recovery. The strict ORDER_PENDING exception, FLAT/LONG restrictions, identity/ownership, budgets/deadlines, frontier and HALT guards are unchanged.
