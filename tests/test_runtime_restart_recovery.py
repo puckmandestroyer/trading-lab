@@ -1228,12 +1228,13 @@ class RestartBoundaryTests(unittest.TestCase):
         self.assertNotIn("PROCESS_RESTARTED", inspect.getsource(module))
 
     def test_frozen_runtime_sources_match_approved_baseline(self):
-        # Literal SHA256 values at owner-reviewed a22199f, not runtime constants.
+        # Literal frozen SHA256 values; only reconciliation includes the
+        # owner-approved read-failure correction. Not runtime constants.
         expected = {
             "state": "014b92aca145d61a57df230d3c3747025768090d2b96cdeaa97a96e5ad2675bc",
             "store": "316181fffced5491214d6fbebf2ec1b94abecd48b23921dcbabd5f970bdef3fa",
             "locking": "b10c5a8ac5e4ed4b8a7616b656602319c4e238eb0d2404fc2d31e6d636048273",
-            "reconciliation": "14c9e1a8e60ba7f35eb4d33f63b2f8a517068dbb6f1d87a04bdeab6f349178d0",
+            "reconciliation": "2c9386a5f4e3670144722e53202f869c8b7ce6e67ce963342a45bbf6f9ef0bb9",
             "planner": "e97b0f9c709e909c56f132cfd5a718a3fbb8a488debb0c71823415adb0605686",
             "cycle": "d1a8b92b042d10402ef5bdc80b58edc62415a5a69cef7c99a27174311d890bc4",
             "scheduler": "f588124296a4442ab0c969ae55202d991ee1e003d500a5aa3f373f03d074608d",

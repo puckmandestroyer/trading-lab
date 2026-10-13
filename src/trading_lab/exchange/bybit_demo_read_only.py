@@ -4,21 +4,37 @@ from collections.abc import Mapping
 from datetime import datetime, timedelta, timezone
 from decimal import Context, Decimal, InvalidOperation, MAX_EMAX, MIN_EMIN, localcontext
 
+import requests
+
 from .account_state import (
-    AccountState, BrokerOrderNotFoundError, CurrencyBalance, ExecutionState,
+    AccountState, BrokerOrderNotFoundError, BrokerReadError, BrokerReadFailureKind,
+    CurrencyBalance, ExecutionState,
     OrderState, OrderStatus,
 )
 
 
-class BybitDemoReadError(RuntimeError):
+class BybitDemoReadError(BrokerReadError):
     """A Demo read failed, with safe operation/code context and no raw SDK error."""
+
+    def __init__(self, message="Demo read failed.", *, kind=BrokerReadFailureKind.PERMANENT):
+        super().__init__(kind)
+        # Only adapter-authored operation/code/type diagnostics are supplied.
+        RuntimeError.__init__(self, message)
 
 
 class BybitDemoStateParseError(BybitDemoReadError):
     """A response cannot become a complete, trustworthy normalized snapshot."""
 
+    def __init__(self, message="Demo response is malformed."):
+        super().__init__(message, kind=BrokerReadFailureKind.MALFORMED_DATA)
+
 
 _READ_METHODS = frozenset({"get_wallet_balance", "get_open_orders", "get_order_history", "get_executions"})
+# Concrete connection/timeout types only; HTTP/API and arbitrary SDK errors
+# are not evidence of a safe transient failure. No message/code guessing.
+_TRANSIENT_TRANSPORT_ERRORS = (
+    TimeoutError, ConnectionError, requests.exceptions.Timeout, requests.exceptions.ConnectionError,
+)
 _STATUS_MAP = {
     "New": OrderStatus.OPEN,
     "Untriggered": OrderStatus.NEW,
@@ -223,7 +239,8 @@ class BybitDemoReadOnlyAdapter:
             or getattr(session, "retry_delay", None) != 0
             or getattr(session, "log_requests", None) is not False
         ):
-            raise BybitDemoReadError("Session must retain Stage 9.2 Demo endpoint and safety settings.")
+            raise BybitDemoReadError("Session must retain Stage 9.2 Demo endpoint and safety settings.",
+                                     kind=BrokerReadFailureKind.INVALID_CONFIGURATION)
 
     def _read(self, operation: str, **kwargs):
         if operation not in _READ_METHODS:
@@ -231,9 +248,15 @@ class BybitDemoReadOnlyAdapter:
         self._validate_session()
         try:
             return getattr(self._session, operation)(**kwargs)
+        except _TRANSIENT_TRANSPORT_ERRORS as error:
+            failure = BybitDemoReadError(f"{operation} failed ({type(error).__name__}).",
+                                         kind=BrokerReadFailureKind.TRANSIENT)
         except Exception as error:
             # SDK errors may embed authenticated requests; retain only safe context.
-            raise BybitDemoReadError(f"{operation} failed ({type(error).__name__}).") from None
+            failure = BybitDemoReadError(f"{operation} failed ({type(error).__name__}).")
+        # Raise outside the SDK exception handler: even __context__ must not
+        # retain the original authenticated exception object/text.
+        raise failure from None
 
     def get_account_state(self) -> AccountState:
         """Read USD UTA aggregates and separate coins; never invent spendable coin cash."""

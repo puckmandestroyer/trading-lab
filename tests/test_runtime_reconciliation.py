@@ -9,8 +9,11 @@ import sqlite3
 import unittest
 from unittest.mock import patch
 
+import requests
+
 from trading_lab.exchange.account_state import (
-    AccountState, BrokerOrderNotFoundError, CurrencyBalance, ExecutionState, OrderState, OrderStatus,
+    AccountState, BrokerOrderNotFoundError, BrokerReadError, BrokerReadFailureKind,
+    CurrencyBalance, ExecutionState, OrderState, OrderStatus,
 )
 from trading_lab.runtime.reconciliation import ReconciliationError, reconcile_startup
 import trading_lab.runtime.reconciliation as module
@@ -20,6 +23,8 @@ from trading_lab.runtime.state import (
 )
 from trading_lab.runtime.store import ActionPhase, ActionRecord, JournalActionKind, RuntimeStoreError
 from tests.test_runtime_store import ACTION_ID, D, HOUR, StoreCase, candle, fill, terminal
+from tests.test_bybit_demo_read_only import FakeDemoSession
+from trading_lab.exchange.bybit_demo_read_only import BybitDemoReadOnlyAdapter
 
 
 NOW_MS = HOUR + 10000
@@ -541,7 +546,7 @@ class ReconciliationTests(StoreCase):
 
     def test_read_failure_is_not_successful_empty_state_and_does_not_retry(self):
         self.unknown()
-        self.broker.errors["get_account_state"] = TimeoutError("synthetic-private-auth-response")
+        self.broker.errors["get_account_state"] = BrokerReadError(BrokerReadFailureKind.TRANSIENT)
         result = self.run_round()
         self.assert_state(result, RuntimeState.UNCERTAIN)
         self.assertEqual(len(self.broker.calls), 1)
@@ -744,7 +749,7 @@ class ReconciliationTests(StoreCase):
 
         def fail_exact(order_id=None, symbol=None):
             if order_id is not None:
-                raise TimeoutError("synthetic-private-sdk-response")
+                raise BrokerReadError(BrokerReadFailureKind.TRANSIENT)
             return read(order_id, symbol)
 
         with patch.object(self.broker, "get_executions", side_effect=fail_exact):
@@ -818,7 +823,7 @@ class ReconciliationTests(StoreCase):
                 case.setUp()
                 try:
                     case.known()
-                    case.broker.errors[operation] = ConnectionError("synthetic-private-sdk-error")
+                    case.broker.errors[operation] = BrokerReadError(BrokerReadFailureKind.TRANSIENT)
                     result = case.run_round()
                     case.assert_state(result, RuntimeState.UNCERTAIN, "0")
                     self.assertEqual([name for name, _ in case.broker.calls].count(operation), 1)
@@ -1011,6 +1016,111 @@ class ReconciliationTests(StoreCase):
                         self.assertIs(result.checkpoint.snapshot.position_evidence, PositionEvidence.LAST_KNOWN)
                     finally:
                         case.doCleanups()
+
+
+class ReadFailureReconciliationTests(StoreCase):
+    def setUp(self):
+        super().setUp()
+        self.enterContext(patch("socket.create_connection", side_effect=AssertionError("No network")))
+        self.enterContext(patch.object(requests.Session, "send", side_effect=AssertionError("No network")))
+        self.enterContext(patch.object(requests.Session, "request", side_effect=AssertionError("No network")))
+        self.session = FakeDemoSession()
+        self.adapter = BybitDemoReadOnlyAdapter(self.session, account_id="research")
+        self.broker = FakeReadOnlyBroker(self.store)
+
+    def run_round(self, broker=None):
+        return reconcile_startup(self.store, broker or self.adapter, utc_now=utc, monotonic=lambda: 1.0)
+
+    def assert_fatal(self, result, reason):
+        self.assertIs(result.checkpoint.snapshot.state, RuntimeState.HALTED)
+        self.assertIs(result.checkpoint.snapshot.reason, reason)
+        self.assertEqual(self.store.list_fills(), ())
+        self.assertEqual(self.session.mutations, 0)
+        self.assertNotIn("private-offline-marker", repr(result))
+
+    def test_malformed_wallet_halts_after_one_account_read(self):
+        self.session.wallet["result"]["list"] = []
+        self.assert_fatal(self.run_round(), RuntimeReason.INCONSISTENT_EVIDENCE)
+        self.assertEqual([n for n, _ in self.session.calls], ["get_wallet_balance"])
+
+    def test_unsafe_demo_configuration_halts_before_any_sdk_call(self):
+        self.session.demo = False
+        self.assert_fatal(self.run_round(), RuntimeReason.INVALID_CONFIGURATION)
+        self.assertEqual(self.session.calls, [])
+
+    def test_verified_adapter_timeout_remains_nonfatal_evidence_missing(self):
+        self.session.errors["get_wallet_balance"] = TimeoutError("private-offline-marker")
+        result = self.run_round()
+        self.assertIs(result.checkpoint.snapshot.state, RuntimeState.UNCERTAIN)
+        self.assertIs(result.checkpoint.snapshot.reason, RuntimeReason.EVIDENCE_MISSING)
+        self.assertEqual([n for n, _ in self.session.calls], ["get_wallet_balance"])
+
+    def test_unknown_sdk_exception_halts_after_one_account_read(self):
+        self.session.errors["get_wallet_balance"] = RuntimeError("private-offline-marker")
+        self.assert_fatal(self.run_round(), RuntimeReason.INCONSISTENT_EVIDENCE)
+        self.assertEqual([n for n, _ in self.session.calls], ["get_wallet_balance"])
+
+    def test_unknown_api_code_is_permanent_and_halts(self):
+        self.session.wallet = {"retCode": 987654, "retMsg": "private-offline-marker"}
+        self.assert_fatal(self.run_round(), RuntimeReason.INCONSISTENT_EVIDENCE)
+        self.assertEqual([n for n, _ in self.session.calls], ["get_wallet_balance"])
+
+    def test_unknown_generic_broker_exception_is_fatal_not_transient(self):
+        self.broker.errors["get_account_state"] = RuntimeError("private-offline-marker")
+        self.assert_fatal(self.run_round(self.broker), RuntimeReason.INCONSISTENT_EVIDENCE)
+        self.assertEqual([n for n, _ in self.broker.calls], ["get_account_state"])
+
+    def test_unclassified_generic_timeout_does_not_assert_transport_provenance(self):
+        self.broker.errors["get_account_state"] = TimeoutError("private-offline-marker")
+        self.assert_fatal(self.run_round(self.broker), RuntimeReason.INCONSISTENT_EVIDENCE)
+        self.assertEqual([n for n, _ in self.broker.calls], ["get_account_state"])
+
+    def active_failure(self, mode):
+        attempted = self.attempt()
+        cp = self.store.get_checkpoint()
+        action = replace(attempted, phase=ActionPhase.UNKNOWN_OUTCOME, remaining_read_attempts=1,
+                         safe_reason=RuntimeReason.ACTION_OUTCOME_UNKNOWN)
+        snapshot = transition_runtime_state(cp.snapshot, RuntimeEvent(
+            RuntimeEventType.UNCERTAINTY_DETECTED, reason=RuntimeReason.ACTION_OUTCOME_UNKNOWN))
+        self.store.record_observation(action, self.next_checkpoint(snapshot=snapshot), expected_sequence=cp.sequence)
+        if mode == "configuration":
+            self.session.demo = False
+        elif mode == "malformed":
+            self.session.wallet["result"]["list"] = []
+        else:
+            self.session.errors["get_wallet_balance"] = RuntimeError("private-offline-marker")
+        read = self.session.get_wallet_balance
+        def inspect_reservation(**params):
+            self.assertFalse(self.store._connection.in_transaction)
+            self.assertEqual(self.store.get_action(ACTION_ID).remaining_read_attempts, 0)
+            return read(**params)
+        with patch.object(self.session, "get_wallet_balance", side_effect=inspect_reservation):
+            result = self.run_round()
+        reason = RuntimeReason.INVALID_CONFIGURATION if mode == "configuration" else RuntimeReason.INCONSISTENT_EVIDENCE
+        self.assert_fatal(result, reason)
+        after = self.store.get_action(ACTION_ID)
+        self.assertEqual(after.remaining_read_attempts, 0)
+        self.assertEqual(after.remaining_reconciliation_rounds, action.remaining_reconciliation_rounds - 1)
+        self.assertEqual((after.logical_action_id, after.order_link_id, after.reconciliation_deadline_ms, after.attempt_count),
+                         (action.logical_action_id, action.order_link_id, action.reconciliation_deadline_ms, 1))
+        self.assertIs(after.phase, ActionPhase.UNKNOWN_OUTCOME)
+        self.assertEqual(result.checkpoint.snapshot.pending_action, cp.snapshot.pending_action)
+        self.assertEqual([n for n, _ in self.session.calls], [] if mode == "configuration" else ["get_wallet_balance"])
+        other = type(self.store).open(self.lock, self.config, initialize=False)
+        try:
+            self.assertEqual(other.get_action(ACTION_ID), after)
+            self.assertEqual(other.get_checkpoint(), result.checkpoint)
+        finally:
+            other.close()
+
+    def test_last_token_malformed_failure_retains_fatal_cause_not_exhaustion(self):
+        self.active_failure("malformed")
+
+    def test_last_token_configuration_failure_retains_fatal_cause_not_exhaustion(self):
+        self.active_failure("configuration")
+
+    def test_last_token_permanent_failure_retains_fatal_cause_not_exhaustion(self):
+        self.active_failure("permanent")
 
 
 if __name__ == "__main__":

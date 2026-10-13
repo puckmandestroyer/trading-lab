@@ -13,6 +13,7 @@ from unittest.mock import Mock, patch
 
 import requests
 
+from trading_lab.exchange.account_state import BrokerReadError, BrokerReadFailureKind
 from trading_lab.runtime.cycle import CycleError, CycleOutcome, SingleCycleResult
 from trading_lab.runtime.scheduler import SchedulerError, SchedulerExit, SchedulerResult, run_hourly_scheduler
 import trading_lab.runtime.scheduler as module
@@ -23,6 +24,7 @@ from trading_lab.runtime.state import (
 from trading_lab.runtime.store import ActionPhase, RuntimeStoreError
 from tests.test_runtime_store import StoreCase, HOUR, fill
 from tests.test_runtime_cycle import CycleCase, utc
+from tests import test_runtime_integration_regression as integration_fixtures
 
 
 class FakeClock:
@@ -712,14 +714,14 @@ class ClockAndInputTests(SchedulerCase):
 
 class PublicAndStructuralTests(SchedulerCase):
     def test_frozen_runtime_sources_and_package_match_published_baseline(self):
-        # Literal published hashes; only store includes the owner-approved
-        # STARTING/UNKNOWN_OUTCOME validation correction. No runtime constants.
+        # Literal frozen hashes plus the approved store restart validation and
+        # reconciliation read-failure corrections. No runtime constants.
         expected = {
             "cycle": "d1a8b92b042d10402ef5bdc80b58edc62415a5a69cef7c99a27174311d890bc4",
             "state": "014b92aca145d61a57df230d3c3747025768090d2b96cdeaa97a96e5ad2675bc",
             "store": "316181fffced5491214d6fbebf2ec1b94abecd48b23921dcbabd5f970bdef3fa",
             "locking": "b10c5a8ac5e4ed4b8a7616b656602319c4e238eb0d2404fc2d31e6d636048273",
-            "reconciliation": "14c9e1a8e60ba7f35eb4d33f63b2f8a517068dbb6f1d87a04bdeab6f349178d0",
+            "reconciliation": "2c9386a5f4e3670144722e53202f869c8b7ce6e67ce963342a45bbf6f9ef0bb9",
             "planner": "e97b0f9c709e909c56f132cfd5a718a3fbb8a488debb0c71823415adb0605686",
             "__init__": "8843b5105846f5386e9ac799f06b8446688043482618cbb8d3fc5a6655f40b60",
         }
@@ -813,7 +815,7 @@ class FrozenCycleIntegrationTests(CycleCase):
     def test_real_read_deficiencies_get_three_bounded_cycles_without_actions(self):
         clock = FakeClock(self.now_ms)
         stop = FakeStop(clock)
-        self.broker.errors["account"] = TimeoutError("Synthetic read deficiency")
+        self.broker.errors["account"] = BrokerReadError(BrokerReadFailureKind.TRANSIENT)
 
         def backoff(seconds):
             clock.advance(round(seconds * 1000))
@@ -828,6 +830,42 @@ class FrozenCycleIntegrationTests(CycleCase):
         self.assertIs(result.checkpoint.snapshot.stopped_from, RuntimeState.UNCERTAIN)
         self.assertEqual(self.market.calls, [])
         self.assert_no_send()
+
+
+class ReadFailureSchedulerTests(integration_fixtures.IntegrationCase):
+    def assert_no_retry(self, result, reason):
+        self.assertEqual(result.cycle_count, 1)
+        self.assertIs(result.exit_reason, SchedulerExit.HALTED)
+        self.assertIs(result.checkpoint.snapshot.state, RuntimeState.HALTED)
+        self.assertIs(result.checkpoint.snapshot.reason, reason)
+        self.assertEqual(self.stop.waits, [])
+        self.assertEqual((self.sends, self.cancels), ([], []))
+
+    def test_malformed_wallet_halts_real_scheduler_without_backoff(self):
+        def malformed(**params):
+            self.external("account", params)
+            return {"retCode": 0, "time": self.clock.ms, "result": {"list": []}}
+        with patch.object(self.session, "get_wallet_balance", side_effect=malformed) as read:
+            result = self.scheduler()
+        self.assert_no_retry(result, RuntimeReason.INCONSISTENT_EVIDENCE)
+        read.assert_called_once_with(accountType="UNIFIED")
+        self.assertEqual([name for name, *_ in self.trace], ["account"])
+
+    def test_unsafe_configuration_halts_real_scheduler_before_sdk_read(self):
+        self.session.demo = False
+        self.assert_no_retry(self.scheduler(), RuntimeReason.INVALID_CONFIGURATION)
+        self.assertEqual(self.trace, [])
+
+    def test_verified_timeouts_retain_three_attempts_and_one_two_second_backoff(self):
+        self.account_failures = 2
+        def retry(seconds):
+            self.clock.advance(int(seconds * 1000))
+        result = self.scheduler([retry, retry])
+        self.assertEqual(result.cycle_count, 3)
+        self.assertEqual(self.stop.waits[:2], [1.0, 2.0])
+        self.assertEqual(sum(name == "account" for name, *_ in self.trace), 3)
+        self.assertIs(result.checkpoint.snapshot.stopped_from, RuntimeState.FLAT)
+        self.assertEqual((self.sends, self.cancels), ([], []))
 
 
 if __name__ == "__main__":

@@ -13,7 +13,8 @@ import math
 from time import monotonic as monotonic_clock
 
 from ..exchange.account_state import (
-    AccountState, BrokerOrderNotFoundError, CurrencyBalance, ExecutionState,
+    AccountState, BrokerOrderNotFoundError, BrokerReadError, BrokerReadFailureKind,
+    CurrencyBalance, ExecutionState,
     OrderState, OrderStatus, ReadOnlyBroker,
 )
 from .state import (
@@ -450,8 +451,15 @@ def reconcile_startup(
                 result = operation(**kwargs)
             except BrokerOrderNotFoundError:
                 raise
+            except BrokerReadError as error:
+                if error.kind is BrokerReadFailureKind.TRANSIENT:
+                    raise _Issue(RuntimeReason.EVIDENCE_MISSING) from None
+                reason = (RuntimeReason.INVALID_CONFIGURATION
+                          if error.kind is BrokerReadFailureKind.INVALID_CONFIGURATION
+                          else RuntimeReason.INCONSISTENT_EVIDENCE)
+                raise _Issue(reason, fatal=True) from None
             except Exception:
-                raise _Issue(RuntimeReason.EVIDENCE_MISSING) from None
+                raise _Issue(RuntimeReason.INCONSISTENT_EVIDENCE, fatal=True) from None
             limits()
             return result
 

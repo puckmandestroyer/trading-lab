@@ -17,6 +17,7 @@ import requests
 
 from trading_lab.exchange import (
     AccountState, BrokerOrderNotFoundError, BybitDemoReadError,
+    BrokerReadError, BrokerReadFailureKind,
     BybitDemoReadOnlyAdapter, BybitDemoStateParseError, CurrencyBalance,
     ExecutionState, OrderState, OrderStatus, ReadOnlyBroker,
 )
@@ -1198,6 +1199,132 @@ class FailureAndSafetyTests(OfflineTests):
         result = subprocess.run([sys.executable, "-c", script], env={"PYTHONPATH": str(src), "PYTHONDONTWRITEBYTECODE": "1"}, capture_output=True, text=True, timeout=15)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, "")
+
+
+class ReadFailureClassificationTests(OfflineTests):
+    def test_finite_broker_independent_kind_and_fixed_safe_error(self):
+        self.assertEqual({k.value for k in BrokerReadFailureKind},
+                         {"TRANSIENT", "INVALID_CONFIGURATION", "MALFORMED_DATA", "PERMANENT"})
+        for kind in BrokerReadFailureKind:
+            error = BrokerReadError(kind)
+            self.assertIsInstance(error, RuntimeError)
+            self.assertIs(error.kind, kind)
+            self.assertEqual(error.args, (f"Broker read failed ({kind.value}).",))
+            self.assertEqual(vars(error), {})
+        self.assertFalse(issubclass(BrokerOrderNotFoundError, BrokerReadError))
+
+    def test_kind_is_immutable_including_reinitialization(self):
+        error = BrokerReadError(BrokerReadFailureKind.TRANSIENT)
+        for name in ("kind", "_kind"):
+            with self.subTest(name=name), self.assertRaises(AttributeError):
+                setattr(error, name, BrokerReadFailureKind.PERMANENT)
+            with self.assertRaises(AttributeError):
+                delattr(error, name)
+        with self.assertRaises(AttributeError):
+            error.__init__(BrokerReadFailureKind.PERMANENT)
+        self.assertIs(error.kind, BrokerReadFailureKind.TRANSIENT)
+
+    def test_kind_rejects_strings_and_other_unclassified_inputs(self):
+        for kind in (None, "TRANSIENT", "private-offline-marker", True, object()):
+            with self.subTest(type=type(kind).__name__), self.assertRaises(TypeError) as caught:
+                BrokerReadError(kind)
+            self.assertEqual(str(caught.exception), "An explicit BrokerReadFailureKind is required.")
+
+    def test_legacy_exception_hierarchy_remains_catchable(self):
+        self.assertIsInstance(BybitDemoReadError("Safe operation context."), BrokerReadError)
+        error = BybitDemoStateParseError("Safe field context.")
+        self.assertIsInstance(error, BybitDemoReadError)
+        self.assertIs(error.kind, BrokerReadFailureKind.MALFORMED_DATA)
+        self.assertIs(BybitDemoReadError().kind, BrokerReadFailureKind.PERMANENT)
+
+    def test_malformed_wallet_has_explicit_malformed_kind(self):
+        self.session.wallet["result"]["list"] = []
+        with self.assertRaises(BybitDemoStateParseError) as caught:
+            self.adapter.get_account_state()
+        self.assertIs(caught.exception.kind, BrokerReadFailureKind.MALFORMED_DATA)
+        self.assertEqual([n for n, _ in self.session.calls], ["get_wallet_balance"])
+
+    def test_all_safety_fields_are_invalid_configuration_at_construction(self):
+        for field, value in (("testnet", True), ("demo", False), ("endpoint", "https://unexpected.invalid"),
+                             ("force_retry", True), ("max_retries", 2), ("retry_delay", 1), ("log_requests", True)):
+            session = FakeDemoSession()
+            setattr(session, field, value)
+            with self.subTest(field=field), self.assertRaises(BybitDemoReadError) as caught:
+                BybitDemoReadOnlyAdapter(session)
+            self.assertIs(caught.exception.kind, BrokerReadFailureKind.INVALID_CONFIGURATION)
+            self.assertEqual(session.calls, [])
+
+    def test_all_safety_fields_are_revalidated_before_every_read(self):
+        for field, value in (("testnet", True), ("demo", False), ("endpoint", "https://unexpected.invalid"),
+                             ("force_retry", True), ("max_retries", 2), ("retry_delay", 1), ("log_requests", True)):
+            session = FakeDemoSession()
+            adapter = BybitDemoReadOnlyAdapter(session)
+            setattr(session, field, value)
+            for read in (adapter.get_account_state, adapter.get_open_orders, adapter.get_executions,
+                         lambda: adapter.get_order("order-1")):
+                with self.subTest(field=field), self.assertRaises(BybitDemoReadError) as caught:
+                    read()
+                self.assertIs(caught.exception.kind, BrokerReadFailureKind.INVALID_CONFIGURATION)
+            self.assertEqual(session.calls, [])
+
+    def test_verified_transport_types_are_transient_without_sdk_context(self):
+        for exception in (TimeoutError, ConnectionError, requests.exceptions.Timeout,
+                          requests.exceptions.ConnectionError):
+            self.session.errors["get_wallet_balance"] = exception("private-offline-marker")
+            with self.subTest(type=exception.__name__), self.assertRaises(BybitDemoReadError) as caught:
+                self.adapter.get_account_state()
+            self.assertIs(caught.exception.kind, BrokerReadFailureKind.TRANSIENT)
+            self.assertNotIn("private-offline-marker", str(caught.exception))
+            self.assertIsNone(caught.exception.__context__)
+            self.assertIsNone(caught.exception.__cause__)
+            self.assertEqual(vars(caught.exception), {})
+
+    def test_unknown_sdk_and_http_errors_are_permanent_without_message_inspection(self):
+        for exception in (RuntimeError, ValueError, requests.exceptions.HTTPError):
+            self.session.errors["get_wallet_balance"] = exception("private-offline-marker timeout 10003")
+            with self.subTest(type=exception.__name__), self.assertRaises(BybitDemoReadError) as caught:
+                self.adapter.get_account_state()
+            self.assertIs(caught.exception.kind, BrokerReadFailureKind.PERMANENT)
+            self.assertNotIn("private-offline-marker", str(caught.exception))
+            self.assertNotIn("10003", str(caught.exception))
+            self.assertIsNone(caught.exception.__context__)
+
+    def test_unclassified_nonzero_codes_default_permanent_and_ignore_retmsg(self):
+        for code in (10003, 10001, 987654, -1):
+            self.session.wallet = {"retCode": code, "retMsg": "private-offline-marker timeout", "result": {}}
+            with self.subTest(code=code), self.assertRaises(BybitDemoReadError) as caught:
+                self.adapter.get_account_state()
+            self.assertIs(caught.exception.kind, BrokerReadFailureKind.PERMANENT)
+            self.assertIn(f"retCode={code}", str(caught.exception))
+            self.assertNotIn("private-offline-marker", str(caught.exception))
+
+    def test_parse_failures_across_response_families_are_malformed(self):
+        cases = (
+            ("wallet", {"retCode": True}, "get_account_state"),
+            ("wallet", {**wallet_response(), "time": "invalid"}, "get_account_state"),
+            ("realtime", [order_response([{**order_record(), "cumExecQty": "NaN"}])], "get_open_orders"),
+            ("executions", [execution_response([{**execution_record(), "execPrice": "0"}])], "get_executions"),
+            ("realtime", [order_response([order_record()], cursor=None)], "get_open_orders"),
+        )
+        for field, value, method in cases:
+            session = FakeDemoSession()
+            setattr(session, field, value)
+            with self.subTest(method=method), self.assertRaises(BybitDemoStateParseError) as caught:
+                getattr(BybitDemoReadOnlyAdapter(session), method)()
+            self.assertIs(caught.exception.kind, BrokerReadFailureKind.MALFORMED_DATA)
+
+    def test_late_page_parse_failure_is_malformed_without_partial_success(self):
+        self.session.realtime = [order_response([order_record()], cursor="next"), {"retCode": 0, "result": {}}]
+        with self.assertRaises(BybitDemoStateParseError) as caught:
+            self.adapter.get_open_orders()
+        self.assertIs(caught.exception.kind, BrokerReadFailureKind.MALFORMED_DATA)
+        self.assertEqual(len(self.session.calls), 2)
+
+    def test_valid_unknown_order_status_remains_unknown_evidence(self):
+        self.session.realtime = [order_response([order_record(status="FutureStatus")])]
+        order = self.adapter.get_open_orders()[0]
+        self.assertIs(order.status, OrderStatus.UNKNOWN)
+        self.assertEqual(order.external_status, "FutureStatus")
 
 
 if __name__ == "__main__":

@@ -962,6 +962,52 @@ class OwnershipIntegrationTests(IntegrationCase):
         self.assertEqual(len(self.sends), 2)
 
 
+class ReadFailureIntegrationTests(IntegrationCase):
+    def assert_fatal_without_retry(self, result, reason):
+        self.assertEqual(result.cycle_count, 1)
+        self.assertIs(result.exit_reason, SchedulerExit.HALTED)
+        self.assertIs(result.checkpoint.snapshot.state, RuntimeState.HALTED)
+        self.assertIs(result.checkpoint.snapshot.reason, reason)
+        self.assertEqual(self.stop.waits, [])
+        self.assertEqual((self.sends, self.cancels), ([], []))
+        self.assertEqual((self.store.list_actions(), self.store.list_fills()), ((), ()))
+        self.assertNotIn(PRIVATE, repr(result))
+        self.audit("fatal-read")
+
+    def test_malformed_wallet_reproducer_is_one_cycle_halt_without_retry(self):
+        def malformed(**params):
+            self.external("account", params)
+            return {"retCode": 0, "time": self.clock.ms, "result": {"list": []}}
+        with patch.object(self.session, "get_wallet_balance", side_effect=malformed) as read:
+            result = self.scheduler()
+        self.assert_fatal_without_retry(result, RuntimeReason.INCONSISTENT_EVIDENCE)
+        read.assert_called_once_with(accountType="UNIFIED")
+        self.assertEqual([name for name, *_ in self.trace], ["account"])
+
+    def test_unsafe_demo_reproducer_is_one_cycle_halt_before_sdk_io(self):
+        self.session.demo = False
+        self.assert_fatal_without_retry(self.scheduler(), RuntimeReason.INVALID_CONFIGURATION)
+        self.assertEqual(self.trace, [])
+
+    def test_arbitrary_sdk_failure_is_permanent_and_has_no_retry(self):
+        def permanent(**params):
+            self.external("account", params)
+            raise RuntimeError(PRIVATE)
+        with patch.object(self.session, "get_wallet_balance", side_effect=permanent) as read:
+            result = self.scheduler()
+        self.assert_fatal_without_retry(result, RuntimeReason.INCONSISTENT_EVIDENCE)
+        read.assert_called_once()
+
+    def test_unclassified_api_code_is_permanent_and_has_no_retry(self):
+        def permanent(**params):
+            self.external("account", params)
+            return {"retCode": 987654, "retMsg": PRIVATE}
+        with patch.object(self.session, "get_wallet_balance", side_effect=permanent) as read:
+            result = self.scheduler()
+        self.assert_fatal_without_retry(result, RuntimeReason.INCONSISTENT_EVIDENCE)
+        read.assert_called_once()
+
+
 class PreservationIntegrationTests(IntegrationCase):
     def test_terminal_return_loss_round_trip_matches_uninterrupted_economic_and_identity_truth(self):
         original = self.store.record_observation
@@ -1018,12 +1064,14 @@ class PreservationIntegrationTests(IntegrationCase):
             self.assertNotIn("position_fraction", identifiers + attributes)
 
     def test_frozen_production_hashes_match_owner_reviewed_fef6_baseline(self):
+        # Preserve frozen fef6 sources except the explicitly approved read-
+        # adapter/reconciliation correction. Only those two hashes are refreshed.
         hashes = {
             "runtime/__init__.py": "8843b5105846f5386e9ac799f06b8446688043482618cbb8d3fc5a6655f40b60",
             "runtime/cycle.py": "d1a8b92b042d10402ef5bdc80b58edc62415a5a69cef7c99a27174311d890bc4",
             "runtime/locking.py": "b10c5a8ac5e4ed4b8a7616b656602319c4e238eb0d2404fc2d31e6d636048273",
             "runtime/planner.py": "e97b0f9c709e909c56f132cfd5a718a3fbb8a488debb0c71823415adb0605686",
-            "runtime/reconciliation.py": "14c9e1a8e60ba7f35eb4d33f63b2f8a517068dbb6f1d87a04bdeab6f349178d0",
+            "runtime/reconciliation.py": "2c9386a5f4e3670144722e53202f869c8b7ce6e67ce963342a45bbf6f9ef0bb9",
             "runtime/recovery.py": "847a7634018925c9815f52e2f9ff7654ab422ea61fd877fdb418c1806d1b58f4",
             "runtime/scheduler.py": "f588124296a4442ab0c969ae55202d991ee1e003d500a5aa3f373f03d074608d",
             "runtime/state.py": "014b92aca145d61a57df230d3c3747025768090d2b96cdeaa97a96e5ad2675bc",
@@ -1032,7 +1080,7 @@ class PreservationIntegrationTests(IntegrationCase):
             "exchange/bybit_public_market.py": "9591168c492b8535baed7245e43448b0fd37aeb6ec5b19da833d61bd3404e195",
             "exchange/bybit_demo.py": "322500c83ce6077c51b8d7ba966b421c661ced7888bde3052f8d4892900eb748",
             "exchange/bybit_spot_rules.py": "a604ece32539d575225c9a109c61f8b2d5a5f664d5a8fa580733b20326067fcc",
-            "exchange/bybit_demo_read_only.py": "2b0c3a01717954a886d3a9dc4034b451bc13772c1438c3b5c1efff966046ee45",
+            "exchange/bybit_demo_read_only.py": "132310622c87e9a6542cbfe6a933db6b0c53132893c84667021d3c7395c8b38e",
             "exchange/bybit_demo_orders.py": "fce3ab3569d91180dbaa1b638e0ce091414d1619b656e4b87ba8e3ab9ec0e3c0",
             "strategies/ema_trend.py": "098a12ebdb3a3e30260b7b86a49ba5146ca7ff9d3ae035ee5adc272a69227fee",
         }

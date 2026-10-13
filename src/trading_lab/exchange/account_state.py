@@ -24,6 +24,43 @@ class BrokerOrderNotFoundError(LookupError):
     """An order was not observed in the queried broker windows; outcome is unknown."""
 
 
+class BrokerReadFailureKind(str, Enum):
+    """Safe read-failure facts; retry policy belongs to the runtime."""
+
+    TRANSIENT = "TRANSIENT"
+    INVALID_CONFIGURATION = "INVALID_CONFIGURATION"
+    MALFORMED_DATA = "MALFORMED_DATA"
+    PERMANENT = "PERMANENT"
+
+
+class BrokerReadError(RuntimeError):
+    """A classified read failure without a response, SDK error or retry policy."""
+
+    __slots__ = ("_kind",)
+
+    def __init__(self, kind: BrokerReadFailureKind):
+        if not isinstance(kind, BrokerReadFailureKind):
+            raise TypeError("An explicit BrokerReadFailureKind is required.")
+        if hasattr(self, "_kind"):
+            raise AttributeError("Read failure classification is immutable.")
+        object.__setattr__(self, "_kind", kind)
+        super().__init__(f"Broker read failed ({kind.value}).")
+
+    @property
+    def kind(self) -> BrokerReadFailureKind:
+        return self._kind
+
+    def __setattr__(self, name, value):
+        if name in ("kind", "_kind"):
+            raise AttributeError("Read failure classification is immutable.")
+        super().__setattr__(name, value)
+
+    def __delattr__(self, name):
+        if name in ("kind", "_kind"):
+            raise AttributeError("Read failure classification is immutable.")
+        super().__delattr__(name)
+
+
 @dataclass(frozen=True, slots=True)
 class CurrencyBalance:
     """One currency's reported balances; unavailable amounts remain None."""

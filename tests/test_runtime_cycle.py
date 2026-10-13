@@ -19,7 +19,8 @@ from trading_lab.data.closed_candles import (
     StaleMarketDataError, validate_closed_prefix,
 )
 from trading_lab.exchange.account_state import (
-    AccountState, BrokerOrderNotFoundError, CurrencyBalance, ExecutionState, OrderState, OrderStatus,
+    AccountState, BrokerOrderNotFoundError, BrokerReadError, BrokerReadFailureKind,
+    CurrencyBalance, ExecutionState, OrderState, OrderStatus,
 )
 from trading_lab.exchange.bybit_demo_orders import BybitDemoOrderAdapter
 import trading_lab.exchange.bybit_demo_orders as adapter_module
@@ -173,7 +174,7 @@ class FakeOrderAdapter:
             before_submit()
             if self.change_guard:
                 case.session.demo = False
-                case.broker.errors["account"] = RuntimeError(PRIVATE)
+                case.broker.errors["account"] = BrokerReadError(BrokerReadFailureKind.INVALID_CONFIGURATION)
 
         receipt = self.adapter.place_market_order(request, before_submit=callback)
         return self.receipt_change(receipt) if self.receipt_change else receipt
@@ -910,7 +911,8 @@ class PlacementTests(CycleCase):
         result = self.run_cycle()
         self.assertIs(self.action(result).phase, ActionPhase.UNKNOWN_OUTCOME)
         self.assertEqual(self.action(result).attempt_count, 1)
-        self.assertIs(result.checkpoint.snapshot.state, RuntimeState.UNCERTAIN)
+        self.assertIs(result.checkpoint.snapshot.state, RuntimeState.HALTED)
+        self.assertIs(result.checkpoint.snapshot.reason, RuntimeReason.INVALID_CONFIGURATION)
         self.assert_no_send()
         self.assertEqual(len(self.order_adapter.calls), 1)
 
@@ -1094,7 +1096,7 @@ class MarketAndSafetyTests(CycleCase):
 
         def fail_reads(**params):
             response = place(**params)
-            self.broker.errors["account"] = TimeoutError(PRIVATE)
+            self.broker.errors["account"] = BrokerReadError(BrokerReadFailureKind.TRANSIENT)
             return response
 
         with patch.object(self.session, "place_order", side_effect=fail_reads):
@@ -1249,7 +1251,7 @@ class MarketAndSafetyTests(CycleCase):
         self.assertEqual(self.store.list_actions(), ())
 
     def test_reconciliation_uncertainty_blocks_market_strategy_and_planner(self):
-        self.broker.errors["account"] = TimeoutError(PRIVATE)
+        self.broker.errors["account"] = BrokerReadError(BrokerReadFailureKind.TRANSIENT)
         with patch.object(module, "plan_action") as planner, patch.object(module, "generate_ema_signals") as strategy:
             result = self.run_cycle()
         self.assertIs(result.checkpoint.snapshot.state, RuntimeState.UNCERTAIN)
