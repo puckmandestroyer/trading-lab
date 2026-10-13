@@ -1021,6 +1021,277 @@ class UnknownOutcomeRecoveryTests(StoreCase):
         self.assertEqual(self.store.get_action(ACTION_ID), action)
 
 
+class StartingUnknownOutcomeTests(StoreCase):
+    """Approved nonconfirmed STARTING allowance; no process recovery policy."""
+
+    def setUp(self):
+        self.directory = self.enterContext(TemporaryDirectory())
+        self.config = configuration()
+        self.lock = RuntimeAccountLock(Path(self.directory), "research").acquire()
+        self.store = RuntimeStore.open(self.lock, self.config, initialize=True)
+        self.addCleanup(self.close_current)
+        self.enterContext(patch("socket.create_connection", side_effect=AssertionError("No broker network")))
+        self.enterContext(patch("os.getenv", side_effect=AssertionError("No credentials")))
+
+    def close_current(self):
+        self.store.close()
+        self.lock.release()
+
+    def reopen_new_lock(self):
+        old_lock, old_path = self.lock, self.lock.database_path
+        self.store.close()
+        old_lock.release()
+        self.lock = RuntimeAccountLock(Path(self.directory), "research").acquire()
+        self.assertIsNot(self.lock, old_lock)
+        self.assertEqual(self.lock.database_path, old_path)
+        self.store = RuntimeStore.open(self.lock, self.config, initialize=False)
+
+    def unknown_placement(self):
+        action = replace(self.attempt(), phase=ActionPhase.UNKNOWN_OUTCOME,
+                         safe_reason=RuntimeReason.ACTION_OUTCOME_UNKNOWN,
+                         remaining_reconciliation_rounds=4, remaining_read_attempts=2)
+        current = self.store.get_checkpoint()
+        snapshot = transition_runtime_state(current.snapshot, RuntimeEvent(
+            RuntimeEventType.UNCERTAINTY_DETECTED, reason=RuntimeReason.ACTION_OUTCOME_UNKNOWN))
+        self.store.record_observation(action, self.next_checkpoint(snapshot=snapshot),
+                                      expected_sequence=current.sequence)
+        return action
+
+    def starting_checkpoint(self, *, quantity=D("0"), pending=None):
+        current = self.store.get_checkpoint()
+        snapshot = RuntimeStateSnapshot(
+            RuntimeState.STARTING, quantity,
+            PositionEvidence.UNKNOWN if quantity is None else PositionEvidence.LAST_KNOWN,
+            current.snapshot.desired_position, pending or current.snapshot.pending_action,
+        )
+        return replace(current, sequence=current.sequence + 1, snapshot=snapshot, halted_at_ms=None, shutdown_at_ms=None)
+
+    def persist_starting(self, **kwargs):
+        cp = self.starting_checkpoint(**kwargs)
+        self.store.save_checkpoint(cp, expected_sequence=cp.sequence - 1)
+        return cp
+
+    def assert_reopen_preserves(self, checkpoint):
+        actions, fills = self.store.list_actions(), self.store.list_fills()
+        candle_before, decision_before = self.store.get_candle(0), self.store.get_decision(0)
+        database_bytes = self.lock.database_path.read_bytes()
+        self.reopen_new_lock()
+        self.assertEqual(self.store.get_configuration(), self.config)
+        self.assertEqual(self.store.get_checkpoint(), checkpoint)
+        self.assertEqual(self.store.list_actions(), actions)
+        self.assertEqual(self.store.list_fills(), fills)
+        self.assertEqual(self.store.get_candle(0), candle_before)
+        self.assertEqual(self.store.get_decision(0), decision_before)
+        self.assertEqual(self.lock.database_path.read_bytes(), database_bytes)
+        self.assertIs(checkpoint.snapshot.state, RuntimeState.STARTING)
+        self.assertIsNot(checkpoint.snapshot.position_evidence, PositionEvidence.CONFIRMED)
+
+    def test_starting_known_zero_unknown_placement_validates_and_reopens(self):
+        action = self.unknown_placement()
+        before = self.store.get_checkpoint()
+        cp = self.persist_starting()
+        self.assertEqual(cp.snapshot.owned_base_quantity, D("0"))
+        self.assertIs(cp.snapshot.position_evidence, PositionEvidence.LAST_KNOWN)
+        self.assertEqual(cp.snapshot.pending_action, before.snapshot.pending_action)
+        self.assert_reopen_preserves(cp)
+        self.assertEqual(self.store.get_action(ACTION_ID), action)
+        self.assertEqual((action.remaining_reconciliation_rounds, action.remaining_read_attempts,
+                          action.reconciliation_deadline_ms), (4, 2, HOUR + 600000))
+        self.assertIsNone(action.acknowledgement_broker_ms)
+        self.assertIsNone(action.submitted_amount)
+
+    def test_starting_positive_partial_exposure_preserves_fill_and_missing_receipt(self):
+        action = replace(self.unknown_placement(), broker_order_id="order-1", order_status="PARTIALLY_FILLED",
+                         external_status="PartiallyFilled", observed_at_ms=HOUR + 4)
+        execution = replace(fill(), executed_quantity=D("0.05"), execution_price=D("100"), execution_fee=D("0.00005"))
+        current = self.store.get_checkpoint()
+        snapshot = transition_runtime_state(current.snapshot, RuntimeEvent(
+            RuntimeEventType.RECONCILED_PENDING,
+            evidence=RuntimeEvidence(D("0.04995"), current.snapshot.pending_action)))
+        self.store.record_observation(action, self.next_checkpoint(snapshot=snapshot),
+                                      expected_sequence=current.sequence, fills=(execution,))
+        cp = self.persist_starting(quantity=D("0.04995"))
+        self.assert_reopen_preserves(cp)
+        self.assertEqual(cp.snapshot.owned_base_quantity, D("0.04995"))
+        self.assertIs(cp.snapshot.position_evidence, PositionEvidence.LAST_KNOWN)
+        self.assertEqual(self.store.get_fill("fill-1"), execution)
+        self.assertEqual(self.store.get_action(ACTION_ID), action)
+        self.assertIsNone(action.acknowledgement_broker_ms)
+
+    def test_starting_unknown_quantity_retains_exact_pending_unknown_action(self):
+        action = self.unknown_placement()
+        cp = self.persist_starting(quantity=None)
+        self.assert_reopen_preserves(cp)
+        self.assertIsNone(cp.snapshot.owned_base_quantity)
+        self.assertIs(cp.snapshot.position_evidence, PositionEvidence.UNKNOWN)
+        self.assertEqual(cp.snapshot.pending_action, PendingAction(ACTION_ID, PendingActionKind.ENTRY))
+        self.assertEqual(self.store.get_action(ACTION_ID), action)
+
+    def test_starting_preserves_frontier_cutoffs_coverage_and_observation_fields(self):
+        self.unknown_placement()
+        before = self.next_checkpoint(last_reconciled_at_ms=HOUR + 2, observed_at_ms=HOUR + 3,
+                                      coverage_start_ms=0, coverage_end_ms=HOUR,
+                                      rearmed_at_ms=1, bootstrap_until_ms=0, replay_until_ms=HOUR)
+        self.store.save_checkpoint(before, expected_sequence=before.sequence - 1)
+        cp = self.persist_starting()
+        self.assertEqual(cp, replace(before, sequence=before.sequence + 1, snapshot=cp.snapshot))
+        self.assert_reopen_preserves(cp)
+
+    def test_starting_reopen_does_not_reset_exhausted_counters_or_deadline(self):
+        action = replace(self.unknown_placement(), remaining_reconciliation_rounds=0, remaining_read_attempts=0)
+        current = self.store.get_checkpoint()
+        self.store.record_observation(action, self.next_checkpoint(), expected_sequence=current.sequence)
+        cp = self.persist_starting()
+        self.assert_reopen_preserves(cp)
+        self.assertEqual(self.store.get_action(ACTION_ID), action)
+        self.assertEqual((action.remaining_reconciliation_rounds, action.remaining_read_attempts,
+                          action.reconciliation_deadline_ms), (0, 0, HOUR + 600000))
+
+    def assert_checkpoint_rejected(self, proposed):
+        before, actions = self.store.get_checkpoint(), self.store.list_actions()
+        with self.assertRaises(RuntimeStoreError):
+            self.store.save_checkpoint(proposed, expected_sequence=before.sequence)
+        self.assertEqual(self.store.get_checkpoint(), before)
+        self.assertEqual(self.store.list_actions(), actions)
+
+    def test_flat_still_rejects_unresolved_unknown_placement(self):
+        self.unknown_placement()
+        snapshot = RuntimeStateSnapshot(RuntimeState.FLAT, D("0"), PositionEvidence.CONFIRMED, 1)
+        self.assert_checkpoint_rejected(self.next_checkpoint(snapshot=snapshot))
+
+    def test_long_still_rejects_unresolved_unknown_placement(self):
+        self.unknown_placement()
+        snapshot = RuntimeStateSnapshot(RuntimeState.LONG, D("0.05"), PositionEvidence.CONFIRMED, 1)
+        self.assert_checkpoint_rejected(self.next_checkpoint(snapshot=snapshot))
+
+    def test_starting_cannot_claim_confirmed_position_evidence(self):
+        self.unknown_placement()
+        with self.assertRaises(RuntimeStateError):
+            replace(self.starting_checkpoint().snapshot, position_evidence=PositionEvidence.CONFIRMED)
+
+    def test_starting_requires_pending_action_when_unknown_placement_exists(self):
+        self.unknown_placement()
+        cp = self.starting_checkpoint()
+        self.assert_checkpoint_rejected(replace(cp, snapshot=replace(cp.snapshot, pending_action=None)))
+
+    def test_starting_cannot_change_pending_logical_id(self):
+        self.unknown_placement()
+        cp = self.starting_checkpoint(pending=PendingAction("e" * 64, PendingActionKind.ENTRY))
+        self.assert_checkpoint_rejected(cp)
+
+    def test_starting_cannot_change_pending_action_kind(self):
+        self.unknown_placement()
+        cp = self.starting_checkpoint(pending=PendingAction(ACTION_ID, PendingActionKind.EXIT))
+        self.assert_checkpoint_rejected(cp)
+
+    def test_starting_cannot_add_a_second_unresolved_placement(self):
+        original = self.unknown_placement()
+        self.persist_starting()
+        before = self.store.get_checkpoint()
+        second = replace(prepared(), logical_action_id="e" * 64, order_link_id="bot1-" + "e" * 23,
+                         candle_open_ms=HOUR, reconciliation_deadline_ms=2 * HOUR + 600000)
+        next_decision = replace(decision(HOUR, action=True), action_id=second.logical_action_id)
+        cp = replace(self.starting_checkpoint(pending=PendingAction(second.logical_action_id, PendingActionKind.ENTRY)),
+                     last_processed_candle_ms=HOUR)
+        with self.assertRaises(RuntimeStoreError):
+            self.store.commit_decision(candle(HOUR), next_decision, cp, expected_sequence=before.sequence, action=second)
+        self.assertEqual(self.store.get_checkpoint(), before)
+        self.assertEqual(self.store.list_actions(), (original,))
+        self.assertIsNone(self.store.get_action(second.logical_action_id))
+        self.assertIsNone(self.store.get_decision(HOUR))
+        self.assertIsNone(self.store.get_candle(HOUR))
+
+    def unknown_cancellation(self):
+        parent = self.acknowledge()
+        cancel = ActionRecord("e" * 64, JournalActionKind.CANCEL, "BTCUSDT", HOUR + 600000, 5, 3,
+                              control_id="operator1", parent_action_id=ACTION_ID, target_broker_order_id="order-1")
+        current = self.store.get_checkpoint()
+        self.store.prepare_cancellation(cancel, self.next_checkpoint(), expected_sequence=current.sequence)
+        current = self.store.get_checkpoint()
+        self.store.start_attempt(cancel.logical_action_id, self.next_checkpoint(), expected_sequence=current.sequence)
+        cancel = replace(self.store.get_action(cancel.logical_action_id), phase=ActionPhase.UNKNOWN_OUTCOME,
+                         safe_reason=RuntimeReason.ACTION_OUTCOME_UNKNOWN,
+                         remaining_reconciliation_rounds=4, remaining_read_attempts=2)
+        current = self.store.get_checkpoint()
+        snapshot = transition_runtime_state(current.snapshot, RuntimeEvent(
+            RuntimeEventType.UNCERTAINTY_DETECTED, reason=RuntimeReason.ACTION_OUTCOME_UNKNOWN))
+        self.store.record_observation(cancel, self.next_checkpoint(snapshot=snapshot), expected_sequence=current.sequence)
+        return parent, cancel
+
+    def test_starting_preserves_valid_subordinate_unknown_cancellation_on_reopen(self):
+        parent, cancel = self.unknown_cancellation()
+        cp = self.persist_starting()
+        self.assert_reopen_preserves(cp)
+        self.assertEqual(self.store.list_actions(), (parent, cancel))
+        self.assertEqual(cp.snapshot.pending_action.logical_action_id, parent.logical_action_id)
+        self.assertEqual(cancel.parent_action_id, parent.logical_action_id)
+        self.assertEqual(cancel.target_broker_order_id, parent.broker_order_id)
+
+    def test_starting_does_not_allow_cancellation_parent_or_target_rebinding(self):
+        parent, cancel = self.unknown_cancellation()
+        self.persist_starting()
+        before = self.store.get_checkpoint()
+        for field, value in (("parent_action_id", "f" * 64), ("target_broker_order_id", "different-order")):
+            with self.subTest(field=field), self.assertRaises(RuntimeStoreConflictError):
+                self.store.record_observation(replace(cancel, **{field: value}), self.next_checkpoint(),
+                                              expected_sequence=before.sequence)
+            self.assertEqual(self.store.get_checkpoint(), before)
+            self.assertEqual(self.store.list_actions(), (parent, cancel))
+
+    def test_starting_does_not_license_new_cancellation_control(self):
+        parent = self.acknowledge()
+        self.persist_starting()
+        before = self.store.get_checkpoint()
+        cancel = ActionRecord("e" * 64, JournalActionKind.CANCEL, "BTCUSDT", HOUR + 600000, 5, 3,
+                              control_id="operator1", parent_action_id=ACTION_ID, target_broker_order_id="order-1")
+        with self.assertRaises(RuntimeStoreConflictError):
+            self.store.prepare_cancellation(cancel, self.next_checkpoint(), expected_sequence=before.sequence)
+        self.assertEqual(self.store.get_checkpoint(), before)
+        self.assertEqual(self.store.list_actions(), (parent,))
+
+    def test_starting_does_not_license_attempt_start(self):
+        action = self.prepare()
+        self.persist_starting()
+        before = self.store.get_checkpoint()
+        with self.assertRaises(RuntimeStoreConflictError):
+            self.store.start_attempt(ACTION_ID, self.next_checkpoint(), expected_sequence=before.sequence)
+        self.assertEqual(self.store.get_checkpoint(), before)
+        self.assertEqual(self.store.get_action(ACTION_ID), action)
+
+    def test_starting_does_not_reset_unknown_action_budgets(self):
+        action = self.unknown_placement()
+        self.persist_starting()
+        before = self.store.get_checkpoint()
+        for field, value in (("remaining_reconciliation_rounds", 5), ("remaining_read_attempts", 3)):
+            with self.subTest(field=field), self.assertRaises(RuntimeStoreConflictError):
+                self.store.record_observation(replace(action, **{field: value}), self.next_checkpoint(),
+                                              expected_sequence=before.sequence)
+            self.assertEqual(self.store.get_checkpoint(), before)
+            self.assertEqual(self.store.get_action(ACTION_ID), action)
+
+    def test_starting_cannot_clear_existing_halt_latch(self):
+        self.unknown_placement()
+        current = self.store.get_checkpoint()
+        snapshot = transition_runtime_state(current.snapshot, RuntimeEvent(
+            RuntimeEventType.FATAL_INCONSISTENCY, reason=RuntimeReason.RECOVERY_EXHAUSTED))
+        self.store.save_checkpoint(self.next_checkpoint(snapshot=snapshot, halted_at_ms=HOUR + 5),
+                                   expected_sequence=current.sequence)
+        self.assert_checkpoint_rejected(replace(self.starting_checkpoint(), rearmed_at_ms=HOUR + 6))
+
+    def test_starting_cannot_clear_halt_retained_by_shutdown(self):
+        self.unknown_placement()
+        current = self.store.get_checkpoint()
+        snapshot = transition_runtime_state(current.snapshot, RuntimeEvent(
+            RuntimeEventType.FATAL_INCONSISTENCY, reason=RuntimeReason.RECOVERY_EXHAUSTED))
+        self.store.save_checkpoint(self.next_checkpoint(snapshot=snapshot, halted_at_ms=HOUR + 5),
+                                   expected_sequence=current.sequence)
+        current = self.store.get_checkpoint()
+        stopped = transition_runtime_state(current.snapshot, RuntimeEvent(RuntimeEventType.SHUTDOWN_REQUESTED))
+        self.store.save_checkpoint(self.next_checkpoint(snapshot=stopped, shutdown_at_ms=HOUR + 6),
+                                   expected_sequence=current.sequence)
+        self.assert_checkpoint_rejected(replace(self.starting_checkpoint(), shutdown_at_ms=None, rearmed_at_ms=HOUR + 7))
+
+
 class FillAtomicityTests(StoreCase):
     def test_fill_terminal_inventory_and_checkpoint_atomic_roundtrip(self):
         cp = self.settle(self.acknowledge(), fill())

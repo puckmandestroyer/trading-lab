@@ -22,7 +22,9 @@ Stage 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy is COMPLETE 
 
 Stage 10.7 — Single-Cycle Demo Runtime Orchestration and its historical/freshness boundary correction are COMPLETE, owner-reviewed and FROZEN at `728bf6d74d38f5f686f738c71bbf34048e032619`.
 
-Stage 10.8 — Long-Running Candle Scheduler is COMPLETE and ready for owner review/freeze. Serialized UTC-hour control calls the frozen cycle, with bounded safe retries and durable shutdown. No actual Demo activation. Stage 10.9 remains NOT STARTED.
+Stage 10.8 — Long-Running Candle Scheduler is COMPLETE, owner-approved and FROZEN at `f3e9fe6bb9770031c121314c67e4177d0299e095`. Serialized UTC-hour control calls the frozen cycle, with bounded safe retries and durable shutdown. No actual Demo activation.
+
+The separately approved Stage 10.3 / RuntimeStore additive restart-validation correction is COMPLETE for owner review/freeze. It permits nonconfirmed STARTING to retain durable UNKNOWN_OUTCOME evidence. Stages 10.1–10.8 remain FROZEN; Stage 10.9 remains BLOCKED pending review/freeze of this correction, with no recovery implementation. Stage 10.10 remains NOT STARTED.
 
 Stage 9 — Bybit Demo Exchange Adapter remains COMPLETE/FROZEN, including the owner-reviewed Stage 9.5 pre-submit correction at `77a88fe1b1250cabde6a1a6fa4aa492db056084b`.
 
@@ -688,6 +690,8 @@ Frozen runtime/Stage 9/market gate/strategy/validator/schema/Decisions 001–017
 
 ### Long-running candle scheduler — Stage 10.8
 
+Current status: COMPLETE/FROZEN at `f3e9fe6bb9770031c121314c67e4177d0299e095`. The completion record below retains its original test totals.
+
 Starting baseline: clean `main` / `origin/main` at `728bf6d74d38f5f686f738c71bbf34048e032619`. Stage 9 with all approved corrections and Stages 10.1–10.7 are owner-reviewed/FROZEN. Only new `runtime/scheduler.py`, `tests/test_runtime_scheduler.py` and current documentation change.
 
 Explicit `trading_lab.runtime.scheduler` API:
@@ -729,7 +733,21 @@ HALTED without an operator stop exits as HALTED without rearm/shutdown conversio
 
 Validation: **79 new offline scheduler tests**, including fake clocks/stop scripts, exact timing/budget limits, spurious wakes, exception no-follow-up proofs, six durable shutdown states, published frozen-source hashes, AST boundary guards and two real frozen-cycle integrations with synthetic broker/session responses. Stage 10.7 **97**, Stage 10.6 **79**, Stage 10.5 **90**, placement boundary **29**, Stage 9.5 **100**, Stage 9.6 **68**, RuntimeStore **211**, locking **23**, Stage 10.2 **188**, Stage 10.4 **97**, Stage 9.4 **123**, EMA **16**, full suite **2,277 (2,198 + 79)**, pip check and both diff checks pass with zero failures/errors/skips.
 
-Stage 10.8 COMPLETE/ready for owner review/freeze; Stage 10 INCOMPLETE; Stage 10.9 next/NOT STARTED. All frozen source/tests/APIs/schema/Decisions 001–017, next-OPEN/financial regressions, notebooks/data/results and dependencies remain unchanged. No credentials, actual authenticated Demo request/order/cancellation or activation occurred.
+At Stage 10.8 completion: COMPLETE/ready for owner review/freeze; Stage 10 INCOMPLETE; Stage 10.9 next/NOT STARTED. All frozen source/tests/APIs/schema/Decisions 001–017, next-OPEN/financial regressions, notebooks/data/results and dependencies remained unchanged. No credentials, actual authenticated Demo request/order/cancellation or activation occurred.
+
+### Stage 10.3 / RuntimeStore additive restart-validation correction
+
+Starting baseline: clean `main` / `origin/main` at `f3e9fe6bb9770031c121314c67e4177d0299e095`. Owner approval covers only the store validation correction, focused tests and documentation; Stage 10.9 recovery is not implemented.
+
+`RuntimeStore._validate_relations()` previously allowed durable UNKNOWN_OUTCOME in SYNCHRONIZING, UNCERTAIN, HALTED or STOPPING, plus the strict observed ORDER_PENDING exception. Its general allowance now also includes STARTING. This single-condition change permits a future new process to persist nonconfirmed STARTING while retaining unresolved original action evidence. STARTING does not resolve the action or license mutation; frozen reconciliation remains responsible for recovery.
+
+FLAT/LONG still reject unresolved unknown actions. The observed ORDER_PENDING exception, exact pending ID/kind, one-unresolved-placement guard, decision/link/broker/fill ownership, cancellation-parent binding, configuration identity, contiguous frontier, deadlines, recovery budgets and HALT latch remain unchanged. No automatic state transition, action conversion/abandonment, counter reset/decrement, broker query or recovery API is added. Public APIs, enums/state transitions, schema version 1, Decimal storage, SQLite durability, checkpoint CAS, action phase graph and single-instance lock are unchanged. Existing valid Stage 10.3 databases remain readable without migration.
+
+**19 new offline store regressions** include real temporary SQLite **close → release lock → acquire a new canonical lock → RuntimeStore.open(initialize=False)**. STARTING preserves exact checkpoint/action/fill/history records and database bytes with zero, positive partial-fill or unknown owned quantity, missing receipt fields, original IDs, exhausted/nonexhausted budgets and deadlines. Valid subordinate UNKNOWN_OUTCOME cancellation evidence also survives; invalid pending identities, a second placement, cancellation rebinding, new attempt/cancellation, budget resets and HALT clearing still fail atomically.
+
+Validation: correction **19**, complete RuntimeStore **230 (211 + 19)**, Stage 10.5 **90**, Stage 10.7 **97**, Stage 10.8 **79**, Stage 10.6 **79**, locking **23**, Stage 10.2 **188**, Stage 10.4 **97**, Stage 9.4 **123**, Stage 9.5 **100**, placement boundary **29**, Stage 9.6 **68**, frozen EMA **16**, full suite **2,296 (2,277 + 19)**; zero failures/errors/skips. `pip check`, `git diff --check` and `git diff --staged --check` pass. The scheduler test's store-source hash and explanatory comment are refreshed for the approved change; scheduler production code, assertions and 79-test count are unchanged. Other frozen production/tests, Decisions 001–017, financial/next-OPEN behavior, notebooks/data/results and dependencies are preserved. No credentials, actual broker request/order/cancellation or Demo activation occurred.
+
+Correction COMPLETE for owner review/freeze. Stages 10.1–10.8 remain FROZEN. Stage 10.9 remains BLOCKED until this correction is reviewed/frozen; no `recovery.py` or other Stage 10.9 implementation exists. Stage 10 remains INCOMPLETE; Stage 10.10 remains NOT STARTED.
 
 ### Accepted Stage 10 roadmap
 
@@ -742,8 +760,8 @@ Stage 10.8 COMPLETE/ready for owner review/freeze; Stage 10 INCOMPLETE; Stage 10
 | 10.5 — Startup / Broker Reconciliation | COMPLETE/FROZEN at `7576820`, including the exact-execution correction. |
 | 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy | COMPLETE/FROZEN at `6865a1e`; pure planner. |
 | 10.7 — Single-Cycle Demo Runtime Orchestration | COMPLETE/FROZEN at `728bf6d`, including the correction. |
-| 10.8 — Long-Running Candle Scheduler | COMPLETE; serialized hourly control, ready for owner review/freeze. |
-| 10.9 — Restart / Crash / Ambiguous-Action Recovery | Next; NOT STARTED. |
+| 10.8 — Long-Running Candle Scheduler | COMPLETE/FROZEN at `f3e9fe6`; serialized hourly control. |
+| 10.9 — Restart / Crash / Ambiguous-Action Recovery | BLOCKED pending owner review/freeze of the separate RuntimeStore restart-validation correction; implementation NOT STARTED. |
 | 10.10 — Runtime Integration Regression + Optional Explicit Demo Run | NOT STARTED; any actual run requires separate explicit authorization. |
 | 10.11 — Final Stage 10 Audit + Docs | NOT STARTED. |
 
@@ -1197,7 +1215,7 @@ Reserve belongs to the same portfolio. Stage 7.5 MTM equity now includes reserve
 
 Default fraction 1.0 must reproduce Stage 6 exactly, including quantities, independent GROSS/NET accounting, equity, and downstream analytics, without loosening existing tolerances. Frozen BTC reference values are recorded in Decision 011. Prefer existing accounting schemas and derive reserve safely from canonical entry accounting; any necessary new field requires an explicit reviewed decision.
 
-The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 2,277 tests.
+The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 2,296 tests.
 
 ## Position sizing core
 
@@ -1677,9 +1695,9 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Owner review/freeze of completed Stage 10.8 — Long-Running Candle Scheduler. Stage 9 plus all approved corrections and Stages 10.1–10.7 remain FROZEN. Stage 10 remains INCOMPLETE; Stage 10.9 — Restart / Crash / Ambiguous-Action Recovery is next and NOT STARTED.
+Owner review/freeze of the completed Stage 10.3 / RuntimeStore additive restart-validation correction. Stage 9 plus its approved corrections and Stages 10.1–10.8 remain FROZEN. Stage 10 remains INCOMPLETE; Stage 10.9 — Restart / Crash / Ambiguous-Action Recovery remains BLOCKED until this correction is reviewed/frozen. Stage 10.10 remains NOT STARTED.
 
-Stage 9.1–9.7, all approved corrections, Stages 10.1–10.7 and Decision 017 remain frozen. Stage 8, Stage 5 frozen EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. The caller-invoked scheduler serializes the frozen cycle without automatic cancellation, wallet sizing or actual Demo activation. Tests write runtime artifacts only in temporary directories.
+Stage 9.1–9.7, its approved corrections, Stages 10.1–10.8 and Decision 017 remain frozen; the separate store correction awaits review. Stage 8, Stage 5 frozen EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. The caller-invoked scheduler serializes the frozen cycle without automatic cancellation, wallet sizing or actual Demo activation. Tests write runtime artifacts only in temporary directories.
 
 ## Not implemented yet
 
@@ -1698,9 +1716,9 @@ Stage 9.1–9.7, all approved corrections, Stages 10.1–10.7 and Decision 017 r
 
 ## Next milestone
 
-Stage 10.9 — Restart / Crash / Ambiguous-Action Recovery is next and NOT STARTED, pending owner review/freeze of Stage 10.8 and explicit implementation authorization.
+Stage 10.9 — Restart / Crash / Ambiguous-Action Recovery remains BLOCKED pending owner review/freeze of the separate RuntimeStore restart-validation correction. Its implementation has not started.
 
-Stage 9 plus all approved corrections and Stages 10.1–10.7 remain COMPLETE/FROZEN. Stage 10.8 is COMPLETE/ready for owner review; Stage 10 remains INCOMPLETE. Do not begin Stage 10.9 or later work or run an authenticated Demo smoke/order automatically. Explicit operator cancellation needs a separately approved API contract.
+Stage 9 plus its approved corrections and Stages 10.1–10.8 remain COMPLETE/FROZEN. The store correction is COMPLETE for owner review/freeze; Stage 10 remains INCOMPLETE and Stage 10.10 remains NOT STARTED. Do not begin Stage 10.9 or later work or run an authenticated Demo smoke/order automatically. Explicit operator cancellation needs a separately approved API contract.
 
 ## Backtesting execution contract
 

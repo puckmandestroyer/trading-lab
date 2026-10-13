@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-13 — Stage 10.3 / RuntimeStore additive restart-validation correction
+
+- Added STARTING to the existing nonconfirmed UNKNOWN_OUTCOME allowance in one store validation condition. STARTING neither resolves the action nor licenses mutation; frozen reconciliation remains responsible for recovery. The strict ORDER_PENDING exception, FLAT/LONG restrictions, identity/ownership, budgets/deadlines, frontier and HALT guards are unchanged.
+- Added **19 offline store regressions**, including real close/release/new-lock/reopen with exact records/database bytes, zero/positive/unknown exposure and valid subordinate unknown cancellation evidence. Negative cases preserve atomic rejection of identity changes, multiple placements, budget resets, new attempts/cancellation and HALT clearing.
+- Correction **19**, RuntimeStore **230**, required frozen suites and full suite **2,296 (2,277 + 19)** pass with zero failures/errors/skips; `pip check` and both diff checks pass. Refreshed only the scheduler test's store-source hash/comment; its code, assertions and 79-test count remain unchanged.
+- No public API, schema v1/migration, Decimal, durability, CAS, phase graph, lock, Decision 017, other frozen production code, financial/next-OPEN behavior, notebooks/data/results or dependency change. No credentials, actual broker request/order/cancellation or Demo activation.
+- Correction COMPLETE for owner review/freeze; Stages 10.1–10.8 remain FROZEN at the accepted `f3e9fe6` baseline. Stage 10.9 remains BLOCKED pending correction review/freeze, with no recovery implementation. Stage 10 remains INCOMPLETE; Stage 10.10 remains NOT STARTED.
+
 ## 2026-10-13 — Stage 10.8 serialized hourly Demo scheduler
 
 - Added caller-invoked synchronous hourly control around frozen run_single_cycle. Immediate startup reserves its next UTC boundary before work; crossed/missed boundaries get one catch-up batch, then jump to the first future absolute hour. Interruptible event waits handle spurious wakes without early cycles or grid drift.

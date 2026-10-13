@@ -869,7 +869,7 @@ class RuntimeStore:
             raise RuntimeStoreIntegrityError("Checkpoint must retain the one unresolved placement.")
         if unresolved and (pending.logical_action_id != unresolved[0].logical_action_id or pending.kind.value != unresolved[0].kind.value):
             raise RuntimeStoreIntegrityError("Checkpoint pending action identity/kind mismatch.")
-        if connection.execute("SELECT 1 FROM actions WHERE phase='UNKNOWN_OUTCOME' LIMIT 1").fetchone() and checkpoint.snapshot.state not in (RuntimeState.SYNCHRONIZING, RuntimeState.UNCERTAIN, RuntimeState.HALTED, RuntimeState.STOPPING):
+        if connection.execute("SELECT 1 FROM actions WHERE phase='UNKNOWN_OUTCOME' LIMIT 1").fetchone() and checkpoint.snapshot.state not in (RuntimeState.STARTING, RuntimeState.SYNCHRONIZING, RuntimeState.UNCERTAIN, RuntimeState.HALTED, RuntimeState.STOPPING):
             # A lost receipt stays missing even after exact pending-order discovery.
             # Ownership/freshness/fill completeness remain caller assertions. The
             # identity checks above bind the sole placement to this checkpoint.

@@ -712,11 +712,12 @@ class ClockAndInputTests(SchedulerCase):
 
 class PublicAndStructuralTests(SchedulerCase):
     def test_frozen_runtime_sources_and_package_match_published_baseline(self):
-        # Literal SHA256 values from published 728bf6d, not runtime constants.
+        # Literal published hashes; only store includes the owner-approved
+        # STARTING/UNKNOWN_OUTCOME validation correction. No runtime constants.
         expected = {
             "cycle": "d1a8b92b042d10402ef5bdc80b58edc62415a5a69cef7c99a27174311d890bc4",
             "state": "014b92aca145d61a57df230d3c3747025768090d2b96cdeaa97a96e5ad2675bc",
-            "store": "e71ac3cf7dd7c607b78e3fc30e6c43c7320c27d83ca5c1389cac4259790a26b5",
+            "store": "316181fffced5491214d6fbebf2ec1b94abecd48b23921dcbabd5f970bdef3fa",
             "locking": "b10c5a8ac5e4ed4b8a7616b656602319c4e238eb0d2404fc2d31e6d636048273",
             "reconciliation": "14c9e1a8e60ba7f35eb4d33f63b2f8a517068dbb6f1d87a04bdeab6f349178d0",
             "planner": "e97b0f9c709e909c56f132cfd5a718a3fbb8a488debb0c71823415adb0605686",
