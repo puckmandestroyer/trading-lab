@@ -24,7 +24,9 @@ Stage 10.7 — Single-Cycle Demo Runtime Orchestration and its historical/freshn
 
 Stage 10.8 — Long-Running Candle Scheduler is COMPLETE, owner-approved and FROZEN at `f3e9fe6bb9770031c121314c67e4177d0299e095`. Serialized UTC-hour control calls the frozen cycle, with bounded safe retries and durable shutdown. No actual Demo activation.
 
-Stage 10.9 — Restart / Crash / Ambiguous-Action Recovery is COMPLETE / ready for owner review/freeze. Caller-invoked process-entry normalization retains exact durable lifecycle evidence before frozen reconciliation; restart never resends unresolved actions. Stages 10.1–10.8 and the RuntimeStore restart-validation correction remain FROZEN. Stage 10 remains INCOMPLETE; Stage 10.10 remains NOT STARTED. No actual Demo activation.
+Stage 10.9 — Restart / Crash / Ambiguous-Action Recovery is COMPLETE, owner-reviewed and FROZEN at `fef6b6ee4a8d4fceb9526ed1e3bc1705fda6b7d5`. Process-entry normalization and all previously approved RuntimeStore and Stage 9 corrections remain unchanged.
+
+Stage 10.10 — Runtime Integration Regression is COMPLETE OFFLINE / ready for owner review/freeze. The real frozen runtime and adapters compose through deterministic external transport fixtures; no production API or code changes. The optional authenticated Demo run was NOT PERFORMED and remains NOT AUTHORIZED. Stage 10 remains INCOMPLETE; Stage 10.11 is next and NOT STARTED.
 
 Stage 9 — Bybit Demo Exchange Adapter remains COMPLETE/FROZEN, including the owner-reviewed Stage 9.5 pre-submit correction at `77a88fe1b1250cabde6a1a6fa4aa492db056084b`.
 
@@ -799,7 +801,46 @@ Real frozen-cycle proofs include PREPARED, ATTEMPT_STARTED, lost-ACK OPEN/FILLED
 
 Validation: Stage 10.9 **89**, RuntimeStore **230**, Stage 10.8 **79**, Stage 10.7 **97**, Stage 10.6 **79**, Stage 10.5 **90**, locking **23**, Stage 10.2 **188**, Stage 10.4 **97**, Stage 9.4 **123**, Stage 9.5 **100**, placement boundary **29**, Stage 9.6 **68**, frozen EMA **16**, full suite **2,385 (2,296 + 89)**; zero failures/errors/skips. `pip check` and both diff checks pass. All frozen production/tests, public APIs/schema, Decisions 001–017, financial/next-OPEN behavior, notebooks/data/results and dependencies are unchanged. No credentials, real network request, authenticated Demo session/order/cancellation, launch layer or Stage 10.10 work.
 
-Stage 10.9 COMPLETE / ready for owner review/freeze. Stages 10.1–10.8, the RuntimeStore restart-validation correction and approved Stage 9 corrections remain FROZEN. Stage 10 INCOMPLETE; Stage 10.10 next / NOT STARTED. Do not begin it or activate Demo trading automatically.
+Stage 10.9 is now owner-reviewed and FROZEN at `fef6b6ee4a8d4fceb9526ed1e3bc1705fda6b7d5`. Its completion results above retain their original totals. Stage 10 remains INCOMPLETE; offline Stage 10.10 is recorded below. No Demo activation is authorized.
+
+### Runtime integration regression — Stage 10.10
+
+Starting baseline: clean `main` / `origin/main` at `fef6b6ee4a8d4fceb9526ed1e3bc1705fda6b7d5`. Scope: **OFFLINE integration regression only**. Added `tests/test_runtime_integration_regression.py`; zero production changes, new public APIs, schema/dependency changes or activation scripts. Stages 10.1–10.9, approved store/Stage 9 corrections, Decisions, existing tests, next-OPEN financial behavior, notebooks and data remain FROZEN and byte-identical.
+
+The real canonical account lock, RuntimeStore, process restart preparation, hourly scheduler, cycle, bounded reconciliation, public closed-candle parser, EMA strategy, planner, Stage 9.3 normalization and Stage 9.4/9.5 adapters run together. Only public HTTP/SDK responses, UTC/monotonic clocks and stop events are synthetic. Each scenario uses a temporary registry, closes the store before releasing its lock, and creates new resources for process restart. Explicit guards block sockets, real requests/pybit sends, credential/session factories, environment credential lookup and wall-clock sleep. Private connection access only observes transaction state; labeled fault injection simulates durability failures/crashes.
+
+Golden lifecycle:
+
+```text
+STARTING → SYNCHRONIZING → FLAT → ENTRY ACTION → ORDER_PENDING
+→ LONG → HOLD wakes → EXIT ACTION → ORDER_PENDING → FLAT
+→ STOPPING(FLAT) → close/release/new lock/open(initialize=False)
+→ STARTING/LAST_KNOWN → reconciliation → FLAT
+```
+
+Exactly **54 contiguous hourly candles** (open times `0` through `190800000` ms), **54 decisions**, **2 placement actions**, **2 executions**, **0 CANCEL actions** and **0 cancellation sends**. Fifty candles are BOOTSTRAP, with cutoff `176400000` ms. LIVE entry opens at `180000000` ms / available at `183600000`; two HOLD wakes follow; LIVE exit opens at `190800000` / available at `194400000`. The frozen EMA output equals every durable signal/desired-position record. Reopen retains history without reauthorizing an originating candle.
+
+| Exact synthetic golden record | ENTRY | EXIT |
+| --- | --- | --- |
+| Logical action ID | `fc17adafb331e964da8e79112502274620b772ad52ee42c3cfec05f61a86a704` | `349b4d70a2a702ce3f311c1c43bf523b830c193ef9f4a9128d793f4f37dbbb90` |
+| Order link | `bot1-fc17adafb331e964da8e791` | `bot1-349b4d70a2a702ce3f311c1` |
+| Authorization | `10.123456789` QUOTE USDT | `0.04995` BASE BTC |
+| Stage 9 submitted amount | `10.1234567` | `0.04995` |
+| Execution ID | `exec-buy-1` | `exec-sell-1` |
+| Execution quantity | `0.05` BTC | `0.04995` BTC |
+| Execution price | `100.123456789` | `111.123456789` |
+| Execution fee | `0.00005` BTC | `0.01` USDT |
+| Confirmed owned base afterward | `0.04995` BTC | `0` BTC |
+
+These prices, fees, quantities and metadata limits are test fixtures, not current exchange terms or actual trades. All money assertions use exact Decimal; receipts alone never prove position. A separate rounded SELL case retains exact owned dust `0.0000009` BTC as LONG. Wallet BTC is coverage only, never ownership or sizing.
+
+**58 new tests** cover scenarios A–Z: historical LONG/no-send bootstrap; future BUY/SELL and HOLD; OPEN/partial/final observations and cross-read execution deduplication; graceful FLAT/LONG/pending restart; hidden accepted/missing/malformed acknowledgements; PREPARED, ATTEMPT_STARTED, lost ACK, durable ACK and lost terminal-return crashes; uncertain recovery exhaustion/HALT latch; stale market synchronization; absolute UTC boundaries/crossing/missed-hour replay; bounded 1s/2s safe retries; propagated SQLite failures; duplicate lock refusal; foreign namespace/fill conflicts; six configuration mismatches; missing/corrupt/schema-invalid/journal-invalid activation. Independent golden runs match exact logical records; terminal-commit crash recovery matches uninterrupted economic/identity truth. Selected milestones reopen normally through RuntimeStore. Seventeen source hashes guard frozen production/smoke code. Secret/raw-payload absence and no writer transaction at every external boundary are checked.
+
+Every logical placement has at most one SDK send, including across restarts and ambiguity. This proves exactly one committed logical authorization per candle, **not exactly-once exchange delivery**. No automated cancellation, wallet sizing or historical fill-engine use. The frozen cycle's shared pure strategy-output validator remains unchanged.
+
+Local validation (not CI): Stage 10.10 **58**, Stage 10.9 **89**, RuntimeStore **230**, 10.8 **79**, 10.7 **97**, 10.6 **79**, 10.5 **90**, locking **23**, 10.2 **188**, 10.4 **97**, 9.4 **123**, 9.5 **100**, placement boundary **29**, 9.6 **68**, frozen EMA **16**, all historical/research/backtest tests **982**, full suite **2,443 (2,385 + 58)**; zero failures/errors/skips. `pip check` and both diff checks pass. These groups overlap and are not additive.
+
+Stage 10.10 offline regression COMPLETE / ready for owner review/freeze. **Optional explicit authenticated Bybit Demo run: NOT PERFORMED / NOT AUTHORIZED.** No real credentials, authenticated/public broker network call, account read, order or cancellation occurred; Git publication is separate. No production launcher or activation capability was added. Stage 10 remains INCOMPLETE; Stage 10.11 — Final Stage 10 Audit + Docs is next and NOT STARTED. Do not begin it or an authenticated Demo run automatically.
 
 ### Accepted Stage 10 roadmap
 
@@ -813,8 +854,8 @@ Stage 10.9 COMPLETE / ready for owner review/freeze. Stages 10.1–10.8, the Run
 | 10.6 — Runtime Action Planner + Explicit Demo Sizing Policy | COMPLETE/FROZEN at `6865a1e`; pure planner. |
 | 10.7 — Single-Cycle Demo Runtime Orchestration | COMPLETE/FROZEN at `728bf6d`, including the correction. |
 | 10.8 — Long-Running Candle Scheduler | COMPLETE/FROZEN at `f3e9fe6`; serialized hourly control. |
-| 10.9 — Restart / Crash / Ambiguous-Action Recovery | COMPLETE / ready for owner review/freeze; checkpoint-only process entry and offline crash proofs. |
-| 10.10 — Runtime Integration Regression + Optional Explicit Demo Run | NOT STARTED; any actual run requires separate explicit authorization. |
+| 10.9 — Restart / Crash / Ambiguous-Action Recovery | COMPLETE/FROZEN at `fef6b6e`; checkpoint-only process entry and offline crash proofs. |
+| 10.10 — Runtime Integration Regression + Optional Explicit Demo Run | OFFLINE COMPLETE / ready for owner review/freeze; optional authenticated run NOT PERFORMED / NOT AUTHORIZED. |
 | 10.11 — Final Stage 10 Audit + Docs | NOT STARTED. |
 
 Stages 11–15 are high-level directions only, NOT STARTED: Runtime Risk Management; Observability & Monitoring; Long-Running Demo Validation; Live Readiness / Production Hardening; Controlled Live Trading. No detailed later contract, operational risk platform, multi-bot allocation or live-money functionality is introduced now. No actual authenticated Demo smoke/order has been executed.
@@ -1267,7 +1308,7 @@ Reserve belongs to the same portfolio. Stage 7.5 MTM equity now includes reserve
 
 Default fraction 1.0 must reproduce Stage 6 exactly, including quantities, independent GROSS/NET accounting, equity, and downstream analytics, without loosening existing tolerances. Frozen BTC reference values are recorded in Decision 011. Prefer existing accounting schemas and derive reserve safely from canonical entry accounting; any necessary new field requires an explicit reviewed decision.
 
-The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 2,385 tests.
+The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 2,443 tests.
 
 ## Position sizing core
 
@@ -1747,9 +1788,9 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Owner review/freeze of completed Stage 10.9 — Restart / Crash / Ambiguous-Action Recovery. Stage 9 plus its approved corrections, Stages 10.1–10.8 and the RuntimeStore restart-validation correction at `a22199f` remain FROZEN. Stage 10 remains INCOMPLETE; Stage 10.10 is next and NOT STARTED.
+Owner review/freeze of Stage 10.10 — Runtime Integration Regression — COMPLETE OFFLINE. Stages 10.1–10.9 are FROZEN at the accepted `fef6b6e` baseline, including all approved store and Stage 9 corrections. Stage 10 remains INCOMPLETE; Stage 10.11 is next and NOT STARTED. The optional authenticated Demo run remains NOT PERFORMED / NOT AUTHORIZED.
 
-Stage 9.1–9.7, its approved corrections, Stages 10.1–10.8, the store correction and Decision 017 remain frozen. Stage 8, Stage 5 frozen EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. Process-entry preparation retains unresolved truth before caller-invoked frozen cycle/scheduler work; no automatic resend/cancellation, wallet sizing or actual Demo activation. Tests write runtime artifacts only in temporary directories.
+Stage 9.1–9.7, its approved corrections, Stages 10.1–10.9, the store corrections and Decision 017 remain frozen. Stage 8, Stage 5 frozen EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. Process-entry preparation retains unresolved truth before caller-invoked frozen cycle/scheduler work; no automatic resend/cancellation, wallet sizing or actual Demo activation. Tests write runtime artifacts only in temporary directories.
 
 ## Not implemented yet
 
@@ -1768,9 +1809,9 @@ Stage 9.1–9.7, its approved corrections, Stages 10.1–10.8, the store correct
 
 ## Next milestone
 
-Stage 10.10 — Runtime Integration Regression + Optional Explicit Demo Run is next and NOT STARTED, pending owner review/freeze of Stage 10.9 and explicit implementation authorization. Any actual authenticated Demo run requires separate explicit owner authorization.
+Stage 10.11 — Final Stage 10 Audit + Docs is next and NOT STARTED, pending owner review/freeze of the completed offline Stage 10.10 regression. The optional authenticated Demo run was NOT PERFORMED and remains NOT AUTHORIZED; it requires separate explicit owner approval.
 
-Stage 9 plus its approved corrections, Stages 10.1–10.8 and the store correction remain COMPLETE/FROZEN. Stage 10.9 is COMPLETE / ready for owner review/freeze; Stage 10 remains INCOMPLETE. Do not begin Stage 10.10 or later work or run an authenticated Demo smoke/order automatically. Explicit operator cancellation needs a separately approved API contract.
+Stage 9 plus its approved corrections, Stages 10.1–10.9 and all store corrections remain COMPLETE/FROZEN. Stage 10.10 is COMPLETE OFFLINE / ready for owner review/freeze; Stage 10 remains INCOMPLETE. Do not begin Stage 10.11 or run an authenticated Demo smoke/order automatically. Explicit operator cancellation needs a separately approved API contract.
 
 ## Backtesting execution contract
 

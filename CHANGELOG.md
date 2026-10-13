@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-13 — Stage 10.10 offline runtime integration regression
+
+- Added 58 deterministic end-to-end tests using real frozen locks/store/restart/scheduler/cycle/reconciliation/market parsing/EMA/planner/Stage 9 adapters and only fake external transports, clocks and stop events. Golden 54-candle ENTRY/HOLD/EXIT flow has exact IDs/Decimal records, two actions/two fills/zero cancellations, graceful shutdown/reopen and repeatable economic/identity truth.
+- Cover pending/partial/unknown/rejected states, deduplication/conflicts, PREPARED/attempt/lost-ACK/ACK/terminal crash recovery, finite uncertainty/HALT, stale market, UTC grid/replay, bounded retries, propagated store failures and fail-closed lock/config/database activation. Guards prove no real network/credential/session use, no SQLite writer transaction across I/O, no secret/raw payload persistence and no resend/cancellation. Seventeen frozen source hashes; zero production or existing-test changes.
+- Local Stage 10.10 **58**, 10.9 **89**, RuntimeStore **230**, 10.8 **79**, 10.7 **97**, 10.6 **79**, 10.5 **90**, locking **23**, 10.2 **188**, 10.4 **97**, 9.4 **123**, 9.5 **100**, placement **29**, 9.6 **68**, EMA **16**, historical/research/backtest **982**, full suite **2,443 (2,385 + 58)** pass with zero failures/errors/skips; `pip check` and both diff checks pass. Groups overlap.
+- Stage 10.9 is owner-reviewed/FROZEN at `fef6b6ee4a8d4fceb9526ed1e3bc1705fda6b7d5`; all frozen production/APIs/schema/Decisions/tests, financial/next-OPEN behavior, notebooks/data/results/dependencies are preserved. Stage 10.10 offline COMPLETE/ready for owner review/freeze; optional authenticated Demo run **NOT PERFORMED / NOT AUTHORIZED**. No activation script, credentials, actual broker request/order/cancellation or Stage 10.11 work. Stage 10 remains INCOMPLETE; 10.11 next/NOT STARTED.
+
 ## 2026-10-13 — Stage 10.9 crash-safe runtime restart recovery
 
 - Added checkpoint-only prepare_process_restart for new-process entry after canonical lock acquisition and existing-store validation, before caller-owned external resources/cycle/scheduler. STARTING/HALTED stay exact; other nonterminal states enter nonconfirmed STARTING. STOPPING consumes shutdown evidence while retaining exposure/pending/intent; STOPPING from HALTED restores the exact latch without rearm.
