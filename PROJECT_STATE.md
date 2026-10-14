@@ -28,7 +28,7 @@ Stage 10.9 — Restart / Crash / Ambiguous-Action Recovery is COMPLETE, owner-re
 
 Stage 10.10 — Runtime Integration Regression is COMPLETE OFFLINE, independently owner-reviewed and FROZEN at `329252658aa703b90f107d862e34dbabd81f0f64`.
 
-The **owner-approved Stage 10.11 read-failure classification correction** is COMPLETE / pending independent owner review/freeze. Stages 10.1–10.10 and previous store/Stage 9 corrections remain frozen, with this explicit additive correction pending review. Stage 10.11 remains BLOCKED until the correction is reviewed/frozen; its audit is not resumed in this pass. Stage 10 remains INCOMPLETE; Stages 11–15 remain NOT STARTED. Optional authenticated Demo run: NOT PERFORMED / NOT AUTHORIZED.
+The **account/order read-failure classification correction** is independently reviewed and FROZEN at `4e947b192d9e2b3be8b9b050917ca9e03a250320`. The separate **owner-approved Stage 10.11 public market-data error-classification correction** is COMPLETE / pending independent owner review/freeze. Stage 10.11 remains BLOCKED pending that review; its audit is not resumed in this pass. Stage 10 remains INCOMPLETE; Stages 11–15 remain NOT STARTED. Optional authenticated Demo run: NOT PERFORMED / NOT AUTHORIZED.
 
 Stage 9 — Bybit Demo Exchange Adapter remains COMPLETE/FROZEN, including the owner-reviewed Stage 9.5 pre-submit correction at `77a88fe1b1250cabde6a1a6fa4aa492db056084b`.
 
@@ -848,6 +848,8 @@ At Stage 10.10 completion: offline regression COMPLETE / ready for owner review/
 
 ### Owner-approved Stage 10.11 read-failure classification correction
 
+Current status: independently owner-reviewed and FROZEN at `4e947b192d9e2b3be8b9b050917ca9e03a250320`. The completion record below retains its original test totals and review status; the subsequent public market correction is separate.
+
 Starting baseline: clean `main` / `origin/main` at `329252658aa703b90f107d862e34dbabd81f0f64`. The Stage 10.11 audit reproduced malformed-wallet and unsafe-Demo failures becoming EVIDENCE_MISSING, then three scheduler cycles with 1s/2s backoff. This separate owner-approved correction restores Decision 017's permanent/configuration/malformed failure semantics. **The Stage 10.11 audit is not resumed or completed here.**
 
 Additive broker-independent API in `exchange/account_state.py`, also available by explicit package import (the Stage 9.2 wildcard export list is unchanged):
@@ -884,7 +886,60 @@ Reconciliation imports only the broker-independent classification. Existing toke
 
 The Stage 10.10 golden remains exact: **54 candles/decisions, 2 placements/actions, 2 fills, 0 cancellations**, original action IDs/links and Decimal amounts/fees/owned quantities, including shutdown/restart repeatability. Full local validation: focused **30**, Stage 9.4 **136 (123 + 13)**, 10.5 **100 (90 + 10)**, 10.8 **82 (79 + 3)**, 10.9 **89**, 10.10 **62 (58 + 4)**, RuntimeStore **230**, 10.7 **97**, 10.6 **79**, locking **23**, 10.2 **188**, 10.4 **97**, 9.5 **100**, placement boundary **29**, 9.6 **68**, EMA **16**, historical/research/backtest **982**, full suite **2,473 (2,443 + 30)**; zero failures/errors/skips. `pip check` and both diff checks pass. These groups overlap; no CI result is claimed.
 
-Production changes are limited to account_state.py, bybit_demo_read_only.py, reconciliation.py and two additive exports in exchange/__init__.py. Scheduler/state/store/locking/planner/cycle/recovery, Stage 9.5 mutation code, schema v1, Decisions, dependencies, notebooks/data/results and financial/next-OPEN behavior are unchanged. No authenticated Demo read, order, cancellation, real credential access or broker network call. The correction is COMPLETE / pending owner review/freeze. **Stage 10.11 remains BLOCKED until independent review/freeze; Stage 10 remains INCOMPLETE; Stages 11–15 remain NOT STARTED.** Do not resume the audit or begin later work automatically.
+At correction completion, production changes were limited to account_state.py, bybit_demo_read_only.py, reconciliation.py and two additive exports in exchange/__init__.py. Scheduler/state/store/locking/planner/cycle/recovery, Stage 9.5 mutation code, schema v1, Decisions, dependencies, notebooks/data/results and financial/next-OPEN behavior were unchanged. No authenticated Demo read, order, cancellation, real credential access or broker network call occurred. The correction was COMPLETE / pending owner review/freeze, and the audit remained BLOCKED. It is now FROZEN at `4e947b1`; the later public market correction is recorded below.
+
+### Owner-approved Stage 10.11 public market-data error-classification correction
+
+Starting baseline: clean `main` / `origin/main` at `4e947b192d9e2b3be8b9b050917ca9e03a250320`. The final audit reproduced malformed public `timeNano` and unknown public API code `987654` becoming WAIT/EVIDENCE_MISSING, with three scheduler reads and 1s/2s backoff. This separately approved correction covers only public market classification and the two cycle exception boundaries. **The Stage 10.11 audit is not resumed here.**
+
+`data/closed_candles.py` adds finite `MarketDataReadFailureKind` (TRANSIENT, PERMANENT). The existing `MarketDataTransportError(message="Public market read failed.", *, kind=MarketDataReadFailureKind.PERMANENT)` remains catchable through its existing hierarchy, with immutable `.kind`. Legacy unclassified construction defaults PERMANENT. Existing input/response/integrity/continuity/stale exception classes retain their names and hierarchy.
+
+| Public market failure/evidence | Classification | Cycle / scheduler behavior |
+| --- | --- | --- |
+| Builtin or requests timeout/connection exception at the actual HTTP GET boundary | TRANSIENT | WAIT/EVIDENCE_MISSING; existing bounded retry eligible |
+| Malformed server time, JSON, Kline structure/context/decimal or response envelope | MarketDataResponseError | HALTED/INCONSISTENT_EVIDENCE; no retry |
+| Unknown/nonzero public retCode or unverified non-200 HTTP response | PERMANENT | HALTED/INCONSISTENT_EVIDENCE; no retry |
+| Arbitrary external transport/response-read exception, or unclassified transport error | PERMANENT | HALTED/INCONSISTENT_EVIDENCE; no retry |
+| Unclassified exception from a supplied market reader | Fail closed | HALTED/INCONSISTENT_EVIDENCE; no retry |
+| Existing input/integrity/continuity failures | Existing exception classes | Existing HALTED/INCONSISTENT_EVIDENCE behavior |
+| Otherwise valid stale data | StaleMarketDataError | WAIT/EVIDENCE_MISSING; existing bounded retry eligible |
+
+No message/retMsg matching, speculative API-code/HTTP retry mapping or new RuntimeReason. Public transport errors retain only fixed adapter-authored messages and the finite classification; original external exception text/object/context/cause, response bodies and environment contents are absent. Errors are raised outside the external catch block with `from None`. Fixed public URLs, `trust_env=False`, `auth=None`, redirects disabled, one attempt per HTTP request and bounded pagination remain unchanged. A later-page permanent/malformed failure returns no partial prefix.
+
+The cycle's initial market read now handles these facts explicitly. Its second freshness-validation boundary waits only on StaleMarketDataError; every other failure HALTs. Fatal failures from FLAT/LONG retain exact LAST_KNOWN ownership; pending orders retain their original action/link/order ID, attempt count, deadline, exposure and fills without resend/cancellation. Scheduler production is unchanged: HALTED exits before retry logic. Verified transport and valid stale-data cases still allow at most three whole-cycle attempts, with 1s then 2s waits under the original bounds.
+
+Both audit reproducers now give **one cycle, HALTED/INCONSISTENT_EVIDENCE, zero waits, one public server-time request, zero Kline requests, zero placements and zero cancellations**. All broker/HTTP observations are synthetic. No real credential/session use, authenticated Demo request or actual broker mutation occurred.
+
+**37 additive focused tests** pass: reader/classification **14**, real-cycle **17**, real-scheduler **4**, integration reproducers **2**. Coverage includes immutable/default classification, sanitized external context, late-page atomicity, both freshness boundaries, fatal FLAT/LONG/partial/open preservation and transient/stale retries. Existing tests/guards remain; two intended temporary cycle fixtures now explicitly use TRANSIENT without changing their assertions. Preservation hashes refresh only closed_candles.py, bybit_public_market.py and cycle.py; the Stage 10.9 test change is hash-only.
+
+The frozen Stage 10.10 golden remains **54 candles/decisions, 2 placement actions, 2 fills, 0 cancellations**, with original logical IDs/links, exact Decimal amounts/fees/owned quantities and shutdown/restart results. The account-read correction at `4e947b1`, scheduler/state/store/locking/planner/reconciliation/recovery, Stage 9.5 mutation code, strategy, schema v1, Decisions, dependencies, notebooks/data/results and financial/next-OPEN behavior are unchanged.
+
+Local validation (not CI), zero failures/errors/skips:
+
+| Suite | Passing tests |
+| --- | ---: |
+| New focused correction tests | 37 |
+| Stage 10.4 / public market + closed candles | 111 |
+| Stage 10.7 / cycle | 114 |
+| Stage 10.8 / scheduler | 86 |
+| Stage 10.9 / restart | 89 |
+| Stage 10.10 / integration | 64 |
+| Stage 10.5 / reconciliation | 100 |
+| Stage 9.4 / account/order reads | 136 |
+| RuntimeStore | 230 |
+| Stage 10.6 / planner | 79 |
+| Stage 10.2 / state | 188 |
+| Locking | 23 |
+| Stage 9.5 / actions | 100 |
+| Placement boundary | 29 |
+| Stage 9.6 / integration + smoke controls | 68 |
+| Frozen EMA | 16 |
+| Historical/research/backtest | 982 |
+| Full suite | 2,510 (2,473 + 37) |
+
+Groups overlap. `pip check`, `git diff --check` and `git diff --staged --check` pass. No tests are removed/skipped/weakened. Production changes are limited to the three approved market/cycle files; other frozen source, schema, dependencies, Decisions, strategy and research artifacts are byte-identical to `4e947b1`.
+
+**Correction COMPLETE / pending independent owner review/freeze. Stage 10.11 remains BLOCKED; Stage 10 remains INCOMPLETE; Stages 11–15 remain NOT STARTED.** No authenticated Demo read/order/cancellation, real credentials or actual broker network was used. Do not resume the audit or later work automatically.
 
 ### Accepted Stage 10 roadmap
 
@@ -900,7 +955,7 @@ Production changes are limited to account_state.py, bybit_demo_read_only.py, rec
 | 10.8 — Long-Running Candle Scheduler | COMPLETE/FROZEN at `f3e9fe6`; serialized hourly control. |
 | 10.9 — Restart / Crash / Ambiguous-Action Recovery | COMPLETE/FROZEN at `fef6b6e`; checkpoint-only process entry and offline crash proofs. |
 | 10.10 — Runtime Integration Regression + Optional Explicit Demo Run | OFFLINE COMPLETE/FROZEN at `3292526`; optional authenticated run NOT PERFORMED / NOT AUTHORIZED. |
-| 10.11 — Final Stage 10 Audit + Docs | BLOCKED pending independent review/freeze of the separate owner-approved read-failure correction; audit not resumed. |
+| 10.11 — Final Stage 10 Audit + Docs | BLOCKED pending independent review/freeze of the separate public market-data classification correction; account/order correction FROZEN at `4e947b1`; audit not resumed. |
 
 Stages 11–15 are high-level directions only, NOT STARTED: Runtime Risk Management; Observability & Monitoring; Long-Running Demo Validation; Live Readiness / Production Hardening; Controlled Live Trading. No detailed later contract, operational risk platform, multi-bot allocation or live-money functionality is introduced now. No actual authenticated Demo smoke/order has been executed.
 
@@ -1352,7 +1407,7 @@ Reserve belongs to the same portfolio. Stage 7.5 MTM equity now includes reserve
 
 Default fraction 1.0 must reproduce Stage 6 exactly, including quantities, independent GROSS/NET accounting, equity, and downstream analytics, without loosening existing tolerances. Frozen BTC reference values are recorded in Decision 011. Prefer existing accounting schemas and derive reserve safely from canonical entry accounting; any necessary new field requires an explicit reviewed decision.
 
-The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 2,473 tests.
+The unchanged Stage 7.2 helper `calculate_position_budget(capital_before, position_fraction=1.0) -> float` supplies budgets to both GROSS and NET accounting. NET budgets include the entry fee and both paths independently compound total portfolio capital. Stage 7.5 equity derives reserve from canonical entry spend without rerunning risk policy. Stage 7.6 `run_backtest_pipeline(...)` forwards the same fraction unchanged to both accounting paths, defaulting to full allocation. Stage 7.7 verifies downstream analytics compatibility at fractions 1.0/0.50/0.25; Stage 7.8 now presents these comparisons in executed notebook 05. Stage 7 code/tests, decisions, notebooks, and data are preserved; the current full suite passes with 2,510 tests.
 
 ## Position sizing core
 
@@ -1832,9 +1887,9 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Independent owner review/freeze of the completed Stage 10.11 read-failure classification correction. Stages 10.1–10.10 and previous approved corrections remain frozen at the accepted `3292526` baseline, with this explicit additive correction pending review. Stage 10.11 remains BLOCKED; its audit is not resumed here. Stage 10 remains INCOMPLETE; Stages 11–15 remain NOT STARTED. Optional authenticated Demo run: NOT PERFORMED / NOT AUTHORIZED.
+Independent owner review/freeze of the completed separate Stage 10.11 public market-data error-classification correction. Stages 10.1–10.10, the account/order correction and previous approved corrections remain frozen at the accepted `4e947b1` baseline, except for this explicitly approved public market correction pending review. Stage 10.11 remains BLOCKED; its audit is not resumed here. Stage 10 remains INCOMPLETE; Stages 11–15 remain NOT STARTED. Optional authenticated Demo run: NOT PERFORMED / NOT AUTHORIZED.
 
-Stage 9.1–9.7, previous approved corrections, Stages 10.1–10.10, the store corrections and Decision 017 remain frozen, subject only to this explicit pending read-failure correction. Stage 8, Stage 5 frozen EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. Process-entry preparation retains unresolved truth before caller-invoked frozen cycle/scheduler work; no automatic resend/cancellation, wallet sizing or actual Demo activation. Tests write runtime artifacts only in temporary directories.
+Stage 9.1–9.7, previous approved corrections, Stages 10.1–10.10, the store corrections and Decision 017 remain frozen, subject only to this explicit pending public market correction. Stage 8, Stage 5 frozen EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. Process-entry preparation retains unresolved truth before caller-invoked frozen cycle/scheduler work; no automatic resend/cancellation, wallet sizing or actual Demo activation. Tests write runtime artifacts only in temporary directories.
 
 ## Not implemented yet
 
@@ -1853,7 +1908,7 @@ Stage 9.1–9.7, previous approved corrections, Stages 10.1–10.10, the store c
 
 ## Next milestone
 
-Stage 10.11 — Final Stage 10 Audit + Docs remains BLOCKED pending independent owner review/freeze of this classification correction and explicit authorization to resume the audit. The optional authenticated Demo run remains NOT PERFORMED / NOT AUTHORIZED.
+Stage 10.11 — Final Stage 10 Audit + Docs remains BLOCKED pending independent owner review/freeze of the public market-data classification correction and explicit authorization to resume the audit. The account/order correction at `4e947b1` remains FROZEN. The optional authenticated Demo run remains NOT PERFORMED / NOT AUTHORIZED.
 
 Stage 9 and previous approved corrections, Stages 10.1–10.10 and all store corrections remain COMPLETE/FROZEN, with this separate additive correction pending review. Stage 10 remains INCOMPLETE; Stages 11–15 remain NOT STARTED. Do not resume Stage 10.11 or run an authenticated Demo smoke/order automatically. Explicit operator cancellation needs a separately approved API contract.
 

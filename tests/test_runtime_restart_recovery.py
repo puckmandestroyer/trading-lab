@@ -1236,7 +1236,7 @@ class RestartBoundaryTests(unittest.TestCase):
             "locking": "b10c5a8ac5e4ed4b8a7616b656602319c4e238eb0d2404fc2d31e6d636048273",
             "reconciliation": "2c9386a5f4e3670144722e53202f869c8b7ce6e67ce963342a45bbf6f9ef0bb9",
             "planner": "e97b0f9c709e909c56f132cfd5a718a3fbb8a488debb0c71823415adb0605686",
-            "cycle": "d1a8b92b042d10402ef5bdc80b58edc62415a5a69cef7c99a27174311d890bc4",
+            "cycle": "1bb6df969546392c75bc9d7091d6cf8c7fa9ca102042171b5ede3ccf52b90db3",
             "scheduler": "f588124296a4442ab0c969ae55202d991ee1e003d500a5aa3f373f03d074608d",
             "__init__": "8843b5105846f5386e9ac799f06b8446688043482618cbb8d3fc5a6655f40b60",
         }

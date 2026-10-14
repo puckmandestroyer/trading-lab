@@ -1,6 +1,7 @@
 """Offline single-cycle integration, real durable journal and crash boundaries."""
 
 import ast
+from copy import deepcopy
 from dataclasses import FrozenInstanceError, fields, replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, localcontext
@@ -15,7 +16,8 @@ import pandas as pd
 import requests
 
 from trading_lab.data.closed_candles import (
-    ClosedCandlePrefix, MarketCandle, MarketDataTransportError,
+    ClosedCandlePrefix, MarketCandle, MarketDataInputError, MarketDataIntegrityError,
+    MarketDataReadFailureKind, MarketDataResponseError, MarketDataTransportError,
     StaleMarketDataError, validate_closed_prefix,
 )
 from trading_lab.exchange.account_state import (
@@ -36,6 +38,7 @@ from trading_lab.strategies.ema_trend import generate_ema_signals
 from tests.test_bybit_demo_orders import FakeActionSession, ack_response
 from tests.test_runtime_store import HOUR, StoreCase, configuration
 from tests.test_runtime_planner import canonical, checkpoint
+from tests import test_runtime_integration_regression as integration_fixtures
 
 
 D = Decimal
@@ -637,7 +640,7 @@ class MarketFreshnessCorrectionTests(CycleCase):
 
     def test_transient_market_timeout_synchronizes_without_halt(self):
         self.bootstrap()
-        self.market.error = MarketDataTransportError("Synthetic timeout")
+        self.market.error = MarketDataTransportError("Synthetic timeout", kind=MarketDataReadFailureKind.TRANSIENT)
         with patch.object(module, "transition_runtime_state", wraps=transition_runtime_state) as transitions:
             result = self.run_cycle()
         self.assert_freshness_lost(result, D("0"), transitions)
@@ -1213,7 +1216,7 @@ class MarketAndSafetyTests(CycleCase):
         self.assertNotIn(PRIVATE, repr(result))
 
     def test_market_transport_failure_returns_wait_without_mutation(self):
-        self.market.error = MarketDataTransportError(PRIVATE)
+        self.market.error = MarketDataTransportError(PRIVATE, kind=MarketDataReadFailureKind.TRANSIENT)
         result = self.run_cycle()
         self.assertIs(result.outcome, CycleOutcome.WAIT)
         self.assertEqual(result.processed_candle_count, 0)
@@ -1347,6 +1350,149 @@ class MarketAndSafetyTests(CycleCase):
         backtest = {name for name in imports if name and name.startswith("backtest")}
         self.assertEqual(backtest, {"backtest.strategy_validation"})  # pure canonical intent validation only
         self.assertNotIn(".ewm(", source)
+
+
+class MarketReadClassificationCycleTests(integration_fixtures.IntegrationCase):
+    """Real public parser/cycle/reconciliation, with only external transport fake."""
+
+    def malformed_time(self):
+        return {"retCode": 0, "time": self.clock.ms,
+                "result": {"timeSecond": str(self.clock.ms // 1000), "timeNano": integration_fixtures.PRIVATE}}
+
+    def assert_fatal(self, result, *, prior=None, actions=(), fills=()):
+        self.assertIs(result.outcome, CycleOutcome.HALTED)
+        snapshot = result.checkpoint.snapshot
+        self.assertIs(snapshot.state, RuntimeState.HALTED)
+        self.assertIs(snapshot.reason, RuntimeReason.INCONSISTENT_EVIDENCE)
+        self.assertIs(snapshot.position_evidence, PositionEvidence.LAST_KNOWN)
+        self.assertEqual(snapshot.owned_base_quantity, D("0") if prior is None else prior.owned_base_quantity)
+        self.assertEqual(snapshot.pending_action, None if prior is None else prior.pending_action)
+        self.assertEqual(result.processed_candle_count, 0)
+        self.assertEqual(self.store.list_fills(), fills)
+        retained = self.store.list_actions()
+        self.assertEqual(len(retained), len(actions))
+        for old, new in zip(actions, retained):
+            for name in ("logical_action_id", "order_link_id", "broker_order_id", "attempt_count", "reconciliation_deadline_ms"):
+                self.assertEqual(getattr(new, name), getattr(old, name))
+            self.assertLessEqual(new.remaining_read_attempts, old.remaining_read_attempts)
+        self.assertEqual(len(self.sends), len(actions))
+        self.assertEqual(self.cancels, [])
+        self.assertNotIn(integration_fixtures.PRIVATE, repr(result))
+        self.audit("fatal-market")
+
+    def test_malformed_server_time_halts_after_one_public_request(self):
+        with self.public_time_failure(self.malformed_time()):
+            result = self.cycle()
+        self.assert_fatal(result)
+        self.assertEqual([name for name, *_ in self.trace if name.startswith("public_")], ["public_time"])
+
+    def test_unknown_public_api_code_halts_without_mutation(self):
+        with self.public_time_failure({"retCode": 987654, "retMsg": integration_fixtures.PRIVATE}):
+            result = self.cycle()
+        self.assert_fatal(result)
+        self.assertEqual([name for name, *_ in self.trace if name.startswith("public_")], ["public_time"])
+
+    def test_verified_timeout_returns_wait_instead_of_halt(self):
+        with self.public_time_failure(TimeoutError(integration_fixtures.PRIVATE)):
+            result = self.cycle()
+        self.assertIs(result.outcome, CycleOutcome.WAIT)
+        self.assertIs(result.reason, RuntimeReason.EVIDENCE_MISSING)
+        self.assertIs(result.checkpoint.snapshot.state, RuntimeState.SYNCHRONIZING)
+        self.assertEqual((self.sends, self.cancels), ([], []))
+
+    def test_verified_connection_failure_returns_wait(self):
+        with self.public_time_failure(requests.ConnectionError(integration_fixtures.PRIVATE)):
+            result = self.cycle()
+        self.assertIs(result.outcome, CycleOutcome.WAIT)
+        self.assertIs(result.reason, RuntimeReason.EVIDENCE_MISSING)
+        self.assertEqual((self.sends, self.cancels), ([], []))
+
+    def test_unclassified_reader_exception_halts_without_message_guessing(self):
+        with patch.object(self.market, "get_closed_candles", side_effect=TimeoutError(integration_fixtures.PRIVATE)):
+            self.assert_fatal(self.cycle())
+
+    def test_unclassified_legacy_transport_error_halts(self):
+        with patch.object(self.market, "get_closed_candles", side_effect=MarketDataTransportError("temporary retry")):
+            self.assert_fatal(self.cycle())
+
+    def test_valid_stale_public_evidence_remains_wait(self):
+        self.page_latency = self.config.decision_max_age_ms + 1
+        result = self.cycle()
+        self.assertIs(result.outcome, CycleOutcome.WAIT)
+        self.assertIs(result.reason, RuntimeReason.EVIDENCE_MISSING)
+        self.assertIs(result.checkpoint.snapshot.state, RuntimeState.SYNCHRONIZING)
+        self.assertEqual((self.sends, self.cancels), ([], []))
+
+    def test_malformed_read_from_flat_latches_halt_with_exact_zero(self):
+        self.cycle()
+        prior = self.store.get_checkpoint().snapshot
+        self.assertIs(prior.state, RuntimeState.FLAT)
+        with self.public_time_failure(self.malformed_time()):
+            self.assert_fatal(self.cycle(), prior=prior)
+        trace = deepcopy(self.trace)
+        checkpoint_before = self.store.get_checkpoint()
+        self.assertIs(self.cycle().outcome, CycleOutcome.HALTED)
+        self.assertEqual(self.trace, trace)
+        self.assertEqual(self.store.get_checkpoint(), checkpoint_before)
+
+    def test_malformed_read_from_long_preserves_exact_owned_fills(self):
+        self.enter()
+        prior = self.store.get_checkpoint().snapshot
+        self.assertIs(prior.state, RuntimeState.LONG)
+        self.assertEqual(prior.owned_base_quantity, D("0.04995"))
+        actions, fills = self.store.list_actions(), self.store.list_fills()
+        with self.public_time_failure(self.malformed_time()):
+            self.assert_fatal(self.cycle(), prior=prior, actions=actions, fills=fills)
+
+    def test_permanent_read_from_long_does_not_sell_or_erase_exposure(self):
+        self.enter()
+        prior = self.store.get_checkpoint().snapshot
+        actions, fills = self.store.list_actions(), self.store.list_fills()
+        with self.public_time_failure({"retCode": 987654, "retMsg": integration_fixtures.PRIVATE}):
+            self.assert_fatal(self.cycle(), prior=prior, actions=actions, fills=fills)
+
+    def test_malformed_read_preserves_partial_fill_and_pending_identity(self):
+        self.enter(status="PartiallyFilled")
+        prior = self.store.get_checkpoint().snapshot
+        self.assertIs(prior.state, RuntimeState.ORDER_PENDING)
+        self.assertEqual(prior.owned_base_quantity, D("0.01995"))
+        actions, fills = self.store.list_actions(), self.store.list_fills()
+        with self.public_time_failure(self.malformed_time()):
+            self.assert_fatal(self.cycle(), prior=prior, actions=actions, fills=fills)
+
+    def test_permanent_read_preserves_open_pending_order_without_resend(self):
+        self.enter(status="New")
+        prior = self.store.get_checkpoint().snapshot
+        self.assertIs(prior.state, RuntimeState.ORDER_PENDING)
+        actions, fills = self.store.list_actions(), self.store.list_fills()
+        with self.public_time_failure({"retCode": 987654}):
+            self.assert_fatal(self.cycle(), prior=prior, actions=actions, fills=fills)
+
+    def freshness_failure(self, error):
+        # Only the cycle's second validation boundary is fault-injected; the
+        # real public reader has already delivered a complete valid prefix.
+        with patch.object(module, "validate_candle_freshness", side_effect=error) as freshness:
+            result = self.cycle()
+        freshness.assert_called_once()
+        return result
+
+    def test_post_read_freshness_input_error_is_fatal(self):
+        self.assert_fatal(self.freshness_failure(MarketDataInputError("Synthetic invalid input")))
+
+    def test_post_read_freshness_integrity_error_is_fatal(self):
+        self.assert_fatal(self.freshness_failure(MarketDataIntegrityError("Synthetic invalid facts")))
+
+    def test_post_read_freshness_response_error_is_fatal(self):
+        self.assert_fatal(self.freshness_failure(MarketDataResponseError("Synthetic malformed facts")))
+
+    def test_post_read_freshness_unclassified_error_is_fatal(self):
+        self.assert_fatal(self.freshness_failure(RuntimeError(integration_fixtures.PRIVATE)))
+
+    def test_post_read_freshness_stale_error_remains_wait(self):
+        result = self.freshness_failure(StaleMarketDataError("Synthetic stale facts"))
+        self.assertIs(result.outcome, CycleOutcome.WAIT)
+        self.assertIs(result.reason, RuntimeReason.EVIDENCE_MISSING)
+        self.assertEqual((self.sends, self.cancels), ([], []))
 
 
 class FingerprintTests(unittest.TestCase):

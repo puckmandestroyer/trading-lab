@@ -14,7 +14,8 @@ import requests
 from trading_lab.data.closed_candles import (
     INTERVAL_MS, MAX_CANDLES, MAX_TIME_MS, ClosedCandlePrefix, MarketCandle,
     MarketCandlePage, MarketDataContinuityError, MarketDataInputError,
-    MarketDataIntegrityError, MarketDataResponseError, MarketDataTransportError,
+    MarketDataIntegrityError, MarketDataReadFailureKind, MarketDataResponseError,
+    MarketDataTransportError,
     _context, _time, validate_candle_freshness,
     validate_closed_prefix,
 )
@@ -22,6 +23,9 @@ from trading_lab.exchange.bybit_market_data import KLINE_URL
 
 
 SERVER_TIME_URL = "https://api.bybit.com/v5/market/time"
+_TRANSIENT_TRANSPORT_ERRORS = (
+    TimeoutError, ConnectionError, requests.exceptions.Timeout, requests.exceptions.ConnectionError,
+)
 
 
 def _result(payload):
@@ -129,16 +133,28 @@ class BybitPublicMarketReader:
 
     def _read(self, session, *, time_request=False, params=None):
         url = SERVER_TIME_URL if time_request else KLINE_URL
+        failure = None
         try:
             response = session.get(url, params=params, timeout=self._timeout_seconds, allow_redirects=False)
+        except _TRANSIENT_TRANSPORT_ERRORS:
+            failure = MarketDataTransportError("Public market connection/timeout failed.",
+                                               kind=MarketDataReadFailureKind.TRANSIENT)
+        except Exception:
+            failure = MarketDataTransportError("Public market transport failed.")
+        # Raise outside the external handler so neither cause nor context keeps
+        # the original request/exception. Only verified send failures are transient.
+        if failure is not None:
+            raise failure from None
+        try:
             if response.status_code != 200:
-                raise MarketDataTransportError("Public market HTTP read failed or redirected.")
-            payload = response.json()
-        except requests.RequestException:
-            raise MarketDataTransportError("Public market transport failed.") from None
+                failure = MarketDataTransportError("Public market HTTP read failed or redirected.")
+            else:
+                return response.json()
         except ValueError:
-            raise MarketDataResponseError("Public market response is not valid JSON.") from None
-        return payload
+            failure = MarketDataResponseError("Public market response is not valid JSON.")
+        except Exception:
+            failure = MarketDataTransportError("Public market response read failed.")
+        raise failure from None
 
     @staticmethod
     def _public_session():

@@ -350,6 +350,20 @@ class IntegrationCase(unittest.TestCase):
         self.capture()
         return result
 
+    def public_time_failure(self, payload_or_error):
+        """Inject only the external public GET result; real parsing still runs."""
+        original = PublicTransport.get
+
+        def get(transport, url, **kwargs):
+            if url == SERVER_TIME_URL:
+                self.external("public_time", kwargs["params"])
+                if isinstance(payload_or_error, Exception):
+                    raise payload_or_error
+                return Response(payload_or_error)
+            return original(transport, url, **kwargs)
+
+        return patch.object(PublicTransport, "get", get)
+
     def round(self):
         return reconcile_startup(self.store, self.broker, utc_now=self.clock.now, monotonic=lambda: self.clock.elapsed)
 
@@ -1008,6 +1022,36 @@ class ReadFailureIntegrationTests(IntegrationCase):
         read.assert_called_once()
 
 
+class PublicMarketFailureIntegrationTests(IntegrationCase):
+    def assert_fatal_public_read(self, result):
+        self.assertEqual(result.cycle_count, 1)
+        self.assertIs(result.exit_reason, SchedulerExit.HALTED)
+        self.assertIs(result.last_cycle.outcome, CycleOutcome.HALTED)
+        self.assertIs(result.checkpoint.snapshot.state, RuntimeState.HALTED)
+        self.assertIs(result.checkpoint.snapshot.reason, RuntimeReason.INCONSISTENT_EVIDENCE)
+        self.assertEqual(self.stop.waits, [])
+        self.assertEqual([name for name, *_ in self.trace if name.startswith("public_")], ["public_time"])
+        self.assertEqual((self.sends, self.cancels), ([], []))
+        self.assertEqual((self.store.list_actions(), self.store.list_fills()), ((), ()))
+        self.assertNotIn(PRIVATE, repr(result))
+        self.audit("fatal-public-read")
+        for path in Path(self.directory).rglob("*"):
+            if path.is_file():
+                self.assertNotIn(PRIVATE.encode(), path.read_bytes())
+
+    def test_malformed_public_time_reproducer_halts_without_retry(self):
+        payload = {"retCode": 0, "time": self.clock.ms,
+                   "result": {"timeSecond": str(self.clock.ms // 1000), "timeNano": PRIVATE}}
+        with self.public_time_failure(payload):
+            result = self.scheduler()
+        self.assert_fatal_public_read(result)
+
+    def test_unknown_public_api_code_reproducer_halts_without_retry(self):
+        with self.public_time_failure({"retCode": 987654, "retMsg": PRIVATE}):
+            result = self.scheduler()
+        self.assert_fatal_public_read(result)
+
+
 class PreservationIntegrationTests(IntegrationCase):
     def test_terminal_return_loss_round_trip_matches_uninterrupted_economic_and_identity_truth(self):
         original = self.store.record_observation
@@ -1064,11 +1108,11 @@ class PreservationIntegrationTests(IntegrationCase):
             self.assertNotIn("position_fraction", identifiers + attributes)
 
     def test_frozen_production_hashes_match_owner_reviewed_fef6_baseline(self):
-        # Preserve frozen fef6 sources except the explicitly approved read-
-        # adapter/reconciliation correction. Only those two hashes are refreshed.
+        # Preserve frozen sources with the approved account-read and public-
+        # market/cycle corrections. Only their corresponding hashes are refreshed.
         hashes = {
             "runtime/__init__.py": "8843b5105846f5386e9ac799f06b8446688043482618cbb8d3fc5a6655f40b60",
-            "runtime/cycle.py": "d1a8b92b042d10402ef5bdc80b58edc62415a5a69cef7c99a27174311d890bc4",
+            "runtime/cycle.py": "1bb6df969546392c75bc9d7091d6cf8c7fa9ca102042171b5ede3ccf52b90db3",
             "runtime/locking.py": "b10c5a8ac5e4ed4b8a7616b656602319c4e238eb0d2404fc2d31e6d636048273",
             "runtime/planner.py": "e97b0f9c709e909c56f132cfd5a718a3fbb8a488debb0c71823415adb0605686",
             "runtime/reconciliation.py": "2c9386a5f4e3670144722e53202f869c8b7ce6e67ce963342a45bbf6f9ef0bb9",
@@ -1076,8 +1120,8 @@ class PreservationIntegrationTests(IntegrationCase):
             "runtime/scheduler.py": "f588124296a4442ab0c969ae55202d991ee1e003d500a5aa3f373f03d074608d",
             "runtime/state.py": "014b92aca145d61a57df230d3c3747025768090d2b96cdeaa97a96e5ad2675bc",
             "runtime/store.py": "316181fffced5491214d6fbebf2ec1b94abecd48b23921dcbabd5f970bdef3fa",
-            "data/closed_candles.py": "c7bd1c2f4f8eda18e450ea0d1f23a93b0087b4eb9115ed5efbb34befa2f1ccc6",
-            "exchange/bybit_public_market.py": "9591168c492b8535baed7245e43448b0fd37aeb6ec5b19da833d61bd3404e195",
+            "data/closed_candles.py": "1c2068060dd73729f8bd3468901fd9c34b3807509906801f8f03af1d83914af6",
+            "exchange/bybit_public_market.py": "62183a274d7a04a0aaac5642a0801ca61221717e2ac344c5ab77aeabad504b1b",
             "exchange/bybit_demo.py": "322500c83ce6077c51b8d7ba966b421c661ced7888bde3052f8d4892900eb748",
             "exchange/bybit_spot_rules.py": "a604ece32539d575225c9a109c61f8b2d5a5f664d5a8fa580733b20326067fcc",
             "exchange/bybit_demo_read_only.py": "132310622c87e9a6542cbfe6a933db6b0c53132893c84667021d3c7395c8b38e",

@@ -13,7 +13,8 @@ import trading_lab.data.closed_candles as pure
 import trading_lab.exchange.bybit_public_market as module
 from trading_lab.data.closed_candles import (
     INTERVAL_MS as HOUR, MAX_TIME_MS, MarketDataContinuityError,
-    MarketDataInputError, MarketDataIntegrityError, MarketDataResponseError,
+    MarketDataError, MarketDataInputError, MarketDataIntegrityError,
+    MarketDataReadFailureKind, MarketDataResponseError,
     MarketDataTransportError, StaleMarketDataError,
 )
 from trading_lab.exchange.bybit_public_market import (
@@ -457,6 +458,123 @@ class PublicReaderTests(unittest.TestCase):
             self.assertTrue(calls.isdisjoint({"place_order", "cancel_order", "get_wallet_balance", "get_open_orders",
                                               "transition_runtime_state", "sleep", "commit", "execute", "connect", "open", "generate_ema_signals"}))
             self.assertFalse(any(isinstance(node, ast.While) for node in ast.walk(tree)))
+
+
+class PublicReadClassificationTests(unittest.TestCase):
+    """Classification is evidence, not retry policy or an external diagnostic."""
+
+    def read(self, responses, **kwargs):
+        return PublicReaderTests.read(self, responses, **kwargs)
+
+    def assert_safe(self, error):
+        self.assertNotIn("private-sentinel", str(error))
+        self.assertNotIn("private-sentinel", repr(error.args))
+        self.assertIsNone(error.__cause__)
+        self.assertIsNone(error.__context__)
+        self.assertTrue(self.session.closed)
+
+    def test_classification_is_a_closed_finite_enum(self):
+        self.assertEqual([kind.value for kind in MarketDataReadFailureKind], ["TRANSIENT", "PERMANENT"])
+
+    def test_legacy_transport_exception_defaults_permanent_and_remains_catchable(self):
+        error = MarketDataTransportError("Safe legacy diagnostic.")
+        self.assertIs(error.kind, MarketDataReadFailureKind.PERMANENT)
+        self.assertIsInstance(error, MarketDataError)
+        self.assertIsInstance(error, RuntimeError)
+        self.assertEqual(str(error), "Safe legacy diagnostic.")
+
+    def test_classification_requires_the_explicit_enum(self):
+        for kind in (None, True, 1, "TRANSIENT", "PERMANENT"):
+            with self.subTest(kind=kind), self.assertRaises(TypeError):
+                MarketDataTransportError(kind=kind)
+
+    def test_classification_cannot_be_reassigned_deleted_or_reinitialized(self):
+        error = MarketDataTransportError(kind=MarketDataReadFailureKind.TRANSIENT)
+        for name in ("kind", "_kind"):
+            with self.subTest(name=name):
+                with self.assertRaises(AttributeError):
+                    setattr(error, name, MarketDataReadFailureKind.PERMANENT)
+                with self.assertRaises(AttributeError):
+                    delattr(error, name)
+        with self.assertRaises(AttributeError):
+            error.__init__(kind=MarketDataReadFailureKind.PERMANENT)
+        self.assertIs(error.kind, MarketDataReadFailureKind.TRANSIENT)
+
+    def test_malformed_time_nano_is_response_error_not_transport(self):
+        payload = time_payload()
+        payload["result"]["timeNano"] = "private-sentinel"
+        with self.assertRaises(MarketDataResponseError) as caught:
+            self.read([payload])
+        self.assertNotIsInstance(caught.exception, MarketDataTransportError)
+        self.assert_safe(caught.exception)
+        self.assertEqual(len(self.session.calls), 1)
+
+    def test_unknown_api_code_is_permanent_without_retmsg_or_payload(self):
+        payload = {"retCode": 987654, "retMsg": "private-sentinel", "private": "private-sentinel"}
+        with self.assertRaises(MarketDataTransportError) as caught:
+            self.read([payload])
+        self.assertIs(caught.exception.kind, MarketDataReadFailureKind.PERMANENT)
+        self.assert_safe(caught.exception)
+        self.assertEqual(vars(caught.exception), {})
+        self.assertEqual(len(self.session.calls), 1)
+
+    def test_verified_timeouts_are_transient_without_external_context(self):
+        for error_type in (TimeoutError, requests.Timeout, requests.ConnectTimeout, requests.ReadTimeout):
+            with self.subTest(error_type=error_type), self.assertRaises(MarketDataTransportError) as caught:
+                self.read([error_type("private-sentinel")])
+            self.assertIs(caught.exception.kind, MarketDataReadFailureKind.TRANSIENT)
+            self.assert_safe(caught.exception)
+            self.assertEqual(len(self.session.calls), 1)
+
+    def test_verified_connection_failures_are_transient_without_external_context(self):
+        for error_type in (ConnectionError, requests.ConnectionError):
+            with self.subTest(error_type=error_type), self.assertRaises(MarketDataTransportError) as caught:
+                self.read([error_type("private-sentinel")])
+            self.assertIs(caught.exception.kind, MarketDataReadFailureKind.TRANSIENT)
+            self.assert_safe(caught.exception)
+            self.assertEqual(len(self.session.calls), 1)
+
+    def test_unverified_external_errors_are_permanent_even_with_retry_words(self):
+        for error_type in (requests.RequestException, requests.HTTPError, requests.exceptions.InvalidSchema, RuntimeError):
+            with self.subTest(error_type=error_type), self.assertRaises(MarketDataTransportError) as caught:
+                self.read([error_type("timeout temporary retry connection private-sentinel")])
+            self.assertIs(caught.exception.kind, MarketDataReadFailureKind.PERMANENT)
+            self.assert_safe(caught.exception)
+            self.assertEqual(len(self.session.calls), 1)
+
+    def test_non_200_http_is_permanent_without_speculative_retry_mapping(self):
+        for status in (302, 401, 429, 500, 503):
+            with self.subTest(status=status), self.assertRaises(MarketDataTransportError) as caught:
+                self.read([Response({"retMsg": "private-sentinel"}, status=status)])
+            self.assertIs(caught.exception.kind, MarketDataReadFailureKind.PERMANENT)
+            self.assert_safe(caught.exception)
+            self.assertEqual(len(self.session.calls), 1)
+
+    def test_invalid_json_is_malformed_without_external_context(self):
+        with self.assertRaises(MarketDataResponseError) as caught:
+            self.read([Response(ValueError("private-sentinel"))])
+        self.assert_safe(caught.exception)
+        self.assertEqual(len(self.session.calls), 1)
+
+    def test_unverified_response_read_exception_is_not_transient_transport(self):
+        for error_type in (TimeoutError, requests.ConnectionError, RuntimeError):
+            with self.subTest(error_type=error_type), self.assertRaises(MarketDataTransportError) as caught:
+                self.read([Response(error_type("private-sentinel"))])
+            self.assertIs(caught.exception.kind, MarketDataReadFailureKind.PERMANENT)
+            self.assert_safe(caught.exception)
+
+    def test_late_permanent_page_failure_returns_no_partial_prefix(self):
+        with self.assertRaises(MarketDataTransportError) as caught:
+            self.read([time_payload(), klines((3, 2)), {"retCode": 987654, "retMsg": "private-sentinel"}], page_limit=2)
+        self.assertIs(caught.exception.kind, MarketDataReadFailureKind.PERMANENT)
+        self.assert_safe(caught.exception)
+        self.assertEqual(len(self.session.calls), 3)
+
+    def test_late_malformed_page_failure_returns_no_partial_prefix(self):
+        with self.assertRaises(MarketDataResponseError) as caught:
+            self.read([time_payload(), klines((3, 2)), {"private": "private-sentinel"}], page_limit=2)
+        self.assert_safe(caught.exception)
+        self.assertEqual(len(self.session.calls), 3)
 
 
 if __name__ == "__main__":

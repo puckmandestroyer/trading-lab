@@ -714,10 +714,10 @@ class ClockAndInputTests(SchedulerCase):
 
 class PublicAndStructuralTests(SchedulerCase):
     def test_frozen_runtime_sources_and_package_match_published_baseline(self):
-        # Literal frozen hashes plus the approved store restart validation and
-        # reconciliation read-failure corrections. No runtime constants.
+        # Literal frozen hashes plus the approved store, reconciliation and
+        # cycle market-classification corrections. No runtime constants.
         expected = {
-            "cycle": "d1a8b92b042d10402ef5bdc80b58edc62415a5a69cef7c99a27174311d890bc4",
+            "cycle": "1bb6df969546392c75bc9d7091d6cf8c7fa9ca102042171b5ede3ccf52b90db3",
             "state": "014b92aca145d61a57df230d3c3747025768090d2b96cdeaa97a96e5ad2675bc",
             "store": "316181fffced5491214d6fbebf2ec1b94abecd48b23921dcbabd5f970bdef3fa",
             "locking": "b10c5a8ac5e4ed4b8a7616b656602319c4e238eb0d2404fc2d31e6d636048273",
@@ -865,6 +865,58 @@ class ReadFailureSchedulerTests(integration_fixtures.IntegrationCase):
         self.assertEqual(self.stop.waits[:2], [1.0, 2.0])
         self.assertEqual(sum(name == "account" for name, *_ in self.trace), 3)
         self.assertIs(result.checkpoint.snapshot.stopped_from, RuntimeState.FLAT)
+        self.assertEqual((self.sends, self.cancels), ([], []))
+
+
+class PublicMarketFailureSchedulerTests(integration_fixtures.IntegrationCase):
+    def assert_no_retry(self, result):
+        self.assertEqual(result.cycle_count, 1)
+        self.assertIs(result.exit_reason, SchedulerExit.HALTED)
+        self.assertIs(result.last_cycle.outcome, CycleOutcome.HALTED)
+        self.assertIs(result.checkpoint.snapshot.reason, RuntimeReason.INCONSISTENT_EVIDENCE)
+        self.assertEqual(self.stop.waits, [])
+        self.assertEqual([name for name, *_ in self.trace if name.startswith("public_")], ["public_time"])
+        self.assertEqual((self.sends, self.cancels), ([], []))
+
+    def test_malformed_public_time_halts_one_cycle_without_backoff(self):
+        payload = {"retCode": 0, "time": self.clock.ms,
+                   "result": {"timeSecond": str(self.clock.ms // 1000), "timeNano": integration_fixtures.PRIVATE}}
+        with self.public_time_failure(payload):
+            self.assert_no_retry(self.scheduler())
+
+    def test_unknown_public_api_code_halts_one_cycle_without_backoff(self):
+        with self.public_time_failure({"retCode": 987654, "retMsg": integration_fixtures.PRIVATE}):
+            self.assert_no_retry(self.scheduler())
+
+    def test_verified_public_timeout_retains_three_attempts_and_one_two_second_waits(self):
+        def backoff(seconds):
+            self.clock.advance(int(seconds * 1000))
+        with self.public_time_failure(requests.Timeout(integration_fixtures.PRIVATE)):
+            result = self.scheduler([backoff, backoff])
+        self.assertEqual(result.cycle_count, 3)
+        self.assertEqual(self.stop.waits[:2], [1.0, 2.0])
+        self.assertEqual(sum(name == "public_time" for name, *_ in self.trace), 3)
+        self.assertIs(result.last_cycle.outcome, CycleOutcome.WAIT)
+        self.assertIs(result.last_cycle.reason, RuntimeReason.EVIDENCE_MISSING)
+        self.assertIs(result.checkpoint.snapshot.stopped_from, RuntimeState.SYNCHRONIZING)
+        self.assertEqual((self.sends, self.cancels), ([], []))
+
+    def test_valid_stale_public_data_retains_bounded_retry(self):
+        original = integration_fixtures.PublicTransport.get
+        def stale_page(transport, url, **kwargs):
+            if url == integration_fixtures.KLINE_URL:
+                self.page_latency = self.config.decision_max_age_ms + 1
+            return original(transport, url, **kwargs)
+        def backoff(seconds):
+            self.clock.advance(int(seconds * 1000))
+        with patch.object(integration_fixtures.PublicTransport, "get", stale_page):
+            result = self.scheduler([backoff, backoff])
+        self.assertEqual(result.cycle_count, 3)
+        self.assertEqual(self.stop.waits[:2], [1.0, 2.0])
+        self.assertEqual(sum(name == "public_time" for name, *_ in self.trace), 3)
+        self.assertEqual(sum(name == "public_klines" for name, *_ in self.trace), 3)
+        self.assertIs(result.last_cycle.outcome, CycleOutcome.WAIT)
+        self.assertIs(result.last_cycle.reason, RuntimeReason.EVIDENCE_MISSING)
         self.assertEqual((self.sends, self.cancels), ([], []))
 
 

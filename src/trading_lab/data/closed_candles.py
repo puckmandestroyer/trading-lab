@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from decimal import Decimal
+from enum import Enum
 import re
 
 
@@ -18,8 +19,39 @@ class MarketDataInputError(MarketDataError):
     """Invalid caller configuration or explicit time input."""
 
 
+class MarketDataReadFailureKind(str, Enum):
+    """Public read-failure facts; retry policy belongs to the runtime."""
+
+    TRANSIENT = "TRANSIENT"
+    PERMANENT = "PERMANENT"
+
+
 class MarketDataTransportError(MarketDataError):
-    """An HTTP/API read failed; no result is available."""
+    """A sanitized HTTP/API failure; unclassified failures default permanent."""
+
+    __slots__ = ("_kind",)
+
+    def __init__(self, message="Public market read failed.", *, kind=MarketDataReadFailureKind.PERMANENT):
+        if not isinstance(kind, MarketDataReadFailureKind):
+            raise TypeError("An explicit MarketDataReadFailureKind is required.")
+        if hasattr(self, "_kind"):
+            raise AttributeError("Market read failure classification is immutable.")
+        object.__setattr__(self, "_kind", kind)
+        super().__init__(message)
+
+    @property
+    def kind(self) -> MarketDataReadFailureKind:
+        return self._kind
+
+    def __setattr__(self, name, value):
+        if name in ("kind", "_kind"):
+            raise AttributeError("Market read failure classification is immutable.")
+        super().__setattr__(name, value)
+
+    def __delattr__(self, name):
+        if name in ("kind", "_kind"):
+            raise AttributeError("Market read failure classification is immutable.")
+        super().__delattr__(name)
 
 
 class MarketDataResponseError(MarketDataError):

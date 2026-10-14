@@ -18,7 +18,8 @@ import pandas as pd
 from ..backtest.strategy_validation import validate_strategy_output
 from ..data.closed_candles import (
     ClosedCandlePrefix, MarketCandle, MarketDataIntegrityError,
-    MarketDataInputError, validate_candle_freshness,
+    MarketDataInputError, MarketDataReadFailureKind, MarketDataResponseError,
+    MarketDataTransportError, StaleMarketDataError, validate_candle_freshness,
 )
 from ..exchange.account_state import ReadOnlyBroker
 from ..exchange.bybit_demo_orders import BybitDemoOrderAdapter, BybitDemoOrderRejectedError
@@ -245,10 +246,16 @@ def run_single_cycle(
         prefix = market_reader.get_closed_candles(symbol=config.symbol, timeframe=config.timeframe,
                                                   history_anchor_ms=config.history_anchor_ms,
                                                   max_data_age_ms=config.decision_max_age_ms)
-    except (MarketDataIntegrityError, MarketDataInputError):
+    except (MarketDataIntegrityError, MarketDataInputError, MarketDataResponseError):
+        return halt(RuntimeReason.INCONSISTENT_EVIDENCE)
+    except StaleMarketDataError:
+        return market_unavailable()
+    except MarketDataTransportError as error:
+        if error.kind is MarketDataReadFailureKind.TRANSIENT:
+            return market_unavailable()
         return halt(RuntimeReason.INCONSISTENT_EVIDENCE)
     except Exception:
-        return market_unavailable()
+        return halt(RuntimeReason.INCONSISTENT_EVIDENCE)
     after_market_ms = now()
     try:
         if type(prefix) is not ClosedCandlePrefix:
@@ -274,8 +281,10 @@ def run_single_cycle(
     try:
         validate_candle_freshness(newest_closed_candle_open_ms=prefix.candles[-1].candle_open_ms,
                                   server_time_ms=prefix.observed_at_ms, max_data_age_ms=config.decision_max_age_ms)
-    except Exception:
+    except StaleMarketDataError:
         return market_unavailable()
+    except Exception:
+        return halt(RuntimeReason.INCONSISTENT_EVIDENCE)
     try:
         records, decisions = _strategy_decisions(prefix, config)
     except Exception:
