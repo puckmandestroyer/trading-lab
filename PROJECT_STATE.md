@@ -6,7 +6,9 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 ## Current stage
 
-Stage 10 — Demo Trading Runtime has STARTED and remains INCOMPLETE.
+Stage 10 — Demo Trading Runtime implementation is COMPLETE pending final owner review/freeze of the Stage 10.11 audit commit.
+
+Stage 10.11 — Final Stage 10 Audit + Docs is COMPLETE / ready for final owner review/freeze. The final Decision 017 contract matrix passes; this milestone changes documentation only. Reviewed production/test baseline: `c273a8be3213a1cbeb3fc12271d17618f2d28b94`.
 
 Stage 10.1 — Runtime Contract / Architecture is COMPLETE, published and frozen at `b9eb945674fb450515164eb54256d7ac7270d29d`. [Decision 017](decisions/017_demo_trading_runtime_contract.md) remains Accepted and unchanged.
 
@@ -28,7 +30,7 @@ Stage 10.9 — Restart / Crash / Ambiguous-Action Recovery is COMPLETE, owner-re
 
 Stage 10.10 — Runtime Integration Regression is COMPLETE OFFLINE, independently owner-reviewed and FROZEN at `329252658aa703b90f107d862e34dbabd81f0f64`.
 
-The **account/order read-failure classification correction** is independently reviewed and FROZEN at `4e947b192d9e2b3be8b9b050917ca9e03a250320`. The separate **owner-approved Stage 10.11 public market-data error-classification correction** is COMPLETE / pending independent owner review/freeze. Stage 10.11 remains BLOCKED pending that review; its audit is not resumed in this pass. Stage 10 remains INCOMPLETE; Stages 11–15 remain NOT STARTED. Optional authenticated Demo run: NOT PERFORMED / NOT AUTHORIZED.
+Both audit-blocker corrections are independently owner-reviewed and FROZEN: account/order read classification at `4e947b192d9e2b3be8b9b050917ca9e03a250320`, public market-data classification at `c273a8be3213a1cbeb3fc12271d17618f2d28b94`. Stages 10.1–10.10 and all approved RuntimeStore/Stage 9 corrections remain FROZEN. Stages 11–15 remain NOT STARTED; Stage 11 — Runtime Risk Management is next and must not start automatically. Optional authenticated Demo run: NOT PERFORMED / NOT AUTHORIZED.
 
 Stage 9 — Bybit Demo Exchange Adapter remains COMPLETE/FROZEN, including the owner-reviewed Stage 9.5 pre-submit correction at `77a88fe1b1250cabde6a1a6fa4aa492db056084b`.
 
@@ -690,7 +692,7 @@ After successfully persisted ACKNOWLEDGED or UNKNOWN_OUTCOME, one frozen reconci
 
 Validation: **97 offline tests (78 original + 19 correction regressions)**; placement-boundary **29 (24 adapter + 5 integration)**, Stage 9.5 **100**, Stage 9.6 **68**, Stage 10.6 **79**, Stage 10.5 **90**, RuntimeStore **211**, locking **23**, Stage 10.2 **188**, Stage 10.4 **97**, Stage 9.4 **123**, EMA **16**, full suite **2,198 (2,179 + 19)** pass with zero failures/errors/skips; pip check and both diff checks pass. Fakes check the real temporary SQLite transaction flag at every external boundary. Correction tests cover early/mixed/bootstrap-before-first-commit crashes, interrupted replay, first future LIVE candle, inclusive decision-age/exclusive deadline boundaries after metadata delay, expired SELL exposure, regressing clock refusal, durable FLAT/LONG freshness loss and reconciliation before replanning. Existing crash/receipt/unknown/no-resend tests remain unchanged.
 
-Frozen runtime/Stage 9/market gate/strategy/validator/schema/Decisions 001–017, notebooks/data/results/dependencies and financial/next-OPEN regressions are unchanged. No real credentials/session/authenticated request/Demo order/cancellation/manual run. No scheduler/Stage 10.8, automatic cancellation, wallet sizing or Stage 7/backtest fill orchestration. Explicit operator cancellation needs a separate owner-approved API contract. Stage 10.7 and its correction are now COMPLETE/FROZEN at `728bf6d`; Stage 10 remains INCOMPLETE. Stage 10.8 is documented below.
+Frozen runtime/Stage 9/market gate/strategy/validator/schema/Decisions 001–017, notebooks/data/results/dependencies and financial/next-OPEN regressions are unchanged. No real credentials/session/authenticated request/Demo order/cancellation/manual run. No scheduler/Stage 10.8, automatic cancellation, wallet sizing or Stage 7/backtest fill orchestration. Explicit operator cancellation needs a separate owner-approved API contract. Stage 10.7 and its correction are now COMPLETE/FROZEN at `728bf6d`. Stage 10 was incomplete at milestone completion; later milestones and the final audit are recorded below.
 
 ### Long-running candle scheduler — Stage 10.8
 
@@ -803,7 +805,7 @@ Real frozen-cycle proofs include PREPARED, ATTEMPT_STARTED, lost-ACK OPEN/FILLED
 
 Validation: Stage 10.9 **89**, RuntimeStore **230**, Stage 10.8 **79**, Stage 10.7 **97**, Stage 10.6 **79**, Stage 10.5 **90**, locking **23**, Stage 10.2 **188**, Stage 10.4 **97**, Stage 9.4 **123**, Stage 9.5 **100**, placement boundary **29**, Stage 9.6 **68**, frozen EMA **16**, full suite **2,385 (2,296 + 89)**; zero failures/errors/skips. `pip check` and both diff checks pass. All frozen production/tests, public APIs/schema, Decisions 001–017, financial/next-OPEN behavior, notebooks/data/results and dependencies are unchanged. No credentials, real network request, authenticated Demo session/order/cancellation, launch layer or Stage 10.10 work.
 
-Stage 10.9 is now owner-reviewed and FROZEN at `fef6b6ee4a8d4fceb9526ed1e3bc1705fda6b7d5`. Its completion results above retain their original totals. Stage 10 remains INCOMPLETE; offline Stage 10.10 is recorded below. No Demo activation is authorized.
+Stage 10.9 is owner-reviewed and FROZEN at `fef6b6ee4a8d4fceb9526ed1e3bc1705fda6b7d5`. Its completion results above retain their original totals. Stage 10 was incomplete at milestone completion; offline integration and the final audit are recorded below. No Demo activation is authorized.
 
 ### Runtime integration regression — Stage 10.10
 
@@ -890,6 +892,8 @@ At correction completion, production changes were limited to account_state.py, b
 
 ### Owner-approved Stage 10.11 public market-data error-classification correction
 
+Current status: independently owner-reviewed and FROZEN at `c273a8be3213a1cbeb3fc12271d17618f2d28b94`. The completion record below retains its original scope, test totals and review status; the resumed final audit is recorded separately below.
+
 Starting baseline: clean `main` / `origin/main` at `4e947b192d9e2b3be8b9b050917ca9e03a250320`. The final audit reproduced malformed public `timeNano` and unknown public API code `987654` becoming WAIT/EVIDENCE_MISSING, with three scheduler reads and 1s/2s backoff. This separately approved correction covers only public market classification and the two cycle exception boundaries. **The Stage 10.11 audit is not resumed here.**
 
 `data/closed_candles.py` adds finite `MarketDataReadFailureKind` (TRANSIENT, PERMANENT). The existing `MarketDataTransportError(message="Public market read failed.", *, kind=MarketDataReadFailureKind.PERMANENT)` remains catchable through its existing hierarchy, with immutable `.kind`. Legacy unclassified construction defaults PERMANENT. Existing input/response/integrity/continuity/stale exception classes retain their names and hierarchy.
@@ -939,7 +943,93 @@ Local validation (not CI), zero failures/errors/skips:
 
 Groups overlap. `pip check`, `git diff --check` and `git diff --staged --check` pass. No tests are removed/skipped/weakened. Production changes are limited to the three approved market/cycle files; other frozen source, schema, dependencies, Decisions, strategy and research artifacts are byte-identical to `4e947b1`.
 
-**Correction COMPLETE / pending independent owner review/freeze. Stage 10.11 remains BLOCKED; Stage 10 remains INCOMPLETE; Stages 11–15 remain NOT STARTED.** No authenticated Demo read/order/cancellation, real credentials or actual broker network was used. Do not resume the audit or later work automatically.
+At public market correction completion: COMPLETE / pending independent owner review/freeze; Stage 10.11 remained BLOCKED and Stage 10 INCOMPLETE. No authenticated Demo read/order/cancellation, real credentials or actual broker network was used; Stages 11–15 were NOT STARTED. The correction is now FROZEN at `c273a8b`; the final audit below resumes only after that independent review and explicit owner authorization.
+
+### Final Stage 10 audit — Stage 10.11
+
+Reviewed clean `main` / `origin/main` baseline: `c273a8be3213a1cbeb3fc12271d17618f2d28b94`. Both previously discovered blockers are resolved, independently reviewed and FROZEN. No further material implementation defect was found within the accepted initial scope. **Documentation only: zero production, test, Decision, schema or dependency changes; zero new tests.** All other tracked files, including scripts, notebooks, data/results and financial code, remain byte-identical to the reviewed baseline.
+
+#### Accepted milestone and correction ledger
+
+Each SHA is a verified commit and ancestor of the reviewed baseline. Entries are grouped by milestone; corrections retain their original milestone labels.
+
+| Accepted milestone / correction | Published SHA |
+| --- | --- |
+| 10.1 — Runtime Contract / Architecture | `b9eb945674fb450515164eb54256d7ac7270d29d` |
+| 10.2 — State Model / Pure State Machine | `8b41427d669f5c17717a296113aa7b28b9dd23e3` |
+| 10.3 — Initial persistence and lock | `56584c462b1226f36941ab02726ed7a621a82dac` |
+| 10.3 — Recovery guards correction | `ad3aca759dbb556d736996bf39b0ba035bb0e512` |
+| 10.3 — Durable read APIs correction | `8b3a482f1d7d2586c2f609aa52f32adf283d8a60` |
+| 10.3 — STARTING / UNKNOWN_OUTCOME restart correction | `a22199f9abd1ce2484aa6dbde500ad126cb66b21` |
+| 10.4 — Closed-Candle Market Data Gate | `1865435bb0310dd5d8e8ce7208d56650dc51590a` |
+| 10.5 — Reconciliation including exact-execution correction | `757682038f2a5686e5d45e98dda378e91901b392` |
+| 10.6 — Pure planner / explicit sizing | `6865a1e38b91ab3519fe5b84e4864a59db5ff8bd` |
+| Stage 9.5 — Pre-submit placement boundary correction | `77a88fe1b1250cabde6a1a6fa4aa492db056084b` |
+| 10.7 — Cycle including historical/freshness correction | `728bf6d74d38f5f686f738c71bbf34048e032619` |
+| 10.8 — Serialized hourly scheduler | `f3e9fe6bb9770031c121314c67e4177d0299e095` |
+| 10.9 — Crash / restart recovery | `fef6b6ee4a8d4fceb9526ed1e3bc1705fda6b7d5` |
+| 10.10 — Offline runtime integration regression | `329252658aa703b90f107d862e34dbabd81f0f64` |
+| 10.11 audit blocker — Account/order read classification | `4e947b192d9e2b3be8b9b050917ca9e03a250320` |
+| 10.11 audit blocker — Public market classification | `c273a8be3213a1cbeb3fc12271d17618f2d28b94` |
+
+Initial 10.5 (`c450025`) and 10.7 (`e6c7b68`) work and their separate correction records remain in Git and in the milestone records above; the ledger lists their final accepted baselines. This audit commit awaits owner review/freeze.
+
+#### Decision 017 final contract matrix
+
+Evidence is the frozen source plus unchanged local offline tests. PASS applies to the accepted initial scope and documented caller responsibilities, not to production or live-money readiness.
+
+| Contract area | Frozen implementation / evidence | Result |
+| --- | --- | --- |
+| Initial scope | RuntimeConfiguration binds one account/bot/EMA strategy/symbol, interval 60; Spot LONG/FLAT Market actions, isLeverage=0. Store/planner/action tests. | PASS |
+| Demo routing | bybit_demo.py and both Demo adapters fix demo=True, testnet=False, api-demo endpoint; per-operation guards. Public reader uses unauthenticated fixed endpoints only. | PASS |
+| Identity/config binding | RuntimeStore.open compares complete non-secret configuration, strategy digest/parameters, account/bot/symbol/currencies/timeframe/budget. Mismatch activation tests refuse reopen. | PASS |
+| Ownership | Reconciliation binds exact durable action/link/order identities and symbol/side/type/unit. Wallet is coverage only; prefix candidates never establish ownership; foreign open orders/conflicts block. | PASS |
+| State model | state.py retains exactly eight operational states, independent desired intent/exposure/pending records and a closed transition table; 188 state tests. | PASS |
+| Persistence/schema | store.py: schema v1, exact Decimal TEXT, integer UTC milliseconds, CAS, atomic records, contiguous monotonic frontier and consumed IDs; no reset/migration/repair. | PASS |
+| Action phase graph | Seven frozen phases; only permitted forward/repeated-observation edges, attempt_count 0/1, immutable intent/IDs and no terminal rewrite. Store phase tests. | PASS |
+| Crash ordering | commit_decision makes PREPARED + decision + frontier durable; preflight then before_submit commits ATTEMPT_STARTED before one placement. Indeterminate persistence stops without follow-up/resend. | PASS |
+| Closed-candle gate | closed_candles.py / bybit_public_market.py validate server time, OHLCV, unique hourly continuity, anchored coverage, closure and freshness; scheduler/local sleep is not closure authority. | PASS |
+| Public market failure classification | Frozen c273a8b: verified transport TRANSIENT/stale → WAIT/EVIDENCE_MISSING; malformed, permanent and unclassified failures → HALTED/INCONSISTENT_EVIDENCE at both cycle boundaries. | PASS |
+| Authenticated broker read classification | Frozen 4e947b1: TRANSIENT → EVIDENCE_MISSING; configuration → HALTED/INVALID_CONFIGURATION; malformed/permanent/unclassified → HALTED/INCONSISTENT_EVIDENCE. Fatal cause wins over last-token exhaustion. | PASS |
+| Bootstrap/replay | Durable per-candle BOOTSTRAP then REPLAY_ONLY cutoffs survive interrupted commits/restart; neither may authorize mutations. Only fresh future LIVE events can act. Cycle/recovery tests. | PASS |
+| EMA strategy reuse | Cycle calls unchanged generate_ema_signals(EMA20/50, warmup50) and pure canonical intent validation on the full anchored prefix; no duplicate EMA or historical fill engine. | PASS |
+| Runtime sizing | Planner BUY is explicit configured fixed quote budget; SELL is exact confirmed owned base. Stage 9 rounds down; no wallet sizing, compounding or Stage 7 position_fraction. | PASS |
+| Reconciliation | One bounded normalized read round, exact original-ID/link discovery, complete coherent observations and public durable action/fill APIs. Missing/window-limited evidence remains uncertain. | PASS |
+| ACK != fill | Placement/cancellation receipts are separate from order/execution evidence; neither changes exposure or proves terminality. OPEN/partial stays pending; missing order never proves unsent. | PASS |
+| Execution/fill ownership | Exact execution-ID deduplication; conflicting duplicates HALT; signed base fees affect inventory exactly, SELL remainders stay owned. Durable terminal fills survive broker retention expiry. | PASS |
+| No automatic resend | Original consumed IDs and durable attempt marker prevent resend after timeout, malformed ACK, persistence uncertainty, retry, restart, UNKNOWN_OUTCOME or partial fill. | PASS |
+| No automatic cancellation | Runtime cycle/planner/scheduler/recovery have no cancellation dispatch. HALT, shutdown, uncertainty, reversed desire and order age never cancel; operator orchestration remains deferred. | PASS |
+| Restart recovery | Account lock → existing store open(initialize=False) → prepare_process_restart → reconciliation/cycle/scheduler. Confirmed states lose freshness; STARTING/HALTED stay; STOPPING(HALTED) restores latch. | PASS |
+| Recovery exhaustion | Action rounds/read tokens reserved durably before I/O, never reset; persisted exclusive deadlines survive restart. Exhaustion HALTs, retaining action/pending evidence. | PASS |
+| Scheduler serialization | scheduler.py is synchronous/serialized on an absolute UTC hourly grid; reserves next wake before startup work, performs bounded replay and skips missed-hour bursts. | PASS |
+| Scheduler retry classification | HALTED exits before retry; only WAIT/RECONCILE/NO_NEW_DATA with EVIDENCE_MISSING/ACTION_OUTCOME_UNKNOWN can retry, max three attempts with 1s/2s waits under original bounds. | PASS |
+| HALT latch | State/store retain safe cause/time/exposure/pending; no automatic rearm. Explicit recorded rearm enters SYNCHRONIZING; restart/shutdown cannot bypass latch. | PASS |
+| Shutdown | External stop stops scheduling/actions and persists STOPPING with prior exposure, pending work and HALT/uncertainty; no liquidation/cancel. Persistence exceptions propagate. | PASS |
+| Single-instance lock | Canonical account-level POSIX flock is exclusive/nonblocking, held for process lifetime before store/session; duplicate cooperating launch refused, same descriptor retained and lock released last. | PASS |
+| Secret safety | Neither correction retains raw external error context/text/payload/retMsg. Runtime uses normalized models/safe codes; synthetic secret guards cover results, logs and SQLite. Public trust_env=False/auth=None/fixed URLs/no redirects remain. | PASS |
+| Offline integration regression | Real lock/store/restart/scheduler/cycle/reconciliation/reader/EMA/planner/adapters, only external transports/clocks/stop faked. Golden IDs/links/Decimal economics and crash repeatability unchanged. | PASS |
+| Historical/backtest preservation | Git shows no Stage 10 changes to historical backtest/analytics/research sizing/robustness/strategy/notebooks/data/dependencies; frozen EMA and all 982 historical/research tests pass. | PASS |
+| Optional authenticated Demo activation | NOT RUN; Decision 017 requires separate explicit owner authorization. Tests use synthetic credentials and mocked transports; no actual authenticated Demo operation is part of this audit. | PASS |
+
+Both blocker reproducers now HALT immediately without scheduler backoff or mutation. Malformed wallet makes one account read; unsafe Demo settings make zero SDK reads. Malformed public timeNano and unknown retCode 987654 each make one cycle/one public-time request, zero Kline requests, zero waits, zero placements/cancellations. Verified transient cases at both boundaries and valid stale-data cases retain bounded retries. BrokerOrderNotFoundError and valid OrderStatus.UNKNOWN retain uncertainty semantics.
+
+Guarantees are **one durable logical authorization per candle and at most one automatic placement invocation per durable action**. Exactly-once exchange/network delivery is not guaranteed; orderLinkId is correlation, not delivery proof. A crash after ATTEMPT_STARTED is potentially sent even before physical transport. No transaction spans external I/O; receipts/fills/terminal checkpoints follow later in separate short transactions.
+
+The unchanged golden lifecycle is STARTING → SYNCHRONIZING → FLAT → ENTRY/ORDER_PENDING → LONG → HOLD → EXIT/ORDER_PENDING → FLAT → STOPPING → new process → STARTING → FLAT. Exactly **54 candles/decisions, 2 placement actions, 2 fills, 0 cancellations**, with the original IDs/links and exact Decimal records in the Stage 10.10 table above. Historical next-OPEN fills remain a separate model from broker-reported runtime executions.
+
+Final local execution (not CI): Stage 10.4 **111**, 10.7 **114**, 10.8 **86**, 10.9 **89**, 10.10 **64**, 10.5 **100**, 9.4 **136**, RuntimeStore **230**, 10.6 **79**, 10.2 **188**, locking **23**, 9.5 **100**, placement boundary **29**, 9.6 **68**, frozen EMA **16**, historical/research/backtest **982**, full suite **2,510**. Groups overlap. Zero failures/errors/skips; zero tests added/removed/changed. `pip check`, `git diff --check` and `git diff --staged --check` pass.
+
+```text
+Authenticated Bybit Demo read: NOT PERFORMED
+Authenticated Bybit Demo order: NOT PERFORMED
+Authenticated Bybit Demo cancellation: NOT PERFORMED
+```
+
+Stage 10 provides an **offline-regression-validated single-account, single-bot, single-strategy hourly Spot LONG/FLAT Demo runtime architecture** with durable intent, closed-candle gating, fail-closed reads, ownership-safe reconciliation, crash/restart recovery and serialized scheduling. It establishes no profitability, production readiness, live-money safety, full runtime risk management, long-running Demo reliability, exchange fill quality or deployment readiness. No production launcher or actual Demo activation was added.
+
+Caller responsibilities remain explicit: correct non-secret account/profile binding and configuration/digests, canonical local lock before store/clients, existing-store restart, bounded client settings and cleanup with lock last. Stage 9 account_id is a caller label, not an exchange-verified UID; initial ownership assumes cooperative account use without external management of owned inventory. Reads cover limited broker windows and are not atomic exchange snapshots. Deadlines are checked between bounded calls, not guaranteed to interrupt an in-flight paginated SDK request. SQLite durability assumes reliable local storage; the POSIX lock protects cooperating local launches, not multi-host/external clients.
+
+**Stage 10.11 COMPLETE / ready for final owner review/freeze. Stage 10 implementation COMPLETE pending final owner review/freeze of this audit commit.** Stages 11–15 remain NOT STARTED. Existing correctness/HALT/stop guards are not Stage 11's complete runtime risk policy. No later stage or authenticated Demo run is automatically authorized.
 
 ### Accepted Stage 10 roadmap
 
@@ -955,7 +1045,7 @@ Groups overlap. `pip check`, `git diff --check` and `git diff --staged --check` 
 | 10.8 — Long-Running Candle Scheduler | COMPLETE/FROZEN at `f3e9fe6`; serialized hourly control. |
 | 10.9 — Restart / Crash / Ambiguous-Action Recovery | COMPLETE/FROZEN at `fef6b6e`; checkpoint-only process entry and offline crash proofs. |
 | 10.10 — Runtime Integration Regression + Optional Explicit Demo Run | OFFLINE COMPLETE/FROZEN at `3292526`; optional authenticated run NOT PERFORMED / NOT AUTHORIZED. |
-| 10.11 — Final Stage 10 Audit + Docs | BLOCKED pending independent review/freeze of the separate public market-data classification correction; account/order correction FROZEN at `4e947b1`; audit not resumed. |
+| 10.11 — Final Stage 10 Audit + Docs | COMPLETE; final contract audit PASS; ready for final owner review/freeze. Both blocker corrections FROZEN at `4e947b1` / `c273a8b`; documentation only. |
 
 Stages 11–15 are high-level directions only, NOT STARTED: Runtime Risk Management; Observability & Monitoring; Long-Running Demo Validation; Live Readiness / Production Hardening; Controlled Live Trading. No detailed later contract, operational risk platform, multi-bot allocation or live-money functionality is introduced now. No actual authenticated Demo smoke/order has been executed.
 
@@ -1887,9 +1977,9 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Independent owner review/freeze of the completed separate Stage 10.11 public market-data error-classification correction. Stages 10.1–10.10, the account/order correction and previous approved corrections remain frozen at the accepted `4e947b1` baseline, except for this explicitly approved public market correction pending review. Stage 10.11 remains BLOCKED; its audit is not resumed here. Stage 10 remains INCOMPLETE; Stages 11–15 remain NOT STARTED. Optional authenticated Demo run: NOT PERFORMED / NOT AUTHORIZED.
+Final owner review/freeze of the completed Stage 10.11 audit. Stage 10 implementation is COMPLETE pending that review; Stages 10.1–10.10, both classification corrections and previous store/Stage 9 corrections remain FROZEN at the reviewed `c273a8b` baseline. Stages 11–15 remain NOT STARTED. Optional authenticated Demo run: NOT PERFORMED / NOT AUTHORIZED.
 
-Stage 9.1–9.7, previous approved corrections, Stages 10.1–10.10, the store corrections and Decision 017 remain frozen, subject only to this explicit pending public market correction. Stage 8, Stage 5 frozen EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. Process-entry preparation retains unresolved truth before caller-invoked frozen cycle/scheduler work; no automatic resend/cancellation, wallet sizing or actual Demo activation. Tests write runtime artifacts only in temporary directories.
+All frozen source/APIs/schema/Decisions/tests, Stage 8, Stage 5 EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. Process-entry preparation retains unresolved truth before caller-invoked cycle/scheduler work; no automatic resend/cancellation, wallet sizing or actual Demo activation. Tests write runtime artifacts only in temporary directories.
 
 ## Not implemented yet
 
@@ -1908,9 +1998,9 @@ Stage 9.1–9.7, previous approved corrections, Stages 10.1–10.10, the store c
 
 ## Next milestone
 
-Stage 10.11 — Final Stage 10 Audit + Docs remains BLOCKED pending independent owner review/freeze of the public market-data classification correction and explicit authorization to resume the audit. The account/order correction at `4e947b1` remains FROZEN. The optional authenticated Demo run remains NOT PERFORMED / NOT AUTHORIZED.
+Stage 11 — Runtime Risk Management is next and NOT STARTED. It requires separate explicit owner authorization; do not begin it automatically. Stages 12–15 also remain NOT STARTED: Observability & Monitoring; Long-Running Demo Validation; Live Readiness / Production Hardening; Controlled Live Trading.
 
-Stage 9 and previous approved corrections, Stages 10.1–10.10 and all store corrections remain COMPLETE/FROZEN, with this separate additive correction pending review. Stage 10 remains INCOMPLETE; Stages 11–15 remain NOT STARTED. Do not resume Stage 10.11 or run an authenticated Demo smoke/order automatically. Explicit operator cancellation needs a separately approved API contract.
+Stage 10.11 is COMPLETE / ready for final owner review/freeze; Stage 10 implementation is COMPLETE pending review/freeze of this audit commit. Both classification corrections and earlier frozen milestones remain unchanged. The optional authenticated Demo run remains NOT PERFORMED / NOT AUTHORIZED. Explicit operator cancellation needs a separately approved API contract.
 
 ## Backtesting execution contract
 

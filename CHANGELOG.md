@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-14 — Stage 10.11 Final Stage 10 Audit + Docs
+
+- Final Decision 017 contract audit PASS: initial Demo scope, identity/ownership, durable schema/action ordering, candle/timing, strategy/sizing, reconciliation/fills, no resend/cancel, restart/budgets, scheduler/HALT/shutdown/lock and secrets. Added the accepted published milestone/correction ledger and 30-row PASS matrix; no further material defect found within the accepted scope.
+- Both audit blockers are independently owner-reviewed/FROZEN: account/order reads at `4e947b1`, public market reads at `c273a8b`. Fatal/configuration/malformed/unclassified failures stop without backoff; verified transient/stale cases retain bounded retries. Correction history and original completion totals remain recorded.
+- Zero production/test/Decision/schema/dependency changes and zero new tests. Frozen APIs, exact golden 54/2/2/0 identities/Decimal economics, next-OPEN/financial behavior, scripts, notebooks and data/results remain unchanged. Distinguish one durable authorization/at-most-one placement invocation from unguaranteed exactly-once exchange delivery.
+- Local unchanged full suite **2,510** and every required component/historical regression pass, zero failures/errors/skips; `pip check`, `git diff --check` and `git diff --staged --check` pass. No CI result is claimed.
+- Authenticated Bybit Demo read/order/cancellation **NOT PERFORMED**; no real credentials, .env inspection, actual broker call or activation. Documented offline-only capability and limitations; no profitability, production/live-money safety, full runtime risk, long-running Demo reliability, fill-quality or deployment claim.
+- Stage 10.11 COMPLETE / ready for final owner review/freeze; Stage 10 implementation COMPLETE pending review/freeze of this audit commit. Stages 11–15 NOT STARTED; Stage 11 — Runtime Risk Management is next and must not start automatically.
+
 ## 2026-10-14 — Owner-approved Stage 10.11 public market-data error-classification correction
 
 - Added finite MarketDataReadFailureKind and immutable MarketDataTransportError.kind; legacy construction defaults PERMANENT and existing exception hierarchies remain catchable. Verified timeout/connection types at public GET alone are TRANSIENT; unclassified transport, HTTP and nonzero API failures default permanent. Malformed responses remain MarketDataResponseError. No retMsg/message guessing, speculative retry mappings or original external exception context/text retention.
