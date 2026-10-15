@@ -6,9 +6,11 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 ## Current stage
 
-Stage 10 — Demo Trading Runtime implementation is COMPLETE pending final owner review/freeze of the Stage 10.11 audit commit.
+Stage 11 — Runtime Risk Management has STARTED and remains INCOMPLETE.
 
-Stage 10.11 — Final Stage 10 Audit + Docs is COMPLETE / ready for final owner review/freeze. The final Decision 017 contract matrix passes; this milestone changes documentation only. Reviewed production/test baseline: `c273a8be3213a1cbeb3fc12271d17618f2d28b94`.
+Stage 11.1 — Runtime Risk Management Contract / Architecture is COMPLETE / ready for owner review/freeze. [Decision 018](decisions/018_runtime_risk_management.md) is Accepted for architecture/documentation only; no runtime risk implementation or activation exists. Each implementation milestone requires explicit owner approval/review. Stages 11.2–11.8 and Stage 12 are NOT STARTED.
+
+Stage 10 — Demo Trading Runtime is independently owner-reviewed, COMPLETE / FROZEN at final baseline `87888719c3e2c87bd3b8979dd9c4ecc33db6cb65` (`Complete Stage 10 final audit`). Stage 10.11 is COMPLETE / FROZEN; its Decision 017 audit passed without production/test changes.
 
 Stage 10.1 — Runtime Contract / Architecture is COMPLETE, published and frozen at `b9eb945674fb450515164eb54256d7ac7270d29d`. [Decision 017](decisions/017_demo_trading_runtime_contract.md) remains Accepted and unchanged.
 
@@ -30,7 +32,7 @@ Stage 10.9 — Restart / Crash / Ambiguous-Action Recovery is COMPLETE, owner-re
 
 Stage 10.10 — Runtime Integration Regression is COMPLETE OFFLINE, independently owner-reviewed and FROZEN at `329252658aa703b90f107d862e34dbabd81f0f64`.
 
-Both audit-blocker corrections are independently owner-reviewed and FROZEN: account/order read classification at `4e947b192d9e2b3be8b9b050917ca9e03a250320`, public market-data classification at `c273a8be3213a1cbeb3fc12271d17618f2d28b94`. Stages 10.1–10.10 and all approved RuntimeStore/Stage 9 corrections remain FROZEN. Stages 11–15 remain NOT STARTED; Stage 11 — Runtime Risk Management is next and must not start automatically. Optional authenticated Demo run: NOT PERFORMED / NOT AUTHORIZED.
+Both audit-blocker corrections are independently owner-reviewed and FROZEN: account/order read classification at `4e947b192d9e2b3be8b9b050917ca9e03a250320`, public market-data classification at `c273a8be3213a1cbeb3fc12271d17618f2d28b94`. Stages 10.1–10.11 and all approved RuntimeStore/Stage 9 corrections remain FROZEN. Stage 11.2 is next and must not start automatically. Optional authenticated Demo run: NOT PERFORMED / NOT AUTHORIZED.
 
 Stage 9 — Bybit Demo Exchange Adapter remains COMPLETE/FROZEN, including the owner-reviewed Stage 9.5 pre-submit correction at `77a88fe1b1250cabde6a1a6fa4aa492db056084b`.
 
@@ -89,6 +91,35 @@ Stage 7.1 — Risk & Position Sizing Contract remains Accepted as Decision 011.
 Stage 6 — Generic Backtesting Engine remains COMPLETE at `df72973de837ecbd4ee81f4bdaf77efd74730a56`.
 
 Stage 5 — Analytics remains COMPLETE and frozen at `a3fde091be234fd78d216f6338752a810fa117f0` (`Complete Stage 5 analytics report`).
+
+## Runtime risk contract — Stage 11.1
+
+Decision 018 defines the future flow: closed market data → strategy intent → Stage 10 planner proposal → runtime risk gate → durable risk authorization → PREPARED → ATTEMPT_STARTED → Stage 9.5 Demo mutation. Strategy intent, proposed action and permission to take risk are separate facts. Stage 7 `position_fraction` remains historical research allocation, not runtime sizing.
+
+Risk uses a fixed operator-authorized quote-capital envelope, an exact bot-owned execution/cash book and confirmed owned inventory marked at accepted authoritative hourly candle closes. Wallet totals and unrelated assets never enlarge risk capital/equity. Inclusive UTC daily MTM loss and epoch high-water-mark drawdown can latch TRIPPED; this is separate from Stage 10 HALTED. TRIPPED blocks ENTRY but can ALLOW a valid exact owned-base strategy EXIT under all frozen safety checks; no automatic liquidation, stop loss or risk-generated signal.
+
+Future hard entry/position caps and UTC ENTRY-authorization counts never resize orders. Full unresolved ENTRY reservations and consumed slots survive partial/ambiguous outcomes and restart. Risk history/epochs/peaks/day baselines/trips survive restart; explicit rearm starts a new measurement epoch from current equity without crediting new cash or erasing history. Hourly marks provide no intrabar protection.
+
+ALLOW authorization, valuation/verdict, candle decision, PREPARED and frontier must commit atomically; refused ENTRY records verdict/decision/frontier without PREPARED. Future 11.4 must review the frozen planner/cycle integration, including durable refused-intent provenance so a policy-blocked ENTRY does not cause a false HALT on later HOLD. Stage 11.3 requires explicit schema review; any needed v2 migration must be separately owner-reviewed, lock-held and offline, never automatic reset/migration or an ambiguous cross-store commit.
+
+This milestone changes only Decision 018 and current documentation. Production, tests, schema v1, dependencies, notebooks, data/results and previous Decisions remain unchanged. Local unchanged full suite: **2,510 tests**, zero failures/errors/skips; `pip check` and both diff checks pass. Authenticated Bybit Demo read/order/cancellation: **NOT RUN**.
+
+### Stage 11 roadmap
+
+| Milestone | Scope | Status after 11.1 |
+| --- | --- | --- |
+| 11.1 | Runtime Risk Management Contract / Architecture | COMPLETE / owner review pending |
+| 11.2 | Pure Risk State + Valuation + Policy Engine | NOT STARTED |
+| 11.3 | Durable Risk Journal + Schema/Migration Contract | NOT STARTED |
+| 11.4 | Pre-Trade Risk Gate + Crash-Consistent Authorization | NOT STARTED |
+| 11.5 | Daily Loss / Drawdown / Exposure Circuit Breakers | NOT STARTED |
+| 11.6 | Restart + Risk Trip / Rearm / Operator Controls | NOT STARTED |
+| 11.7 | End-to-End Risk Integration Regression | NOT STARTED |
+| 11.8 | Final Stage 11 Audit + Docs | NOT STARTED |
+
+### Canonical 12-stage roadmap
+
+Stages 1–10 retain their accepted scope/history. Stage 11 is Runtime Risk Management; Stage 12 is Production & Live Readiness. Its subphases are 12.1 Observability & Monitoring, 12.2 Long-Running Demo Validation, 12.3 Production Hardening / Deployment and 12.4 Controlled Live Trading, all NOT STARTED. Prior top-level Stages 13–15 naming is superseded by this mapping only; historical changelog entries and previous Decisions are unchanged. No Stage 12 implementation or actual Demo activation is authorized.
 
 ## Completed
 
@@ -972,7 +1003,7 @@ Each SHA is a verified commit and ancestor of the reviewed baseline. Entries are
 | 10.11 audit blocker — Account/order read classification | `4e947b192d9e2b3be8b9b050917ca9e03a250320` |
 | 10.11 audit blocker — Public market classification | `c273a8be3213a1cbeb3fc12271d17618f2d28b94` |
 
-Initial 10.5 (`c450025`) and 10.7 (`e6c7b68`) work and their separate correction records remain in Git and in the milestone records above; the ledger lists their final accepted baselines. This audit commit awaits owner review/freeze.
+Initial 10.5 (`c450025`) and 10.7 (`e6c7b68`) work and their separate correction records remain in Git and in the milestone records above; the ledger lists their final accepted baselines. The final audit was subsequently owner-reviewed and FROZEN at `87888719c3e2c87bd3b8979dd9c4ecc33db6cb65`.
 
 #### Decision 017 final contract matrix
 
@@ -1029,7 +1060,7 @@ Stage 10 provides an **offline-regression-validated single-account, single-bot, 
 
 Caller responsibilities remain explicit: correct non-secret account/profile binding and configuration/digests, canonical local lock before store/clients, existing-store restart, bounded client settings and cleanup with lock last. Stage 9 account_id is a caller label, not an exchange-verified UID; initial ownership assumes cooperative account use without external management of owned inventory. Reads cover limited broker windows and are not atomic exchange snapshots. Deadlines are checked between bounded calls, not guaranteed to interrupt an in-flight paginated SDK request. SQLite durability assumes reliable local storage; the POSIX lock protects cooperating local launches, not multi-host/external clients.
 
-**Stage 10.11 COMPLETE / ready for final owner review/freeze. Stage 10 implementation COMPLETE pending final owner review/freeze of this audit commit.** Stages 11–15 remain NOT STARTED. Existing correctness/HALT/stop guards are not Stage 11's complete runtime risk policy. No later stage or authenticated Demo run is automatically authorized.
+At audit publication, Stage 10.11 was COMPLETE / ready for final owner review/freeze and later stages were NOT STARTED. **Stage 10 is now independently owner-reviewed, COMPLETE / FROZEN at `87888719c3e2c87bd3b8979dd9c4ecc33db6cb65`.** Current Stage 11.1 architecture and the canonical 12-stage roadmap are recorded above; existing correctness/HALT/stop guards do not implement that risk policy. No authenticated Demo run is authorized.
 
 ### Accepted Stage 10 roadmap
 
@@ -1045,9 +1076,9 @@ Caller responsibilities remain explicit: correct non-secret account/profile bind
 | 10.8 — Long-Running Candle Scheduler | COMPLETE/FROZEN at `f3e9fe6`; serialized hourly control. |
 | 10.9 — Restart / Crash / Ambiguous-Action Recovery | COMPLETE/FROZEN at `fef6b6e`; checkpoint-only process entry and offline crash proofs. |
 | 10.10 — Runtime Integration Regression + Optional Explicit Demo Run | OFFLINE COMPLETE/FROZEN at `3292526`; optional authenticated run NOT PERFORMED / NOT AUTHORIZED. |
-| 10.11 — Final Stage 10 Audit + Docs | COMPLETE; final contract audit PASS; ready for final owner review/freeze. Both blocker corrections FROZEN at `4e947b1` / `c273a8b`; documentation only. |
+| 10.11 — Final Stage 10 Audit + Docs | COMPLETE / owner-reviewed / FROZEN at `8788871`; final contract audit PASS. Both blocker corrections FROZEN at `4e947b1` / `c273a8b`; documentation only. |
 
-Stages 11–15 are high-level directions only, NOT STARTED: Runtime Risk Management; Observability & Monitoring; Long-Running Demo Validation; Live Readiness / Production Hardening; Controlled Live Trading. No detailed later contract, operational risk platform, multi-bot allocation or live-money functionality is introduced now. No actual authenticated Demo smoke/order has been executed.
+The former top-level Stages 11–15 directions are now mapped to Stage 11 — Runtime Risk Management and Stage 12 — Production & Live Readiness under Decision 018. Stage 11.1 defines architecture only; no operational risk platform, multi-bot allocation, live-money functionality or actual authenticated Demo activity is introduced.
 
 Stage 10.1 validation: zero new tests; unchanged full suite **1,384 tests**, zero failures/errors/skips. `pip check` and `git diff --check` pass. Source/tests, Decisions 001–016, notebooks, data/results and installed package versions remain unchanged; only Decision 017 and current documentation change. No runtime implementation, installation, notebook execution or authenticated Demo smoke/order occurred.
 
@@ -1977,7 +2008,7 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Final owner review/freeze of the completed Stage 10.11 audit. Stage 10 implementation is COMPLETE pending that review; Stages 10.1–10.10, both classification corrections and previous store/Stage 9 corrections remain FROZEN at the reviewed `c273a8b` baseline. Stages 11–15 remain NOT STARTED. Optional authenticated Demo run: NOT PERFORMED / NOT AUTHORIZED.
+Owner review/freeze of Stage 11.1 — Runtime Risk Management Contract / Architecture. Stage 10 is COMPLETE / FROZEN at `87888719c3e2c87bd3b8979dd9c4ecc33db6cb65`; Stage 11 is STARTED / INCOMPLETE. Decision 018 is architecture only; 11.2–11.8 and Stage 12 are NOT STARTED. Optional authenticated Demo run: NOT PERFORMED / NOT AUTHORIZED.
 
 All frozen source/APIs/schema/Decisions/tests, Stage 8, Stage 5 EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. Process-entry preparation retains unresolved truth before caller-invoked cycle/scheduler work; no automatic resend/cancellation, wallet sizing or actual Demo activation. Tests write runtime artifacts only in temporary directories.
 
@@ -1998,9 +2029,9 @@ All frozen source/APIs/schema/Decisions/tests, Stage 8, Stage 5 EMA behavior, ne
 
 ## Next milestone
 
-Stage 11 — Runtime Risk Management is next and NOT STARTED. It requires separate explicit owner authorization; do not begin it automatically. Stages 12–15 also remain NOT STARTED: Observability & Monitoring; Long-Running Demo Validation; Live Readiness / Production Hardening; Controlled Live Trading.
+Stage 11.2 — Pure Risk State + Valuation + Policy Engine is next and NOT STARTED. It requires separate explicit owner approval/review; do not begin it automatically. Stage 11 remains INCOMPLETE, 11.3–11.8 and Stage 12 — Production & Live Readiness remain NOT STARTED.
 
-Stage 10.11 is COMPLETE / ready for final owner review/freeze; Stage 10 implementation is COMPLETE pending review/freeze of this audit commit. Both classification corrections and earlier frozen milestones remain unchanged. The optional authenticated Demo run remains NOT PERFORMED / NOT AUTHORIZED. Explicit operator cancellation needs a separately approved API contract.
+Stage 11.1 is COMPLETE / ready for owner review/freeze; no runtime risk implementation exists yet. Stage 10 is COMPLETE / FROZEN at `8788871`; all frozen corrections remain unchanged. The optional authenticated Demo run remains NOT PERFORMED / NOT AUTHORIZED. Explicit operator cancellation needs a separately approved API contract.
 
 ## Backtesting execution contract
 

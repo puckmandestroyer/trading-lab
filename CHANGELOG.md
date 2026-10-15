@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-15 — Stage 11.1 Runtime Risk Management Contract / Architecture
+
+- Added Accepted Decision 018: strategy intent → planner proposal → independent runtime risk gate → durable authorization → existing Demo action boundary. Fixed capital envelope, bot-owned closed-candle MTM equity, UTC daily loss, epoch drawdown, ALLOW/BLOCK/TRIP, entry/exposure caps, conservative pending reservations and ENTRY throttle. Risk TRIPPED differs from runtime HALT and permits valid strategy EXIT; no automatic liquidation or resizing.
+- Defined future durable atomic authorization, risk replay/restart/rearm and explicit schema review/migration rules, including reviewed integration for policy-blocked intent. Architecture/documentation only: zero production/test/schema/dependency/notebook/data/result changes; previous Decisions unchanged.
+- Recorded independently owner-reviewed Stage 10 COMPLETE / FROZEN at `87888719c3e2c87bd3b8979dd9c4ecc33db6cb65`. Stage 11.1 COMPLETE / owner review pending; Stage 11 INCOMPLETE; 11.2–11.8 NOT STARTED. Canonical 12-stage roadmap now groups monitoring, Demo validation, hardening/deployment and controlled live trading under Stage 12 — Production & Live Readiness, NOT STARTED; prior 13–15 naming is superseded only.
+- Unchanged local full suite **2,510 tests**, zero failures/errors/skips; `pip check`, `git diff --check` and `git diff --staged --check` pass. Zero new tests. Authenticated Bybit Demo read/order/cancellation **NOT RUN**; no credentials or .env inspection, broker operation or activation. Stage 11.2 requires separate explicit owner approval/review and must not start automatically.
+
 ## 2026-10-14 — Stage 10.11 Final Stage 10 Audit + Docs
 
 - Final Decision 017 contract audit PASS: initial Demo scope, identity/ownership, durable schema/action ordering, candle/timing, strategy/sizing, reconciliation/fills, no resend/cancel, restart/budgets, scheduler/HALT/shutdown/lock and secrets. Added the accepted published milestone/correction ledger and 30-row PASS matrix; no further material defect found within the accepted scope.
