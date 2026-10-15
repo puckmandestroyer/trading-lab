@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-15 — Stage 11.3a Durable Risk Journal / Schema-v2 Migration Contract
+
+- Added Accepted Decision 019: future schema v2 in the same RuntimeStore SQLite database/account lock, with risk_configurations, risk_epochs, risk_valuations and risk_verdicts. Runtime contract version remains 1. Architecture/documentation only: current implementation is still schema v1; no migration executed or risk persistence added.
+- Defined explicit bounded offline migration with exact v1 validation and compatible identity, changing only schema_version/configuration_digest plus version metadata while preserving old rows/TEXT, IDs/links, pending/HALT/STOPPING, budgets and frontiers. No automatic migration/reset/repair. Structural migration leaves an EMPTY risk journal; risk initialization is a separate explicit transaction.
+- Defined immutable canonical configuration/epoch identities, authoritative candle-close valuations and owned-fill evidence snapshots, late-evidence refusal without historical rewriting, bounded reads and future verdict/action atomicity. No standalone LIVE/verdict writer in 11.3b; migration tests require genuine frozen-v1 fixtures independent of new v2 schema.
+- Zero production/test/schema/dependency/previous-Decision/notebook/data/result changes; no new tests. Unchanged local full suite **2,633**, zero failures/errors/skips; `pip check`, `git diff --check` and `git diff --staged --check` pass. Authenticated Bybit Demo read/order/cancellation **NOT RUN**; no credential or .env inspection, broker operation or activation.
+- Stages 11.1 and 11.2 independently owner-reviewed/FROZEN at `e80d318` / `ffb8566`. Stage 11.3a COMPLETE / owner review pending; Stages 11 and 11.3 INCOMPLETE; 11.3b implementation next / NOT STARTED, requiring separate approval after contract freeze. Stages 11.4–11.8 and Stage 12 NOT STARTED.
+
 ## 2026-10-15 — Stage 11.2 Pure Risk State + Valuation + Policy Engine
 
 - Added standalone runtime_risk.py: immutable normalized records, finite ALLOW/BLOCK/TRIP policy, exact context-independent Decimal cash/inventory/fee accounting and closed-hour equity. No float/coercion, wallet adoption or unsupported fee conversion. Drawdown diagnostics remain an exact numerator/denominator pair.
