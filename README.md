@@ -6,15 +6,35 @@ The long-term goal is to support historical market data, multiple independent st
 
 ## Current stage
 
-**Stage 11 — Runtime Risk Management has STARTED and remains INCOMPLETE. Stage 11.1 — Runtime Risk Management Contract / Architecture is COMPLETE / ready for owner review/freeze.** [Decision 018](decisions/018_runtime_risk_management.md) is Accepted for architecture/documentation only; no runtime risk implementation exists or is activated. **Stage 11.2 is next and NOT STARTED; 11.3–11.8 and Stage 12 are also NOT STARTED.** Each implementation milestone requires explicit owner approval/review.
+**Stage 11 — Runtime Risk Management remains INCOMPLETE. Stage 11.2 — Pure Risk State + Valuation + Policy Engine is COMPLETE / ready for owner review/freeze.** Stage 11.1 is independently owner-reviewed and FROZEN at `e80d318d80c996fd5ba2fd3cac7fbaa59ead43c9`; [Decision 018](decisions/018_runtime_risk_management.md) remains Accepted and unchanged. **Stage 11.3 is next and NOT STARTED; 11.4–11.8 and Stage 12 are also NOT STARTED.** No risk persistence, runtime integration or broker capability is added. Each implementation milestone requires explicit owner approval/review.
 
 **Stage 10 — Demo Trading Runtime is independently owner-reviewed, COMPLETE / FROZEN at `87888719c3e2c87bd3b8979dd9c4ecc33db6cb65` (`Complete Stage 10 final audit`).** All Stage 9/10 contracts and approved corrections remain frozen. No authenticated Demo run was performed; no actual activation starts automatically.
 
-The future risk boundary is **Strategy → Planner → Runtime Risk Gate → Durable Authorization → Broker**. It uses a fixed operator-authorized capital envelope and bot-owned cash/inventory marked at authoritative hourly closed-candle prices, never unrelated wallet assets. Stage 7 research `position_fraction` is separate from runtime safety. Risk ALLOW/BLOCK/TRIP will govern exact proposed actions without resizing; a risk trip blocks ENTRY but may permit a valid strategy EXIT under all Stage 10 safety checks. No automatic stop loss, liquidation or risk-generated exit is included. This risk layer remains offline/not activated until later approved milestones.
+The future integrated risk boundary is **Strategy → Planner → Runtime Risk Gate → Durable Authorization → Broker**. The standalone pure policy uses a fixed operator-authorized capital envelope and bot-owned cash/inventory marked at supplied authoritative hourly closed-candle prices, never unrelated wallet assets. Stage 7 research `position_fraction` is separate from runtime safety. ALLOW/BLOCK/TRIP evaluates exact proposals without resizing; a risk trip blocks ENTRY but permits an exact owned-base EXIT at the policy layer. Future runtime integration must still enforce every Stage 10 safety check. No automatic stop loss, liquidation or risk-generated exit is included. This risk layer remains offline/not activated.
 
 The [Stage 11 roadmap](PROJECT_STATE.md#stage-11-roadmap) separates pure policy/valuation (11.2), durable journal/schema review (11.3), atomic pre-trade integration (11.4), circuit breakers (11.5), restart/operator controls (11.6), integration regression (11.7) and final audit (11.8). The canonical top-level roadmap has **12 stages**: Stage 11 Runtime Risk Management; Stage 12 Production & Live Readiness, with future subphases 12.1 Observability & Monitoring, 12.2 Long-Running Demo Validation, 12.3 Production Hardening / Deployment and 12.4 Controlled Live Trading. Earlier top-level Stages 13–15 naming is superseded only; historical records and earlier Decisions are unchanged.
 
-Stage 11.1 changes four Markdown files only. The unchanged full suite passes in **local execution: 2,510 tests**, zero failures/errors/skips; `pip check` and both diff checks pass. No source, tests, schema, dependencies, notebooks or data/results change; no authenticated Demo read/order/cancellation runs.
+Stage 11.2 adds one pure module and **123 focused tests**. The full suite passes in **local execution: 2,633 tests (2,510 + 123)**, zero failures/errors/skips; required frozen suites, `pip check` and both diff checks pass. Frozen production/tests, schema, previous Decisions, dependencies, notebooks and data/results are unchanged; no authenticated Demo read/order/cancellation runs.
+
+### Standalone pure risk API — Stage 11.2
+
+Import explicitly from [trading_lab.risk.runtime_risk](src/trading_lab/risk/runtime_risk.py). The error is `RuntimeRiskError`; enums are `RiskVerdict` (ALLOW/BLOCK/TRIP), `RiskReason` (ENTRY_NOTIONAL_LIMIT, POSITION_NOTIONAL_LIMIT, ENTRY_COUNT_LIMIT, RISK_LATCH_ACTIVE, DAILY_LOSS_LIMIT, MAX_DRAWDOWN), `RiskActionKind` (ENTRY/EXIT), `RiskExecutionSide` (BUY/SELL). Immutable/slotted records are `RuntimeRiskConfiguration`, `RiskExecution`, `RiskBook`, `RiskState`, `RiskActionProposal`, `RiskEvaluation`; constants are `HOUR_MS` and `DAY_MS`.
+
+```python
+initial_risk_book(config: RuntimeRiskConfiguration) -> RiskBook
+apply_owned_execution(config: RuntimeRiskConfiguration, book: RiskBook, execution: RiskExecution) -> RiskBook
+calculate_risk_equity(book: RiskBook, mark_price: Decimal) -> Decimal
+calculate_projected_exposure(owned_base_quantity: Decimal, mark_price: Decimal, authorized_entry_quote: Decimal, pending_entry_reservation_quote: Decimal = Decimal("0")) -> Decimal
+initialize_risk_state(config: RuntimeRiskConfiguration, book: RiskBook, mark_price: Decimal, valued_at_ms: int) -> RiskState
+advance_risk_state(config: RuntimeRiskConfiguration, previous: RiskState, book: RiskBook, mark_price: Decimal, valued_at_ms: int) -> RiskState
+evaluate_risk(config: RuntimeRiskConfiguration, state: RiskState, book: RiskBook, mark_price: Decimal, proposal: RiskActionProposal | None = None) -> RiskEvaluation
+```
+
+Financial inputs require finite exact Decimal values without coercion; local arithmetic does not depend on global Decimal precision/rounding. Signed quote fees/rebates change cash, base fees/rebates change inventory exactly once. Negative cash is retained; negative owned inventory and unsupported nonzero fee units fail. Equity is cash + owned base × supplied mark, with positive equity required for a healthy epoch. Drawdown diagnostics use the exact `drawdown_numerator` / `drawdown_denominator` properties, never a rounded ratio for policy.
+
+Supply every consecutive closed UTC hour. Midnight first tests the outgoing day's final equity against its old baseline, then resets the new day's baseline/count; it never clears peak or trip. Daily loss wins simultaneous first daily/drawdown breaches. Thread each returned immutable state: `trip_pending_report` records a newly latched notification, consumed by evaluation without clearing its reason/time. New trip gives TRIP for ENTRY/no proposal, or ALLOW for exact EXIT; an existing latch BLOCKS ENTRY. No-proposal ALLOW authorizes no order. Only ENTRY ALLOW increments the pure count. Invalid evidence raises `RuntimeRiskError`; no silent resize or forced exit exists.
+
+The caller supplies already-owned, deduplicated, temporally appropriate executions/book and an accepted authoritative mark. `apply_owned_execution` is **not idempotent**. Initialization is first valid activation/testing, not operator rearm. Durable identity/cutoffs, pending reservations, atomic authorization and runtime adapters remain later milestones; the reservation helper only calculates exposure. The existing runtime does not call this module. Stage 7 sizing and `risk/__init__.py` remain unchanged.
 
 **Stage 9 — Bybit Demo Exchange Adapter remains COMPLETE after its final audit. All milestones 9.1–9.7 passed under unchanged Decisions 013–016.**
 
@@ -211,7 +231,7 @@ Authenticated Bybit Demo order: NOT PERFORMED
 Authenticated Bybit Demo cancellation: NOT PERFORMED
 ```
 
-Stage 11.1 now documents future Runtime Risk Management under Decision 018; no risk implementation exists yet. Stage 12 — Production & Live Readiness remains **NOT STARTED**, grouping monitoring, long-running Demo validation, production hardening/deployment and controlled live trading. Existing HALT/stop/correctness guards do not implement the new risk contract; later milestones require explicit owner approval/review.
+Stage 11.1 documents Runtime Risk Management under Decision 018; Stage 11.2 implements standalone pure policy only. Runtime risk persistence/integration remains unimplemented. Stage 12 — Production & Live Readiness remains **NOT STARTED**, grouping monitoring, long-running Demo validation, production hardening/deployment and controlled live trading. Existing HALT/stop/correctness guards remain separate; later milestones require explicit owner approval/review.
 
 **Stage 8 — Strategy Robustness is COMPLETE after Stage 8.8 — Final Stage 8 Audit + Docs. All milestones 8.1–8.8 passed under Accepted [Decision 012](decisions/012_strategy_robustness.md).**
 
@@ -289,7 +309,7 @@ Canonical BTC diagnostics retain **6,132 IS / 2,628 OOS**, boundary **2026-06-13
 
 The final audit accepts chronological cold-start OOS evaluation, deterministic sensitivity, descriptive local stability, fixed-configuration expanding walk-forward, consistent downstream diagnostics, and Notebook 06's visual research report. Stage 8 adds **235 tests** to the unchanged 747-test baseline: **982 total**, zero failures, errors, or skips. Frozen Stage 5–7 references, Decisions 010–012, notebook bytes, and BTC SHA256 are preserved. No optimizer, selected best EMA, robustness score, or stitched OOS portfolio exists. Already-seen single-asset/hourly/EMA research does not prove future profitability or provide demo/live trading evidence.
 
-Current focus: owner review/freeze of **Stage 11.1 — Runtime Risk Management Contract / Architecture**. Stage 10 is COMPLETE / FROZEN at `8788871`; Stage 11 is STARTED / INCOMPLETE. **Stage 11.2 is next and NOT STARTED; 11.3–11.8 and Stage 12 remain NOT STARTED. Optional authenticated Demo run: NOT PERFORMED / NOT AUTHORIZED.** No implementation milestone starts automatically. Earlier milestone records retain their original totals.
+Current focus: owner review/freeze of **Stage 11.2 — Pure Risk State + Valuation + Policy Engine**. Stage 11.1 is FROZEN at `e80d318`; Stage 10 remains COMPLETE / FROZEN at `8788871`; Stage 11 is INCOMPLETE. **Stage 11.3 is next and NOT STARTED; 11.4–11.8 and Stage 12 remain NOT STARTED. Optional authenticated Demo run: NOT PERFORMED / NOT AUTHORIZED.** No implementation milestone starts automatically. Earlier milestone records retain their original totals.
 
 - Stage 1 completed: reusable historical data collection and a validated BTCUSDT hourly snapshot.
 - Stage 2 completed: statistical market analysis of returns, volatility, volume, extreme movements, and BTC buy-and-hold drawdown in `notebooks/01_data_exploration.ipynb`.

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-15 — Stage 11.2 Pure Risk State + Valuation + Policy Engine
+
+- Added standalone runtime_risk.py: immutable normalized records, finite ALLOW/BLOCK/TRIP policy, exact context-independent Decimal cash/inventory/fee accounting and closed-hour equity. No float/coercion, wallet adoption or unsupported fee conversion. Drawdown diagnostics remain an exact numerator/denominator pair.
+- Consecutive hourly valuations check inclusive UTC daily loss and peak-based drawdown; midnight checks the outgoing final-hour move before resetting baseline/count. Daily loss takes precedence on simultaneous first breach; original trip reason/time survive recovery/rollover. Pure evaluation consumes new-trip notification, retains the latch, permits exact owned-base EXIT and counts only ALLOWed ENTRY without resize/liquidation/pyramiding.
+- Added **123 focused offline tests**. Local full suite **2,633 (2,510 + 123)** and required frozen integration/cycle/store/planner/state/9.4/EMA/historical suites pass with zero failures/errors/skips; `pip check` and both diff checks pass. Frozen source/tests, risk package initializer, Stage 7 sizing, SQLite/schema, Decisions, dependencies, notebooks and data/results unchanged.
+- Caller owns execution deduplication and valuation cutoffs; the execution helper is not idempotent. No persistence, runtime integration, broker I/O, rearm control or activation. Authenticated Bybit Demo read/order/cancellation **NOT RUN**; no credentials, .env inspection or actual broker operation.
+- Stage 11.1 independently owner-reviewed/FROZEN at `e80d318d80c996fd5ba2fd3cac7fbaa59ead43c9`. Stage 11.2 COMPLETE / ready for owner review/freeze; Stage 11 INCOMPLETE; 11.3 next / NOT STARTED, requiring separate approval; 11.4–11.8 and Stage 12 NOT STARTED.
+
 ## 2026-10-15 — Stage 11.1 Runtime Risk Management Contract / Architecture
 
 - Added Accepted Decision 018: strategy intent → planner proposal → independent runtime risk gate → durable authorization → existing Demo action boundary. Fixed capital envelope, bot-owned closed-candle MTM equity, UTC daily loss, epoch drawdown, ALLOW/BLOCK/TRIP, entry/exposure caps, conservative pending reservations and ENTRY throttle. Risk TRIPPED differs from runtime HALT and permits valid strategy EXIT; no automatic liquidation or resizing.
