@@ -296,7 +296,7 @@ class StoreSchemaTests(StoreCase):
                 RuntimeStore.open(self.lock, replace(self.config, **{name: value}))
 
     def test_unknown_schema_fails_without_reset(self):
-        self.corrupt("PRAGMA user_version=2")
+        self.corrupt("PRAGMA user_version=3")
         before = self.lock.database_path.read_bytes()
         self.reject_reopen()
         self.assertEqual(self.lock.database_path.read_bytes(), before)
@@ -1521,7 +1521,7 @@ class StoreBoundaryTests(StoreCase):
 
     def test_modules_have_no_broker_network_strategy_or_scheduler_imports(self):
         from trading_lab.runtime import locking
-        allowed = {"contextlib", "dataclasses", "decimal", "enum", "hashlib", "json", "os", "pathlib", "re", "sqlite3", "stat", "sys", "fcntl", "locking", "state"}
+        allowed = {"contextlib", "dataclasses", "decimal", "enum", "hashlib", "json", "os", "pathlib", "re", "sqlite3", "stat", "sys", "fcntl", "locking", "state", "risk.runtime_risk"}
         for source in (module, locking):
             tree = ast.parse(inspect.getsource(source))
             names = {node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)}
@@ -1870,6 +1870,1224 @@ class DurableEnumerationTests(StoreCase):
                 self.assertNotIn("synthetic-private", str(caught.exception))
                 self.assertIsNone(caught.exception.__cause__)
                 self.assertTrue(caught.exception.__suppress_context__)
+
+
+# Literal frozen 9807ed8 v1 DDL: fixtures never construct v2 or drop risk tables.
+LEGACY_V1_SCHEMA = {'identity': 'CREATE TABLE identity (\n'
+             '        singleton INTEGER PRIMARY KEY CHECK(singleton=1),\n'
+             '        broker_id TEXT NOT NULL, account_binding TEXT NOT NULL, bot_id TEXT NOT NULL,\n'
+             '        strategy_id TEXT NOT NULL, strategy_implementation_digest TEXT NOT NULL,\n'
+             '        strategy_parameters TEXT NOT NULL, symbol TEXT NOT NULL, base_currency TEXT NOT NULL,\n'
+             '        quote_currency TEXT NOT NULL, timeframe TEXT NOT NULL, interval_ms INTEGER NOT NULL,\n'
+             '        configuration_digest TEXT NOT NULL, buy_quote_budget TEXT NOT NULL,\n'
+             '        history_anchor_ms INTEGER NOT NULL, decision_max_age_ms INTEGER NOT NULL,\n'
+             '        observation_max_age_ms INTEGER NOT NULL, reconciliation_timeout_ms INTEGER NOT NULL,\n'
+             '        reconciliation_round_limit INTEGER NOT NULL, read_attempt_limit INTEGER NOT NULL,\n'
+             '        request_timeout_ms INTEGER NOT NULL, max_clock_skew_ms INTEGER NOT NULL,\n'
+             '        broker_account_id TEXT, schema_version INTEGER NOT NULL,\n'
+             '        runtime_contract_version INTEGER NOT NULL,\n'
+             '        UNIQUE(broker_id, account_binding, bot_id), UNIQUE(broker_id, account_binding)\n'
+             '    )',
+ 'candles': 'CREATE TABLE candles (\n'
+            '        symbol TEXT NOT NULL, timeframe TEXT NOT NULL, candle_open_ms INTEGER NOT NULL,\n'
+            '        input_fingerprint TEXT NOT NULL, open TEXT NOT NULL, high TEXT NOT NULL,\n'
+            '        low TEXT NOT NULL, close TEXT NOT NULL, volume TEXT NOT NULL,\n'
+            '        PRIMARY KEY(symbol, timeframe, candle_open_ms), UNIQUE(symbol, candle_open_ms)\n'
+            '    )',
+ 'actions': 'CREATE TABLE actions (\n'
+            '        logical_action_id TEXT PRIMARY KEY NOT NULL, kind TEXT NOT NULL CHECK(kind IN '
+            "('ENTRY','EXIT','CANCEL')),\n"
+            '        symbol TEXT NOT NULL, reconciliation_deadline_ms INTEGER NOT NULL,\n'
+            '        remaining_reconciliation_rounds INTEGER NOT NULL '
+            'CHECK(remaining_reconciliation_rounds>=0),\n'
+            '        remaining_read_attempts INTEGER NOT NULL CHECK(remaining_read_attempts BETWEEN 0 AND '
+            '3),\n'
+            '        order_link_id TEXT UNIQUE, candle_open_ms INTEGER, control_id TEXT UNIQUE,\n'
+            '        parent_action_id TEXT REFERENCES actions(logical_action_id), target_broker_order_id '
+            'TEXT,\n'
+            '        side TEXT, amount_unit TEXT, currency TEXT, authorized_amount TEXT,\n'
+            '        phase TEXT NOT NULL CHECK(phase IN '
+            "('PREPARED','ATTEMPT_STARTED','ACKNOWLEDGED','UNKNOWN_OUTCOME','TERMINAL_CONFIRMED','REJECTED','ABANDONED_UNSENT')),\n"
+            '        attempt_count INTEGER NOT NULL CHECK(attempt_count IN (0,1)), broker_order_id TEXT '
+            'UNIQUE,\n'
+            '        submitted_amount TEXT, acknowledgement_broker_ms INTEGER,\n'
+            '        acknowledgement_observed_ms INTEGER, observed_at_ms INTEGER, order_status TEXT,\n'
+            '        external_status TEXT, terminal_at_ms INTEGER, safe_reason TEXT, rejection_code '
+            'INTEGER,\n'
+            '        UNIQUE(logical_action_id, broker_order_id, order_link_id),\n'
+            '        FOREIGN KEY(symbol, candle_open_ms) REFERENCES candles(symbol, candle_open_ms)\n'
+            '    )',
+ 'decisions': 'CREATE TABLE decisions (\n'
+              '        symbol TEXT NOT NULL, timeframe TEXT NOT NULL, candle_open_ms INTEGER NOT NULL,\n'
+              '        input_fingerprint TEXT NOT NULL, signal TEXT NOT NULL, desired_position INTEGER NOT '
+              'NULL CHECK(desired_position IN (0,1)),\n'
+              '        disposition TEXT NOT NULL, available_at_ms INTEGER NOT NULL,\n'
+              '        action_id TEXT UNIQUE REFERENCES actions(logical_action_id),\n'
+              '        PRIMARY KEY(symbol, timeframe, candle_open_ms),\n'
+              '        FOREIGN KEY(symbol, timeframe, candle_open_ms) REFERENCES candles(symbol, timeframe, '
+              'candle_open_ms)\n'
+              '    )',
+ 'fills': 'CREATE TABLE fills (\n'
+          '        broker_id TEXT NOT NULL, account_binding TEXT NOT NULL,\n'
+          '        broker_execution_id TEXT NOT NULL, action_id TEXT NOT NULL,\n'
+          '        broker_order_id TEXT NOT NULL, order_link_id TEXT NOT NULL,\n'
+          '        symbol TEXT NOT NULL, side TEXT NOT NULL, executed_quantity TEXT NOT NULL,\n'
+          '        execution_price TEXT NOT NULL, execution_fee TEXT NOT NULL, fee_currency TEXT,\n'
+          '        executed_at_ms INTEGER NOT NULL, observed_at_ms INTEGER NOT NULL,\n'
+          '        PRIMARY KEY(broker_id, account_binding, broker_execution_id),\n'
+          '        FOREIGN KEY(broker_id, account_binding) REFERENCES identity(broker_id, account_binding),\n'
+          '        FOREIGN KEY(action_id, broker_order_id, order_link_id) REFERENCES '
+          'actions(logical_action_id, broker_order_id, order_link_id)\n'
+          '    )',
+ 'checkpoint': 'CREATE TABLE checkpoint (\n'
+               '        singleton INTEGER PRIMARY KEY CHECK(singleton=1), sequence INTEGER NOT NULL '
+               'CHECK(sequence>=0),\n'
+               '        state TEXT NOT NULL, owned_base_quantity TEXT, position_evidence TEXT NOT NULL,\n'
+               '        desired_position INTEGER CHECK(desired_position IN (0,1)),\n'
+               '        pending_action_id TEXT REFERENCES actions(logical_action_id), pending_action_kind '
+               'TEXT,\n'
+               '        reason TEXT, stopped_from TEXT, last_processed_candle_ms INTEGER,\n'
+               '        last_reconciled_at_ms INTEGER, observed_at_ms INTEGER, coverage_start_ms INTEGER,\n'
+               '        coverage_end_ms INTEGER, halted_at_ms INTEGER, shutdown_at_ms INTEGER,\n'
+               '        rearmed_at_ms INTEGER, bootstrap_until_ms INTEGER, replay_until_ms INTEGER\n'
+               '    )'}
+LEGACY_V1_INDEXES = {'one_pending_placement': 'CREATE UNIQUE INDEX one_pending_placement ON actions((1)) WHERE kind IN '
+                          "('ENTRY','EXIT') AND phase IN "
+                          "('PREPARED','ATTEMPT_STARTED','ACKNOWLEDGED','UNKNOWN_OUTCOME')",
+ 'one_pending_cancel': 'CREATE UNIQUE INDEX one_pending_cancel ON actions(parent_action_id) WHERE '
+                       "kind='CANCEL' AND phase IN "
+                       "('PREPARED','ATTEMPT_STARTED','ACKNOWLEDGED','UNKNOWN_OUTCOME')"}
+
+# Stage 11.3b: temporary local fixtures only; no runtime/operator DB is touched.
+from trading_lab.risk.runtime_risk import (
+    RuntimeRiskConfiguration, RiskBook, RiskState, RiskReason, RiskVerdict,
+    RiskActionKind, initialize_risk_state, advance_risk_state, apply_owned_execution,
+)
+from trading_lab.runtime.store import (
+    RuntimeStoreMigrationRequiredError, RiskValuationMode, RiskConfigurationRecord,
+    RiskEpochRecord, RiskValuationRecord, RiskVerdictRecord,
+)
+
+
+def risk_configuration(**changes):
+    return replace(RuntimeRiskConfiguration(D(1000), configuration().buy_quote_budget,
+        D(200), D(500), D("0.1"), D("0.2"), 2, "BTC", "USDT"), **changes)
+
+
+def sql_insert(connection, table, values):
+    connection.execute("INSERT INTO " + table + " (" + ",".join(values) + ") VALUES ("
+                       + ",".join("?" for _ in values) + ")", tuple(values.values()))
+
+
+def legacy_fixture(lock, state=RuntimeState.FLAT):
+    """Independent authentic v1 schema/rows, including exact financial TEXT."""
+    lock.database_path.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(lock.database_path)
+    with connection:
+        for sql in (*LEGACY_V1_SCHEMA.values(), *LEGACY_V1_INDEXES.values()):
+            connection.execute(sql)
+        connection.execute("PRAGMA user_version=1")
+        identity = module._encode(configuration())
+        identity.update(schema_version=1, configuration_digest="1" * 64)
+        sql_insert(connection, "identity", dict(singleton=1, **identity))
+        has_action = state is not RuntimeState.FLAT
+        current_candle = replace(candle(), open=D("123456789.123456789"),
+                                 high=D("123456790"), low=D("100"), close=D("105.25"),
+                                 volume=D("0.00000001"))
+        sql_insert(connection, "candles", module._encode(current_candle))
+        pending = state in (RuntimeState.ORDER_PENDING, RuntimeState.UNCERTAIN, RuntimeState.HALTED)
+        quantity = D("0.00001001") if has_action else D(0)
+        if has_action:
+            action = receipt(replace(prepared(), phase=ActionPhase.ATTEMPT_STARTED, attempt_count=1))
+            if not pending:
+                action = terminal(action)
+            if state is RuntimeState.UNCERTAIN:
+                action = replace(action, phase=ActionPhase.UNKNOWN_OUTCOME, safe_reason=RuntimeReason.ACTION_OUTCOME_UNKNOWN)
+            sql_insert(connection, "actions", module._encode(action))
+            execution = replace(fill(), executed_quantity=D("0.00000001"),
+                                execution_price=D("123456789.123456789"), execution_fee=D("-0.00001"))
+            sql_insert(connection, "fills", module._encode(execution))
+        sql_insert(connection, "decisions", module._encode(decision(action=has_action)))
+        evidence = PositionEvidence.CONFIRMED if state in (RuntimeState.FLAT, RuntimeState.LONG, RuntimeState.ORDER_PENDING) else PositionEvidence.LAST_KNOWN
+        reason = RuntimeReason.INCONSISTENT_EVIDENCE if state in (RuntimeState.UNCERTAIN, RuntimeState.HALTED) else None
+        snapshot = RuntimeStateSnapshot(state, quantity, evidence, int(has_action),
+            PendingAction(ACTION_ID, PendingActionKind.ENTRY) if pending else None, reason,
+            RuntimeState.LONG if state is RuntimeState.STOPPING else None)
+        cp = RuntimeCheckpoint(17, snapshot, last_processed_candle_ms=0,
+            observed_at_ms=HOUR+5, coverage_start_ms=0, coverage_end_ms=HOUR,
+            halted_at_ms=HOUR+5 if state is RuntimeState.HALTED else None,
+            shutdown_at_ms=HOUR+6 if state is RuntimeState.STOPPING else None,
+            bootstrap_until_ms=0, replay_until_ms=HOUR)
+        sql_insert(connection, "checkpoint", dict(singleton=1, **module._checkpoint_values(cp)))
+    connection.close()
+    return replace(configuration(), configuration_digest="2" * 64)
+
+
+def raw_legacy(path):
+    with sqlite3.connect(path) as connection:
+        connection.row_factory = sqlite3.Row
+        return {table: tuple(dict(row) for row in connection.execute("SELECT * FROM " + table + " ORDER BY rowid"))
+                for table in LEGACY_V1_SCHEMA}
+
+
+class RiskMigrationTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = self.enterContext(TemporaryDirectory())
+        self.lock = self.enterContext(RuntimeAccountLock(Path(self.directory), "research"))
+        self.enterContext(patch("socket.create_connection", side_effect=AssertionError("No network")))
+        self.enterContext(patch("os.getenv", side_effect=AssertionError("No credentials")))
+
+    def fixture(self, state=RuntimeState.FLAT):
+        self.config = legacy_fixture(self.lock, state)
+        return self.config
+
+    def assert_legacy(self, before):
+        self.assertEqual(raw_legacy(self.lock.database_path), before)
+        with self.assertRaises(RuntimeStoreMigrationRequiredError):
+            RuntimeStore.open(self.lock, self.config)
+        with sqlite3.connect(self.lock.database_path) as connection:
+            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 1)
+            names = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            self.assertEqual(names, set(LEGACY_V1_SCHEMA))
+
+    def migrate_state(self, state):
+        self.fixture(state)
+        before = raw_legacy(self.lock.database_path)
+        RuntimeStore.migrate_v1_to_v2(self.lock, self.config)
+        after = raw_legacy(self.lock.database_path)
+        expected = {table: tuple(dict(row) for row in rows) for table, rows in before.items()}
+        expected["identity"][0].update(schema_version=2, configuration_digest=self.config.configuration_digest)
+        self.assertEqual(after, expected)
+        with RuntimeStore.open(self.lock, self.config) as store:
+            self.assertEqual(store.get_checkpoint().sequence, 17)
+            self.assertEqual(store.get_checkpoint().snapshot.state, state)
+            self.assertEqual(store.list_risk_valuations(), ())
+            for table in module._RISK_SCHEMA:
+                self.assertEqual(store._connection.execute("SELECT count(*) FROM " + table).fetchone()[0], 0)
+            self.assertEqual(store._connection.execute("PRAGMA user_version").fetchone()[0], 2)
+
+    def test_migrate_flat(self):
+        self.migrate_state(RuntimeState.FLAT)
+
+    def test_migrate_long(self):
+        self.migrate_state(RuntimeState.LONG)
+
+    def test_migrate_order_pending(self):
+        self.migrate_state(RuntimeState.ORDER_PENDING)
+
+    def test_migrate_uncertain(self):
+        self.migrate_state(RuntimeState.UNCERTAIN)
+
+    def test_migrate_halted(self):
+        self.migrate_state(RuntimeState.HALTED)
+
+    def test_migrate_stopping(self):
+        self.migrate_state(RuntimeState.STOPPING)
+
+    def test_raw_decimal_text_and_consumed_ids_survive(self):
+        self.migrate_state(RuntimeState.LONG)
+        with sqlite3.connect(self.lock.database_path) as connection:
+            self.assertEqual(connection.execute("SELECT executed_quantity,execution_price,execution_fee FROM fills").fetchone(),
+                             ("0.00000001", "123456789.123456789", "-0.00001"))
+            self.assertEqual(connection.execute("SELECT logical_action_id,order_link_id FROM actions").fetchone(),
+                             (ACTION_ID, "bot1-" + ACTION_ID[:23]))
+
+    def test_normal_open_requires_explicit_migration_without_byte_changes(self):
+        self.fixture()
+        before = self.lock.database_path.read_bytes()
+        with self.assertRaises(RuntimeStoreMigrationRequiredError) as caught:
+            RuntimeStore.open(self.lock, self.config)
+        self.assertIsInstance(caught.exception, RuntimeStoreIntegrityError)
+        self.assertEqual(str(caught.exception), "Explicit runtime schema v1 to v2 migration is required.")
+        self.assertEqual(self.lock.database_path.read_bytes(), before)
+
+    def test_literal_legacy_schema_matches_frozen_definition(self):
+        self.assertEqual(LEGACY_V1_SCHEMA, module._SCHEMA_V1)
+        self.assertEqual(LEGACY_V1_INDEXES, module._INDEXES_V1)
+        self.assertEqual(set(module._SCHEMA), set(LEGACY_V1_SCHEMA) | set(module._RISK_SCHEMA))
+
+    def test_missing_database_is_not_created(self):
+        with self.assertRaises(RuntimeStoreError):
+            RuntimeStore.migrate_v1_to_v2(self.lock, configuration())
+        self.assertFalse(self.lock.database_path.exists())
+
+    def test_unheld_lock_is_refused(self):
+        self.fixture()
+        unheld = RuntimeAccountLock(Path(self.directory), "research")
+        with self.assertRaises(RuntimeLockError):
+            RuntimeStore.migrate_v1_to_v2(unheld, self.config)
+
+    def test_wrong_lock_binding_is_refused(self):
+        self.fixture()
+        other = self.enterContext(RuntimeAccountLock(Path(self.directory), "other"))
+        with self.assertRaises(RuntimeStoreConflictError):
+            RuntimeStore.migrate_v1_to_v2(other, self.config)
+        self.assertFalse(other.database_path.exists())
+
+    def test_open_store_exclusion_and_close_cleanup(self):
+        store = RuntimeStore.open(self.lock, configuration(), initialize=True)
+        try:
+            self.assertEqual(module._OPEN_DATABASES[self.lock.database_path], 1)
+            with self.assertRaisesRegex(RuntimeStoreConflictError, "no open store"):
+                RuntimeStore.migrate_v1_to_v2(self.lock, configuration())
+        finally:
+            store.close()
+        self.assertNotIn(self.lock.database_path, module._OPEN_DATABASES)
+        with self.assertRaisesRegex(RuntimeStoreIntegrityError, "legacy v1"):
+            RuntimeStore.migrate_v1_to_v2(self.lock, configuration())
+
+    def test_close_one_of_two_handles_still_excludes_migration(self):
+        first = RuntimeStore.open(self.lock, configuration(), initialize=True)
+        second = RuntimeStore.open(self.lock, configuration())
+        first.close()
+        try:
+            self.assertEqual(module._OPEN_DATABASES[self.lock.database_path], 1)
+            with self.assertRaises(RuntimeStoreConflictError):
+                RuntimeStore.migrate_v1_to_v2(self.lock, configuration())
+        finally:
+            second.close()
+        self.assertNotIn(self.lock.database_path, module._OPEN_DATABASES)
+
+    def test_symlink_database_is_not_followed(self):
+        self.fixture()
+        original = self.lock.database_path.with_name("original.sqlite3")
+        self.lock.database_path.rename(original)
+        before = original.read_bytes()
+        self.lock.database_path.symlink_to(original)
+        with self.assertRaises(RuntimeStoreError):
+            RuntimeStore.migrate_v1_to_v2(self.lock, self.config)
+        self.assertEqual(original.read_bytes(), before)
+
+    def test_nonregular_database_is_refused(self):
+        self.lock.database_path.mkdir(parents=True)
+        with self.assertRaises(RuntimeStoreError):
+            RuntimeStore.migrate_v1_to_v2(self.lock, configuration())
+        self.assertTrue(self.lock.database_path.is_dir())
+
+    def refuse_corruption(self, sql, args=()):
+        self.fixture()
+        with sqlite3.connect(self.lock.database_path) as connection:
+            connection.execute(sql, args)
+        before = self.lock.database_path.read_bytes()
+        with self.assertRaises(RuntimeStoreError):
+            RuntimeStore.migrate_v1_to_v2(self.lock, self.config)
+        self.assertEqual(self.lock.database_path.read_bytes(), before)
+
+    def test_unknown_version_is_refused(self):
+        self.refuse_corruption("PRAGMA user_version=7")
+
+    def test_wrong_index_is_refused(self):
+        self.refuse_corruption("DROP INDEX one_pending_cancel")
+
+    def test_partial_risk_schema_is_refused(self):
+        self.refuse_corruption(module._RISK_SCHEMA["risk_configurations"])
+
+    def test_malformed_schema_is_refused(self):
+        self.refuse_corruption("ALTER TABLE candles ADD COLUMN unexpected TEXT")
+
+    def test_malformed_source_decimal_is_refused(self):
+        self.refuse_corruption("UPDATE candles SET volume='1e-8'")
+
+    def test_malformed_source_contract_is_refused(self):
+        self.refuse_corruption("UPDATE identity SET runtime_contract_version=2")
+
+    def test_broken_source_foreign_key_is_refused(self):
+        self.refuse_corruption("UPDATE checkpoint SET pending_action_id=?", ("f"*64,))
+
+    def test_source_configuration_mismatches_are_never_adjusted(self):
+        self.fixture()
+        before = raw_legacy(self.lock.database_path)
+        for changes in ({"buy_quote_budget":D(11)}, {"bot_id":"bot2"},
+                        {"strategy_implementation_digest":"f"*64}, {"history_anchor_ms":HOUR},
+                        {"symbol":"ETHUSDT", "base_currency":"ETH"}, {"broker_account_id":"different"}):
+            with self.subTest(changes=changes), self.assertRaises(RuntimeStoreError):
+                RuntimeStore.migrate_v1_to_v2(self.lock, replace(self.config, **changes))
+        self.assert_legacy(before)
+
+    def test_fault_before_transaction_preserves_v1(self):
+        self.fixture()
+        before = raw_legacy(self.lock.database_path)
+        with patch.object(RuntimeStore, "_validate_v1", side_effect=RuntimeStoreIntegrityError("Injected")), self.assertRaises(RuntimeStoreError):
+            RuntimeStore.migrate_v1_to_v2(self.lock, self.config)
+        self.assert_legacy(before)
+
+    def migration_fault(self, predicate, *, after=False):
+        self.fixture()
+        before = raw_legacy(self.lock.database_path)
+        connect = sqlite3.connect
+        class FaultConnection(sqlite3.Connection):
+            def execute(inner, sql, *args):
+                if predicate(sql):
+                    if after:
+                        super(FaultConnection, inner).execute(sql, *args)
+                    raise sqlite3.OperationalError("Injected private SQL failure")
+                return super(FaultConnection, inner).execute(sql, *args)
+        def wrapped(*args, **kwargs):
+            return connect(*args, factory=FaultConnection, **kwargs)
+        with patch.object(module.sqlite3, "connect", side_effect=wrapped), self.assertRaises(RuntimeStoreError) as caught:
+            RuntimeStore.migrate_v1_to_v2(self.lock, self.config)
+        self.assertNotIn("private", str(caught.exception))
+        self.assert_legacy(before)
+
+    def test_fault_after_first_table_rolls_back(self):
+        self.migration_fault(lambda sql: sql.startswith("CREATE TABLE risk_epochs"))
+
+    def test_fault_after_all_tables_rolls_back(self):
+        self.migration_fault(lambda sql: sql.startswith("UPDATE identity"))
+
+    def test_fault_after_identity_before_version_rolls_back(self):
+        self.migration_fault(lambda sql: sql == "PRAGMA user_version=2")
+
+    def test_fault_before_commit_rolls_back(self):
+        self.migration_fault(lambda sql: sql == "COMMIT")
+
+    def test_commit_then_error_requires_reopen_without_retry(self):
+        self.fixture()
+        commit = RuntimeStore._commit
+        calls = []
+        def committed(store):
+            calls.append(1)
+            commit(store)
+            raise sqlite3.OperationalError("Injected lost commit return")
+        with patch.object(RuntimeStore, "_commit", committed), self.assertRaisesRegex(RuntimeStoreError, "reopening"):
+            RuntimeStore.migrate_v1_to_v2(self.lock, self.config)
+        self.assertEqual(calls, [1])
+        with RuntimeStore.open(self.lock, self.config) as store:
+            self.assertIsNone(store.get_current_risk_epoch())
+        self.assertNotIn(self.lock.database_path, module._OPEN_DATABASES)
+
+    def test_post_commit_validation_error_does_not_claim_v1(self):
+        self.fixture()
+        with patch.object(RuntimeStore, "open", side_effect=RuntimeStoreIntegrityError("Injected")), self.assertRaisesRegex(RuntimeStoreError, "Post-commit"):
+            RuntimeStore.migrate_v1_to_v2(self.lock, self.config)
+        with RuntimeStore.open(self.lock, self.config) as store:
+            self.assertEqual(store.get_configuration().schema_version, 2)
+
+
+    def test_rollback_failure_closes_and_requires_outcome_inspection(self):
+        self.fixture()
+        before=raw_legacy(self.lock.database_path)
+        connect=sqlite3.connect
+        class FaultConnection(sqlite3.Connection):
+            def execute(inner,sql,*args):
+                if sql.startswith("UPDATE identity") or sql=="ROLLBACK":
+                    raise sqlite3.OperationalError("Injected uncertain rollback")
+                return super(FaultConnection,inner).execute(sql,*args)
+        def wrapped(*args,**kwargs):
+            return connect(*args,factory=FaultConnection,**kwargs)
+        with patch.object(module.sqlite3,"connect",side_effect=wrapped),self.assertRaisesRegex(RuntimeStoreError,"reopening"):
+            RuntimeStore.migrate_v1_to_v2(self.lock,self.config)
+        self.assert_legacy(before)
+        self.assertEqual(self.lock._stores,0)
+
+    def test_source_is_revalidated_after_begin(self):
+        self.fixture()
+        before=raw_legacy(self.lock.database_path)
+        validate=RuntimeStore._validate_v1
+        count=[]
+        def checked(store):
+            count.append(store._connection.in_transaction)
+            if len(count)==2:
+                raise RuntimeStoreIntegrityError("Injected changed source")
+            return validate(store)
+        with patch.object(RuntimeStore,"_validate_v1",checked),self.assertRaises(RuntimeStoreError):
+            RuntimeStore.migrate_v1_to_v2(self.lock,self.config)
+        self.assertEqual(count,[False,True])
+        self.assert_legacy(before)
+
+    def test_hardlinked_database_is_refused(self):
+        import os
+        self.fixture()
+        os.link(self.lock.database_path,self.lock.database_path.with_name("alias.sqlite3"))
+        before=self.lock.database_path.read_bytes()
+        with self.assertRaises(RuntimeStoreError):
+            RuntimeStore.migrate_v1_to_v2(self.lock,self.config)
+        self.assertEqual(self.lock.database_path.read_bytes(),before)
+
+    def test_legacy_source_strategy_id_is_not_repaired(self):
+        self.refuse_corruption("UPDATE identity SET strategy_id='different'")
+
+    def test_legacy_source_version_identity_mismatch_is_refused(self):
+        self.refuse_corruption("UPDATE identity SET schema_version=2")
+
+    def test_legacy_source_invalid_digest_is_refused(self):
+        self.refuse_corruption("UPDATE identity SET configuration_digest='invalid'")
+
+    def test_legacy_source_bad_fk_definition_is_refused(self):
+        # Literal malformed legacy DDL, not v2 with tables removed.
+        self.lock.database_path.parent.mkdir(parents=True)
+        with sqlite3.connect(self.lock.database_path) as connection:
+            for name,sql in LEGACY_V1_SCHEMA.items():
+                connection.execute(sql.replace("REFERENCES actions(logical_action_id)","REFERENCES candles(candle_open_ms)") if name=="checkpoint" else sql)
+            for sql in LEGACY_V1_INDEXES.values():
+                connection.execute(sql)
+            connection.execute("PRAGMA user_version=1")
+        before=self.lock.database_path.read_bytes()
+        with self.assertRaises(RuntimeStoreError):
+            RuntimeStore.migrate_v1_to_v2(self.lock,configuration())
+        self.assertEqual(self.lock.database_path.read_bytes(),before)
+
+    def test_legacy_wal_is_refused_before_settings_change(self):
+        self.fixture()
+        with sqlite3.connect(self.lock.database_path) as connection:
+            connection.execute("PRAGMA journal_mode=WAL")
+        before=self.lock.database_path.read_bytes()
+        with self.assertRaises(RuntimeStoreError):
+            RuntimeStore.migrate_v1_to_v2(self.lock,self.config)
+        self.assertEqual(self.lock.database_path.read_bytes(),before)
+
+    def test_already_v2_is_not_migrated_twice(self):
+        self.fixture()
+        RuntimeStore.migrate_v1_to_v2(self.lock,self.config)
+        before=self.lock.database_path.read_bytes()
+        with self.assertRaises(RuntimeStoreError):
+            RuntimeStore.migrate_v1_to_v2(self.lock,self.config)
+        self.assertEqual(self.lock.database_path.read_bytes(),before)
+
+
+class RiskPersistenceCase(StoreCase):
+    def commit_candle(self, at=0, close="105.25"):
+        current = self.store.get_checkpoint()
+        last = current.last_processed_candle_ms
+        for time in range(0 if last is None else last+HOUR, at+1, HOUR):
+            value = D(close)
+            c = replace(candle(time), open=value, high=value, low=value, close=value)
+            desired = self.store.get_checkpoint().snapshot.desired_position or 0
+            d = replace(decision(time), desired_position=desired)
+            cp = self.next_checkpoint(last_processed_candle_ms=time, snapshot=replace(self.store.get_checkpoint().snapshot, desired_position=desired))
+            self.store.commit_decision(c, d, cp, expected_sequence=cp.sequence-1)
+
+    def activate(self, at=0, cfg=None, close="105.25"):
+        self.flat()
+        self.commit_candle(at, close)
+        return self.store.initialize_risk_journal(cfg or risk_configuration(), candle_open_ms=at)
+
+    def long_activation(self, *, fee="0", currency=None, at=HOUR, close="105.25", cfg=None):
+        action = self.acknowledge()
+        execution = replace(fill(), executed_quantity=D(1), execution_price=D(100),
+                            execution_fee=D(fee), fee_currency=currency)
+        book = module._risk_book(cfg or risk_configuration(), (execution,))
+        cp = self.next_checkpoint(snapshot=RuntimeStateSnapshot(RuntimeState.LONG, book.owned_base_quantity, PositionEvidence.CONFIRMED, 1))
+        self.store.record_observation(terminal(action), cp, expected_sequence=cp.sequence-1, fills=(execution,))
+        self.commit_candle(at, close)
+        return self.store.initialize_risk_journal(cfg or risk_configuration(), candle_open_ms=at)
+
+    def risk_rows(self):
+        return {table: tuple(tuple(row) for row in self.store._connection.execute("SELECT * FROM " + table + " ORDER BY rowid"))
+                for table in module._RISK_SCHEMA}
+
+
+class RiskActivationTests(RiskPersistenceCase):
+    def test_flat_activation_is_exact_pure_initializer(self):
+        before_cp = None
+        self.flat()
+        self.commit_candle()
+        before_cp = self.store.get_checkpoint()
+        valuation = self.store.initialize_risk_journal(risk_configuration(), candle_open_ms=0)
+        self.assertIs(valuation.mode, RiskValuationMode.ACTIVATION)
+        self.assertEqual(valuation.book, RiskBook(D(1000), D(0)))
+        self.assertEqual(valuation.state(HOUR), initialize_risk_state(risk_configuration(), valuation.book, candle().close, HOUR))
+        self.assertEqual(self.store.get_checkpoint(), before_cp)
+        self.assertEqual(self.store.list_actions(), ())
+        self.assertEqual(self.store.list_risk_verdicts(), ())
+
+    def test_long_activation_uses_retained_owned_fill_history(self):
+        valuation = self.long_activation()
+        self.assertEqual(valuation.book, RiskBook(D(900), D(1)))
+        self.assertEqual(valuation.risk_equity, D("1005.25"))
+        self.assertEqual(valuation.fill_evidence_count, 1)
+        self.reopen()
+        self.assertEqual(self.store.get_latest_risk_valuation(), valuation)
+
+    def test_quote_fee_changes_only_cash(self):
+        self.assertEqual(self.long_activation(fee="1.25", currency="USDT").book, RiskBook(D("898.75"), D(1)))
+
+    def test_base_fee_changes_only_base(self):
+        self.assertEqual(self.long_activation(fee="0.01", currency="BTC").book, RiskBook(D(900), D("0.99")))
+
+    def test_quote_rebate_is_preserved(self):
+        self.assertEqual(self.long_activation(fee="-1.25", currency="USDT").book, RiskBook(D("901.25"), D(1)))
+
+    def test_base_rebate_is_preserved(self):
+        self.assertEqual(self.long_activation(fee="-0.01", currency="BTC").book, RiskBook(D(900), D("1.01")))
+
+    def test_exact_durable_close_is_the_only_mark(self):
+        valuation = self.activate(close="123.4567890123456789012345678901")
+        self.assertEqual(valuation.mark_price, self.store.get_candle(0).close)
+        self.assertEqual(valuation.valued_at_ms, HOUR)
+
+    def test_midnight_activation_anchors_current_equity(self):
+        value = self.activate(23*HOUR)
+        self.assertEqual(value.utc_day_start_ms, 24*HOUR)
+        self.assertEqual(value.utc_day_start_risk_equity, D(1000))
+        self.assertEqual(value.daily_pnl, 0)
+
+    def test_identical_activation_is_error_not_noop(self):
+        self.activate()
+        before = self.risk_rows()
+        with self.assertRaises(RuntimeStoreError):
+            self.store.initialize_risk_journal(risk_configuration(), candle_open_ms=0)
+        self.assertEqual(self.risk_rows(), before)
+
+    def test_conflicting_activation_is_error(self):
+        self.activate()
+        before = self.risk_rows()
+        with self.assertRaises(RuntimeStoreError):
+            self.store.initialize_risk_journal(risk_configuration(risk_capital_quote=D(2000)), candle_open_ms=0)
+        self.assertEqual(self.risk_rows(), before)
+
+    def test_failure_after_configuration_insert_rolls_back_all_risk_rows(self):
+        self.flat()
+        self.commit_candle()
+        before = self.risk_rows()
+        insert = self.store._insert
+        def failed(table, values):
+            if table == "risk_epochs":
+                raise RuntimeStoreError("Injected")
+            insert(table, values)
+        with patch.object(self.store, "_insert", side_effect=failed), self.assertRaises(RuntimeStoreError):
+            self.store.initialize_risk_journal(risk_configuration(), candle_open_ms=0)
+        self.assertEqual(self.risk_rows(), before)
+        self.reopen()
+        self.assertIsNone(self.store.get_risk_configuration())
+
+    def test_activation_commit_failure_rolls_back(self):
+        self.flat()
+        self.commit_candle()
+        with patch.object(self.store, "_commit", side_effect=sqlite3.OperationalError("Injected")), self.assertRaises(RuntimeStoreError):
+            self.store.initialize_risk_journal(risk_configuration(), candle_open_ms=0)
+        self.reopen()
+        self.assertEqual(self.store.list_risk_valuations(), ())
+
+    def test_unsafe_states_and_nonconfirmed_evidence_are_rejected(self):
+        # Use each legitimate frozen state rather than constructing impossible
+        # CONFIRMED/FLAT or LAST_KNOWN/operational combinations.
+        snapshots = [RuntimeStateSnapshot(), RuntimeStateSnapshot(RuntimeState.SYNCHRONIZING),
+            RuntimeStateSnapshot(RuntimeState.SYNCHRONIZING,D(0),PositionEvidence.LAST_KNOWN),
+            RuntimeStateSnapshot(RuntimeState.UNCERTAIN,reason=RuntimeReason.EVIDENCE_MISSING),
+            RuntimeStateSnapshot(RuntimeState.HALTED,reason=RuntimeReason.INVALID_CONFIGURATION),
+            RuntimeStateSnapshot(RuntimeState.STOPPING,stopped_from=RuntimeState.STARTING)]
+        self.commit_candle()
+        for snapshot in snapshots:
+            cp = self.next_checkpoint(snapshot=replace(snapshot,desired_position=0),
+                halted_at_ms=1 if snapshot.state is RuntimeState.HALTED else None,
+                shutdown_at_ms=1 if snapshot.state is RuntimeState.STOPPING else None)
+            # Fresh isolated checkpoint fixtures avoid the public HALT latch.
+            self.store._update("checkpoint", module._checkpoint_values(cp), "singleton", 1)
+            before = self.risk_rows()
+            with self.subTest(state=snapshot.state), self.assertRaises(RuntimeStoreError):
+                self.store.initialize_risk_journal(risk_configuration(), candle_open_ms=0)
+            self.assertEqual(self.risk_rows(), before)
+
+    def test_pending_action_refuses_activation(self):
+        self.prepare()
+        with self.assertRaises(RuntimeStoreError):
+            self.store.initialize_risk_journal(risk_configuration(), candle_open_ms=0)
+        self.assertEqual(self.store.list_risk_valuations(), ())
+
+    def test_missing_candle_refuses_without_writes(self):
+        self.flat()
+        with self.assertRaises(RuntimeStoreError):
+            self.store.initialize_risk_journal(risk_configuration(), candle_open_ms=0)
+        self.assertEqual(self.store.list_risk_valuations(), ())
+
+    def test_wrong_budget_or_currencies_refuse_without_writes(self):
+        self.flat()
+        self.commit_candle()
+        for changes in ({"buy_quote_budget":D(11)}, {"base_currency":"ETH"}, {"quote_currency":"USDC"}):
+            with self.subTest(changes=changes), self.assertRaises(RuntimeStoreError):
+                self.store.initialize_risk_journal(risk_configuration(**changes), candle_open_ms=0)
+        self.assertEqual(self.store.list_risk_valuations(), ())
+
+    def test_inventory_mismatch_is_not_adopted(self):
+        self.flat()
+        self.commit_candle()
+        cp = self.next_checkpoint(snapshot=RuntimeStateSnapshot(RuntimeState.LONG,D(1),PositionEvidence.CONFIRMED,0))
+        self.store.save_checkpoint(cp,expected_sequence=cp.sequence-1)
+        with self.assertRaises(RuntimeStoreError):
+            self.store.initialize_risk_journal(risk_configuration(), candle_open_ms=0)
+        self.assertEqual(self.store.list_risk_valuations(), ())
+
+    def test_future_execution_cannot_be_applied_at_historical_activation(self):
+        action = self.acknowledge()
+        self.settle(action,fill())
+        with self.assertRaises(RuntimeStoreError):
+            self.store.initialize_risk_journal(risk_configuration(), candle_open_ms=0)
+        self.assertEqual(self.store.list_risk_valuations(), ())
+
+    def test_unsupported_fee_currency_cannot_be_priced(self):
+        action = self.acknowledge()
+        execution = replace(fill(),execution_fee=D("0.01"),fee_currency="BNB")
+        self.settle(action,execution)
+        self.commit_candle(HOUR)
+        with self.assertRaises(RuntimeStoreError):
+            self.store.initialize_risk_journal(risk_configuration(),candle_open_ms=HOUR)
+        self.assertEqual(self.store.list_risk_valuations(), ())
+
+    def test_partial_existing_journal_is_not_repaired(self):
+        self.flat()
+        self.commit_candle()
+        self.store._insert("risk_configurations",module._encode(module._risk_configuration_record(risk_configuration())))
+        before = self.risk_rows()
+        with self.assertRaises(RuntimeStoreError):
+            self.store.initialize_risk_journal(risk_configuration(),candle_open_ms=0)
+        self.assertEqual(self.risk_rows(),before)
+
+
+class RiskReplayTests(RiskPersistenceCase):
+    def replay(self, at, close="105.25"):
+        self.commit_candle(at,close)
+        return self.store.append_risk_replay_valuation(candle_open_ms=at)
+
+    def pending_buy(self):
+        current = self.store.get_checkpoint()
+        action = replace(prepared(),candle_open_ms=HOUR,reconciliation_deadline_ms=2*HOUR+600000)
+        pending = PendingAction(ACTION_ID,PendingActionKind.ENTRY)
+        cp = self.next_checkpoint(last_processed_candle_ms=HOUR,
+            snapshot=RuntimeStateSnapshot(RuntimeState.ORDER_PENDING,D(0),PositionEvidence.CONFIRMED,1,pending))
+        self.store.commit_decision(candle(HOUR),decision(HOUR,action=True),cp,expected_sequence=current.sequence,action=action)
+        self.store.start_attempt(ACTION_ID,self.next_checkpoint(),expected_sequence=cp.sequence)
+        action = receipt(self.store.get_action(ACTION_ID))
+        action = replace(action,acknowledgement_broker_ms=2*HOUR,acknowledgement_observed_ms=2*HOUR+1)
+        cp=self.next_checkpoint()
+        self.store.record_observation(action,cp,expected_sequence=cp.sequence-1)
+        return action
+
+    def observe_fill(self, action, *, at=2*HOUR, fee="0", currency=None, execution_id="risk-fill"):
+        execution = replace(fill(execution_id), executed_at_ms=at,observed_at_ms=at+10,
+            executed_quantity=D(1),execution_price=D(100),execution_fee=D(fee),fee_currency=currency)
+        observed = replace(action,order_status="PARTIALLY_FILLED",observed_at_ms=at+10)
+        cp = self.next_checkpoint(snapshot=replace(self.store.get_checkpoint().snapshot,
+            owned_base_quantity=module._risk_book(risk_configuration(),(execution,)).owned_base_quantity))
+        self.store.record_observation(observed,cp,expected_sequence=cp.sequence-1,fills=(execution,))
+        return execution
+
+    def test_exact_next_hour_uses_pure_advance(self):
+        first=self.activate()
+        cp=self.store.get_checkpoint()
+        self.assertTrue(self.replay(HOUR,"101"))
+        latest=self.store.get_latest_risk_valuation()
+        self.assertEqual(latest.state(HOUR),advance_risk_state(risk_configuration(),first.state(HOUR),first.book,D(101),2*HOUR))
+        self.assertEqual(self.store.get_checkpoint().sequence,cp.sequence+1)  # candle commit only
+        self.assertIs(latest.mode,RiskValuationMode.REPLAY_ONLY)
+        self.assertEqual(self.store.list_risk_verdicts(),())
+
+    def test_many_hours_reopen_in_deterministic_order(self):
+        self.activate()
+        for hour in range(1,27):
+            self.replay(hour*HOUR)
+        self.reopen()
+        rows=self.store.list_risk_valuations()
+        self.assertEqual([row.valued_at_ms for row in rows],list(range(HOUR,28*HOUR,HOUR)))
+        self.assertEqual(rows[-1].utc_day_start_ms,24*HOUR)
+        self.assertEqual(rows[-1].entries_this_utc_day,0)
+
+    def test_midnight_checks_outgoing_loss_before_reset(self):
+        self.long_activation(at=22*HOUR,close="200")
+        self.replay(23*HOUR,"100")
+        row=self.store.get_latest_risk_valuation()
+        self.assertIs(row.trip_reason,RiskReason.DAILY_LOSS_LIMIT)
+        self.assertEqual(row.utc_day_start_risk_equity,D(1000))
+        self.assertEqual(row.daily_pnl,0)
+        self.assertEqual(row.tripped_at_ms,24*HOUR)
+
+    def test_daily_loss_latch_and_notification_survive_recovery(self):
+        self.long_activation(close="200")
+        self.replay(2*HOUR,"100")
+        row=self.store.get_latest_risk_valuation()
+        self.assertIs(row.trip_reason,RiskReason.DAILY_LOSS_LIMIT)
+        self.assertTrue(row.trip_pending_report)
+        self.replay(3*HOUR,"250")
+        self.reopen()
+        latest=self.store.get_latest_risk_valuation()
+        self.assertEqual((latest.trip_reason,latest.tripped_at_ms,latest.trip_pending_report),
+                         (row.trip_reason,row.tripped_at_ms,True))
+        self.assertEqual(latest.peak_risk_equity,D(1150))
+
+    def test_drawdown_latch_uses_epoch_peak(self):
+        cfg=risk_configuration(max_daily_loss_fraction=D(1),max_drawdown_fraction=D("0.05"))
+        self.long_activation(cfg=cfg,close="200")
+        self.replay(2*HOUR,"140")
+        self.assertIs(self.store.get_latest_risk_valuation().trip_reason,RiskReason.MAX_DRAWDOWN)
+
+    def test_quote_fill_at_exact_boundary_is_included_once(self):
+        first=self.activate()
+        action=self.pending_buy()
+        execution=self.observe_fill(action,fee="1.25",currency="USDT")
+        self.store.append_risk_replay_valuation(candle_open_ms=HOUR)
+        row=self.store.get_latest_risk_valuation()
+        self.assertEqual(row.book,RiskBook(D("898.75"),D(1)))
+        self.assertEqual(row.fill_evidence_count,1)
+        self.assertEqual(self.store.list_risk_valuations()[0],first)
+        self.assertEqual(self.store.list_fills(),(execution,))
+
+    def test_base_fee_between_boundaries_affects_owned_quantity(self):
+        self.activate()
+        action=self.pending_buy()
+        self.observe_fill(action,at=2*HOUR+500,fee="0.01",currency="BTC")
+        self.store.append_risk_replay_valuation(candle_open_ms=HOUR)
+        self.replay(2*HOUR)
+        self.assertEqual(self.store.get_latest_risk_valuation().book,RiskBook(D(900),D("0.99")))
+
+    def test_future_fill_is_not_retroactively_selected(self):
+        self.activate()
+        action=self.pending_buy()
+        self.observe_fill(action,at=2*HOUR+1)
+        self.store.append_risk_replay_valuation(candle_open_ms=HOUR)
+        self.assertEqual(self.store.get_latest_risk_valuation().book,RiskBook(D(1000),D(0)))
+        self.replay(2*HOUR)
+        self.assertEqual(self.store.get_latest_risk_valuation().book,RiskBook(D(900),D(1)))
+
+    def test_identical_retry_is_noop_for_every_record(self):
+        self.activate()
+        self.replay(HOUR)
+        before=self.risk_rows(),self.store.get_checkpoint(),self.lock.database_path.read_bytes()
+        self.assertFalse(self.store.append_risk_replay_valuation(candle_open_ms=HOUR))
+        self.assertEqual((self.risk_rows(),self.store.get_checkpoint(),self.lock.database_path.read_bytes()),before)
+
+    def test_old_identical_replay_retry_is_safe(self):
+        self.activate()
+        self.replay(HOUR)
+        self.replay(2*HOUR)
+        self.assertFalse(self.store.append_risk_replay_valuation(candle_open_ms=HOUR))
+        self.assertEqual(len(self.store.list_risk_valuations()),3)
+
+    def test_gap_and_activation_backwards_are_errors(self):
+        self.activate()
+        self.commit_candle(2*HOUR)
+        before=self.risk_rows()
+        for at in (0,2*HOUR):
+            with self.subTest(at=at),self.assertRaises(RuntimeStoreError):
+                self.store.append_risk_replay_valuation(candle_open_ms=at)
+        self.assertEqual(self.risk_rows(),before)
+
+    def test_replay_requires_explicit_activation(self):
+        self.flat()
+        self.commit_candle()
+        with self.assertRaises(RuntimeStoreError):
+            self.store.append_risk_replay_valuation(candle_open_ms=0)
+        self.assertEqual(self.store.list_risk_valuations(),())
+
+    def test_missing_next_candle_cannot_be_fabricated(self):
+        self.activate()
+        with self.assertRaises(RuntimeStoreError):
+            self.store.append_risk_replay_valuation(candle_open_ms=HOUR)
+        self.assertEqual(len(self.store.list_risk_valuations()),1)
+
+    def test_late_fill_blocks_successor_but_old_history_remains_readable(self):
+        self.activate()
+        action=self.pending_buy()
+        self.store.append_risk_replay_valuation(candle_open_ms=HOUR)
+        previous=self.store.get_latest_risk_valuation()
+        # The original unresolved BUY legitimately reports a fill at the already
+        # valued boundary later. No terminal action is illegally amended.
+        self.observe_fill(action,at=2*HOUR)
+        self.reopen()
+        self.assertEqual(self.store.get_latest_risk_valuation(),previous)
+        self.commit_candle(2*HOUR)
+        before=self.risk_rows()
+        with self.assertRaisesRegex(RuntimeStoreConflictError,"Predecessor"):
+            self.store.append_risk_replay_valuation(candle_open_ms=2*HOUR)
+        self.assertEqual(self.risk_rows(),before)
+        self.assertEqual(self.store.get_latest_risk_valuation(),previous)
+
+    def test_changed_evidence_conflicts_with_existing_retry(self):
+        self.activate()
+        action=self.pending_buy()
+        self.store.append_risk_replay_valuation(candle_open_ms=HOUR)
+        self.observe_fill(action)
+        before=self.risk_rows()
+        with self.assertRaisesRegex(RuntimeStoreConflictError,"Conflicting"):
+            self.store.append_risk_replay_valuation(candle_open_ms=HOUR)
+        self.assertEqual(self.risk_rows(),before)
+
+    def test_replay_failure_rolls_back_without_frontier_mutation(self):
+        self.activate()
+        self.commit_candle(HOUR)
+        cp=self.store.get_checkpoint()
+        before=self.risk_rows()
+        with patch.object(self.store,"_commit",side_effect=sqlite3.OperationalError("Injected")),self.assertRaises(RuntimeStoreError):
+            self.store.append_risk_replay_valuation(candle_open_ms=HOUR)
+        self.assertEqual(self.store.get_checkpoint(),cp)
+        self.assertEqual(self.risk_rows(),before)
+
+
+class RiskRecordAndDigestTests(unittest.TestCase):
+    def test_configuration_fixed_digest_vector(self):
+        record=module._risk_configuration_record(risk_configuration())
+        self.assertEqual(record.risk_configuration_digest,"f22668a2947f845ca177a5d56094cc6d7aed5f14c92bd6a8c56290e592cbe880")
+        self.assertEqual(record.configuration,risk_configuration())
+
+    def test_epoch_fixed_digest_vector(self):
+        record=module._initial_risk_epoch(module._risk_configuration_record(risk_configuration()),HOUR)
+        self.assertEqual(record.epoch_id,"9aab0ab1f9594c5c60180df15483f2bbadda8f8313e913a9b38718131fd3f9bc")
+        self.assertEqual((record.epoch_sequence,record.parent_epoch_id),(1,None))
+
+    def test_empty_evidence_fixed_digest_vector(self):
+        selected,evidence=module._fill_evidence((),HOUR)
+        self.assertEqual(selected,())
+        self.assertEqual(evidence,(0,"4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"))
+
+    def test_nonempty_evidence_fixed_digest_vector(self):
+        _,evidence=module._fill_evidence((fill(),),2*HOUR)
+        self.assertEqual(evidence,(1,"9f3de7a0e21902667861bfbfdc05d6e4a5bbb5376eee0f567e0cff4b8dd49e36"))
+
+    def test_equivalent_decimals_produce_same_configuration_digest(self):
+        first=module._risk_configuration_record(risk_configuration())
+        second=module._risk_configuration_record(risk_configuration(risk_capital_quote=D("1000.000"),max_daily_loss_fraction=D("0.10000")))
+        self.assertEqual(first,second)
+
+    def test_every_policy_field_changes_digest(self):
+        first=module._risk_configuration_record(risk_configuration())
+        changes={"risk_capital_quote":D(1001),"buy_quote_budget":D(11),"max_entry_notional_quote":D(201),
+            "max_position_notional_quote":D(501),"max_daily_loss_fraction":D("0.11"),
+            "max_drawdown_fraction":D("0.21"),"max_entries_per_utc_day":3,"base_currency":"ETH","quote_currency":"USDC"}
+        for key,value in changes.items():
+            with self.subTest(key=key):
+                self.assertNotEqual(module._risk_configuration_record(risk_configuration(**{key:value})).risk_configuration_digest,first.risk_configuration_digest)
+
+    def test_tampered_configuration_or_unknown_contract_fails(self):
+        record=module._risk_configuration_record(risk_configuration())
+        for changes in ({"risk_configuration_digest":"f"*64},{"risk_capital_quote":D(1001)},
+                        {"risk_contract_version":2},{"risk_contract_version":True},{"max_entries_per_utc_day":2**63}):
+            with self.subTest(changes=changes),self.assertRaises(RuntimeStoreError):
+                replace(record,**changes)
+
+    def test_epoch_digest_sequence_and_parent_are_validated(self):
+        record=module._initial_risk_epoch(module._risk_configuration_record(risk_configuration()),HOUR)
+        for changes in ({"epoch_id":"f"*64},{"epoch_sequence":True},{"epoch_sequence":0},
+                        {"started_at_ms":1},{"parent_epoch_id":"e"*64},{"epoch_sequence":2}):
+            with self.subTest(changes=changes),self.assertRaises(RuntimeStoreError):
+                replace(record,**changes)
+
+    def test_evidence_sort_cutoff_and_all_owned_fields(self):
+        a=replace(fill("a"),executed_at_ms=HOUR)
+        z=replace(fill("z"),executed_at_ms=HOUR)
+        future=replace(fill("future"),executed_at_ms=HOUR+1)
+        selected,evidence=module._fill_evidence((z,future,a),HOUR)
+        self.assertEqual(selected,(a,z))
+        self.assertEqual(evidence,module._fill_evidence((a,z),HOUR)[1])
+        for field in fields(a):
+            if field.name in ("executed_at_ms","observed_at_ms"):
+                value=HOUR-1
+            elif field.name in ("executed_quantity","execution_price","execution_fee"):
+                value=D("1.25")
+            elif field.name=="side":
+                value="SELL"
+            elif field.name=="action_id":
+                value="e"*64
+            elif field.name=="broker_id":
+                continue  # Demo-only field cannot take another valid value.
+            else:
+                value="USDT" if field.name=="fee_currency" else "changed"
+            changed=replace(a,**{field.name:value})
+            with self.subTest(field=field.name):
+                self.assertNotEqual(module._fill_evidence((changed,z),HOUR)[1][1],evidence[1])
+
+    def test_unsafe_configuration_types_are_not_coerced(self):
+        for value in (None,{},"policy",True):
+            with self.subTest(value=value),self.assertRaises(RuntimeStoreError):
+                module._risk_configuration_record(value)
+
+    def test_verdict_shapes_are_explicit_and_strict(self):
+        common=dict(symbol="BTCUSDT",timeframe="60",candle_open_ms=0,epoch_id="a"*64,
+            valued_at_ms=HOUR,risk_configuration_digest="b"*64,evaluated_at_ms=HOUR)
+        variants=[(None,None,RiskVerdict.ALLOW,None,None),
+            (RiskActionKind.ENTRY,D(10),RiskVerdict.ALLOW,None,ACTION_ID),
+            (RiskActionKind.EXIT,D(1),RiskVerdict.ALLOW,None,ACTION_ID),
+            (RiskActionKind.ENTRY,D(10),RiskVerdict.BLOCK,RiskReason.ENTRY_COUNT_LIMIT,None),
+            (RiskActionKind.ENTRY,D(10),RiskVerdict.TRIP,RiskReason.DAILY_LOSS_LIMIT,None),
+            (None,None,RiskVerdict.TRIP,RiskReason.MAX_DRAWDOWN,None)]
+        for kind,amount,verdict,reason,action in variants:
+            row=RiskVerdictRecord(**common,proposal_kind=kind,authorized_amount=amount,verdict=verdict,reason=reason,action_id=action)
+            self.assertEqual(row.proposal_kind,kind)
+        row=RiskVerdictRecord(**common,proposal_kind=None,authorized_amount=None,verdict=RiskVerdict.ALLOW,reason=None,action_id=None)
+        for changes in ({"action_id":ACTION_ID},{"proposal_kind":RiskActionKind.ENTRY},
+                        {"verdict":"ALLOW"},{"reason":RiskReason.DAILY_LOSS_LIMIT},
+                        {"evaluated_at_ms":HOUR-1},{"candle_open_ms":True}):
+            with self.subTest(changes=changes),self.assertRaises(RuntimeStoreError):
+                replace(row,**changes)
+
+    def test_refused_exit_and_mixed_refusal_reason_are_invalid(self):
+        base=RiskVerdictRecord("BTCUSDT","60",0,"a"*64,HOUR,"b"*64,RiskActionKind.ENTRY,D(10),RiskVerdict.BLOCK,RiskReason.ENTRY_COUNT_LIMIT,None,HOUR)
+        for changes in ({"proposal_kind":RiskActionKind.EXIT},{"reason":RiskReason.DAILY_LOSS_LIMIT},
+                        {"reason":None},{"action_id":ACTION_ID},{"authorized_amount":10.0}):
+            with self.subTest(changes=changes),self.assertRaises(RuntimeStoreError):
+                replace(base,**changes)
+
+
+class RiskReadAndBoundaryTests(RiskPersistenceCase):
+    def test_empty_read_contract_and_schema_versions(self):
+        self.assertEqual((module.SCHEMA_VERSION,module.RUNTIME_CONTRACT_VERSION),(2,1))
+        self.assertIsNone(self.store.get_risk_configuration())
+        self.assertIsNone(self.store.get_current_risk_epoch())
+        self.assertIsNone(self.store.get_latest_risk_valuation())
+        self.assertIsNone(self.store.get_risk_verdict(0))
+        self.assertEqual(self.store.list_risk_valuations(),())
+        self.assertEqual(self.store.list_risk_verdicts(),())
+        self.assertEqual(len(module._SCHEMA),10)
+
+    def test_reads_are_immutable_and_do_not_write(self):
+        valuation=self.activate()
+        records=(valuation,self.store.get_current_risk_epoch(),self.store.get_risk_configuration(),
+                 RiskVerdictRecord("BTCUSDT","60",0,"a"*64,HOUR,"b"*64,None,None,RiskVerdict.ALLOW,None,None,HOUR))
+        before=self.lock.database_path.read_bytes(),self.store._connection.total_changes
+        for record in records:
+            self.assertFalse(hasattr(record,"__dict__"))
+            with self.assertRaises(FrozenInstanceError):
+                setattr(record,fields(record)[0].name,getattr(record,fields(record)[0].name))
+        self.assertEqual(self.store.list_risk_valuations(),(valuation,))
+        self.assertEqual((self.lock.database_path.read_bytes(),self.store._connection.total_changes),before)
+
+    def test_filters_are_exact_and_empty_unknowns_stay_empty(self):
+        row=self.activate()
+        self.assertEqual(self.store.list_risk_valuations(row.epoch_id),(row,))
+        self.assertEqual(self.store.list_risk_valuations("f"*64),())
+        self.assertIsNone(self.store.get_risk_configuration("f"*64))
+        for invalid in (True,1,"", "A"*64,"f"*63,{},[]):
+            for method in (self.store.list_risk_valuations,self.store.list_risk_verdicts,self.store.get_risk_configuration):
+                with self.subTest(method=method.__name__,invalid=invalid),self.assertRaises(RuntimeStoreError):
+                    method(invalid)
+        for invalid in (True,-1,1,0.0):
+            with self.subTest(invalid=invalid),self.assertRaises(RuntimeStoreError):
+                self.store.get_risk_verdict(invalid)
+
+    def test_noncanonical_and_nonfinite_risk_money_fail_on_open(self):
+        self.activate()
+        self.corrupt("UPDATE risk_valuations SET virtual_quote_cash='1000.00'")
+        self.reject_reopen()
+
+    def test_configuration_digest_content_corruption_is_not_hidden(self):
+        self.activate()
+        self.store._connection.execute("UPDATE risk_configurations SET risk_capital_quote='1001'")
+        with self.assertRaises(RuntimeStoreError):
+            self.store.list_risk_valuations("f"*64)
+
+    def test_mark_mismatch_fails_without_repair(self):
+        self.activate()
+        self.corrupt("UPDATE risk_valuations SET mark_price='100'")
+        self.reject_reopen()
+
+    def test_gap_or_wrong_mode_fails_on_full_load(self):
+        self.activate()
+        self.corrupt("UPDATE risk_valuations SET mode='REPLAY_ONLY'")
+        self.reject_reopen()
+
+    def test_partial_journal_is_invalid_on_open(self):
+        self.store._insert("risk_configurations",module._encode(module._risk_configuration_record(risk_configuration())))
+        self.store.close()
+        self.reject_reopen()
+
+    def test_epoch_or_configuration_binding_mismatch_is_rejected(self):
+        self.activate()
+        self.corrupt("UPDATE risk_valuations SET risk_configuration_digest=?",("f"*64,))
+        self.reject_reopen()
+
+    def test_trip_notification_and_pure_state_tampering_fails(self):
+        self.activate()
+        self.corrupt("UPDATE risk_valuations SET trip_pending_report=1")
+        self.reject_reopen()
+
+    def test_empty_evidence_hash_must_match_empty_vector(self):
+        self.activate()
+        self.corrupt("UPDATE risk_valuations SET fill_evidence_digest=?",("f"*64,))
+        self.reject_reopen()
+
+    def test_risk_tables_are_part_of_row_bounds(self):
+        self.activate()
+        self.commit_candle(HOUR)
+        self.store.append_risk_replay_valuation(candle_open_ms=HOUR)
+        # Lower only the risk-validation bound, so filtering cannot truncate.
+        with patch.object(module,"_MAX_ROWS",1),self.assertRaises(RuntimeStoreError):
+            self.store.list_risk_valuations("f"*64)
+
+    def test_hostile_decimal_context_roundtrips_exactly(self):
+        row=self.long_activation(fee="-0.0000000000000000000000000001",currency="USDT")
+        with localcontext() as ctx:
+            from decimal import Inexact,Rounded,ROUND_UP
+            ctx.prec,ctx.Emax,ctx.Emin,ctx.rounding=1,9,-9,ROUND_UP
+            ctx.traps[Inexact]=ctx.traps[Rounded]=True
+            self.reopen()
+            self.assertEqual(self.store.get_latest_risk_valuation(),row)
+            self.assertEqual(self.store.get_risk_configuration().configuration,risk_configuration())
+
+    def test_no_public_live_verdict_rearm_or_generic_transaction_writer(self):
+        public={name for name in vars(RuntimeStore) if not name.startswith("_")}
+        self.assertEqual(public,{"open","migrate_v1_to_v2","durability_settings","get_configuration","get_checkpoint",
+            "get_candle","get_decision","get_action","get_fill","list_actions","list_fills","save_checkpoint",
+            "commit_decision","prepare_cancellation","start_attempt","abandon_prepared","record_observation","close",
+            "get_risk_configuration","get_current_risk_epoch","get_latest_risk_valuation","list_risk_valuations",
+            "get_risk_verdict","list_risk_verdicts","initialize_risk_journal","append_risk_replay_valuation"})
+        self.assertEqual({mode.value for mode in RiskValuationMode},{"ACTIVATION","REPLAY_ONLY","LIVE"})
+
+    def test_no_broker_network_or_environment_dependency(self):
+        tree=ast.parse(inspect.getsource(module))
+        forbidden={"exchange","pybit","requests","socket","place_order","cancel_order","getenv","environ","session","create_demo_session"}
+        names={node.id for node in ast.walk(tree) if isinstance(node,ast.Name)}
+        names|={node.attr for node in ast.walk(tree) if isinstance(node,ast.Attribute)}
+        imports=[node.module or "" for node in ast.walk(tree) if isinstance(node,ast.ImportFrom)]
+        imports += [alias.name for node in ast.walk(tree) if isinstance(node,ast.Import) for alias in node.names]
+        self.assertFalse(names & forbidden)
+        self.assertFalse(any(set(name.split(".")) & forbidden for name in imports))
+        self.assertEqual(module._SCHEMA_V1,LEGACY_V1_SCHEMA)
+
+    def test_existing_checkpoint_and_decision_writes_leave_risk_rows_exact(self):
+        self.activate()
+        before=self.risk_rows()
+        cp=self.next_checkpoint(observed_at_ms=1)
+        self.store.save_checkpoint(cp,expected_sequence=cp.sequence-1)
+        self.commit_candle(HOUR)
+        self.assertEqual(self.risk_rows(),before)
+        self.assertEqual(self.store.list_risk_verdicts(),())
+
+    def test_placement_lifecycle_writes_do_not_update_risk_records(self):
+        self.activate()
+        before=self.risk_rows()
+        action=RiskReplayTests.pending_buy(self)
+        self.assertEqual(self.risk_rows(),before)
+        RiskReplayTests.observe_fill(self,action)
+        self.assertEqual(self.risk_rows(),before)
+        self.assertEqual(self.store.list_risk_verdicts(),())
+
+
+
+class RiskAdditionalBoundaryTests(RiskPersistenceCase):
+    def test_valuation_record_rejects_coercion_and_inconsistent_fields(self):
+        row=self.activate()
+        variants=({"mode":"ACTIVATION"},{"mark_price":105.25},{"owned_base_quantity":-1},
+            {"owned_base_quantity":D(-1)},{"virtual_quote_cash":1000},{"risk_equity":D(999)},
+            {"peak_risk_equity":D(999)},{"daily_pnl":D(1)},{"entries_this_utc_day":True},
+            {"entries_this_utc_day":2**63},{"fill_evidence_count":True},{"fill_evidence_count":-1},
+            {"fill_evidence_digest":"F"*64},{"trip_pending_report":1},{"trip_reason":RiskReason.ENTRY_COUNT_LIMIT},
+            {"tripped_at_ms":HOUR},{"valued_at_ms":2*HOUR},{"candle_open_ms":True},{"timeframe":"1"})
+        for changes in variants:
+            with self.subTest(changes=changes),self.assertRaises(RuntimeStoreError):
+                replace(row,**changes)
+
+    def test_sql_boolean_and_enum_corruption_is_rejected(self):
+        self.activate()
+        connection=self.store._connection
+        for column,value in (("mode","UNKNOWN"),("trip_pending_report",2),("trip_reason","UNKNOWN")):
+            with self.subTest(column=column):
+                connection.execute("PRAGMA ignore_check_constraints=ON")
+                connection.execute("BEGIN IMMEDIATE")
+                try:
+                    connection.execute("UPDATE risk_valuations SET "+column+"=?",(value,))
+                    with self.assertRaises(RuntimeStoreError):
+                        self.store.list_risk_valuations()
+                finally:
+                    connection.execute("ROLLBACK")
+                    connection.execute("PRAGMA ignore_check_constraints=OFF")
+
+    def test_nonfinite_risk_money_is_rejected(self):
+        self.activate()
+        self.corrupt("UPDATE risk_valuations SET daily_pnl='NaN'")
+        self.reject_reopen()
+
+    def test_unknown_risk_contract_version_is_rejected_on_load(self):
+        self.activate()
+        self.corrupt("UPDATE risk_configurations SET risk_contract_version=2")
+        self.reject_reopen()
+
+    def test_extra_risk_column_is_rejected_without_repair(self):
+        self.activate()
+        self.corrupt("ALTER TABLE risk_valuations ADD COLUMN alternative_mark TEXT")
+        self.reject_reopen()
+
+    def test_risk_fk_definition_is_checked_exactly(self):
+        self.store.close()
+        with sqlite3.connect(self.lock.database_path) as connection:
+            connection.execute("DROP TABLE risk_verdicts")
+            sql=module._RISK_SCHEMA["risk_verdicts"].replace("REFERENCES actions(logical_action_id)","REFERENCES actions(order_link_id)")
+            connection.execute(sql)
+        self.reject_reopen()
+
+    def test_foreign_epoch_parent_and_duplicate_sequence_are_refused(self):
+        self.activate()
+        self.corrupt("UPDATE risk_epochs SET parent_epoch_id=?",("f"*64,))
+        self.reject_reopen()
+
+    def test_changed_evidence_hash_without_added_fill_is_invalid_history(self):
+        self.activate()
+        self.commit_candle(HOUR)
+        self.store.append_risk_replay_valuation(candle_open_ms=HOUR)
+        self.corrupt("UPDATE risk_valuations SET fill_evidence_count=1,fill_evidence_digest=? WHERE valued_at_ms=?",("f"*64,HOUR))
+        self.reject_reopen()
+
+    def test_risk_specific_row_bound_prevents_truncation(self):
+        self.activate()
+        self.commit_candle(HOUR)
+        self.store.append_risk_replay_valuation(candle_open_ms=HOUR)
+        with patch.object(module,"_MAX_ROWS",1),self.assertRaisesRegex(RuntimeStoreError,"Risk history"):
+            self.store._validate_risk_history()
+
+    def test_all_risk_reads_require_live_connection_and_durability(self):
+        self.activate()
+        reads=(self.store.get_risk_configuration,self.store.get_current_risk_epoch,
+            self.store.get_latest_risk_valuation,self.store.list_risk_valuations,
+            lambda:self.store.get_risk_verdict(0),self.store.list_risk_verdicts)
+        self.store._connection.execute("PRAGMA foreign_keys=OFF")
+        for read in reads:
+            with self.assertRaises(RuntimeStoreError):
+                read()
+        self.store._configure()
+        self.store.close()
+        for read in reads:
+            with self.assertRaises(RuntimeStoreError):
+                read()
+
+    def test_invalid_write_times_fail_without_mutation(self):
+        self.activate()
+        before=self.risk_rows()
+        for value in (True,-1,1,0.0,"0",2**63):
+            with self.subTest(value=value),self.assertRaises(RuntimeStoreError):
+                self.store.append_risk_replay_valuation(candle_open_ms=value)
+        self.assertEqual(self.risk_rows(),before)
+
+    def test_future_live_record_decoding_and_read_only_verdict_support(self):
+        first=self.activate()
+        self.commit_candle(HOUR)
+        c=self.store.get_candle(HOUR)
+        epoch=self.store.get_current_risk_epoch()
+        state=advance_risk_state(risk_configuration(),first.state(HOUR),first.book,c.close,2*HOUR)
+        row=module._risk_valuation(epoch,RiskValuationMode.LIVE,c,first.book,state,(0,first.fill_evidence_digest))
+        verdict=RiskVerdictRecord("BTCUSDT","60",HOUR,epoch.epoch_id,2*HOUR,epoch.risk_configuration_digest,
+            None,None,RiskVerdict.ALLOW,None,None,2*HOUR)
+        # TEST-ONLY future atomic fixture, not a production LIVE writer.
+        with self.store._transaction():
+            self.store._insert("risk_valuations",module._encode(row))
+            self.store._insert("risk_verdicts",module._encode(verdict))
+        self.reopen()
+        self.assertEqual(self.store.get_risk_verdict(HOUR),verdict)
+        self.assertEqual(self.store.list_risk_verdicts(epoch.epoch_id),(verdict,))
+        self.assertEqual(self.store.get_latest_risk_valuation(),row)
+
+    def test_live_valuation_without_verdict_is_rejected(self):
+        self.activate()
+        self.commit_candle(HOUR)
+        self.store.append_risk_replay_valuation(candle_open_ms=HOUR)
+        self.corrupt("UPDATE risk_valuations SET mode='LIVE' WHERE candle_open_ms=?",(HOUR,))
+        self.reject_reopen()
+
+    def test_legacy_cancellation_and_abandon_writes_leave_risk_rows_unchanged(self):
+        self.activate()
+        before=self.risk_rows()
+        action=RiskReplayTests.pending_buy(self)
+        cancel=ActionRecord("e"*64,JournalActionKind.CANCEL,"BTCUSDT",3*HOUR,5,3,
+            control_id="risk-test-control",parent_action_id=ACTION_ID,target_broker_order_id="order-1")
+        cp=self.next_checkpoint()
+        self.store.prepare_cancellation(cancel,cp,expected_sequence=cp.sequence-1)
+        cp=self.next_checkpoint()
+        self.store.abandon_prepared(cancel.logical_action_id,cp,expected_sequence=cp.sequence-1,terminal_at_ms=2*HOUR+5)
+        self.assertEqual(self.risk_rows(),before)
+        self.assertEqual(self.store.get_action(ACTION_ID),action)
+
+    def test_pure_risk_source_and_all_123_tests_are_byte_identical(self):
+        root=Path(__file__).resolve().parents[1]
+        for relative,expected in (
+            ("src/trading_lab/risk/runtime_risk.py","6dfa26e4317d914184c676aae337a2c23e08314704a7e2f54f7e8014fc0f6737"),
+            ("tests/test_runtime_risk.py","48f23ceb6415ace65f3f63e5429cb14d8d5ad587fc5d31419375c818599a70dc")):
+            self.assertEqual(hashlib.sha256((root/relative).read_bytes()).hexdigest(),expected)
 
 
 if __name__ == "__main__":

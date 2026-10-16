@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-16 — Stage 11.3b durable risk journal implementation
+
+- RuntimeStore schema v2 adds four immutable risk tables to the existing six; runtime contract stays 1. Added exact configuration/epoch/evidence digests, immutable records, bounded reads, once-only ACTIVATION and consecutive REPLAY_ONLY persistence through the frozen pure risk engine. Late predecessor evidence blocks replay without historical rewriting; no LIVE/verdict writer or runtime risk authorization exists.
+- Explicit canonical-lock-held v1 migration validates literal frozen schema/data and compatible reviewed configuration, preserves all legacy rows/raw Decimal TEXT/IDs/checkpoint/recovery facts, and leaves risk tables EMPTY. No silent migration/reset/repair; pre-commit faults roll back and uncertain outcomes require reopen. Migration tested on temporary fixtures only; **no real user runtime database migration performed**.
+- Added **120 persistence tests**; RuntimeStore **350**, frozen pure risk **123**, required frozen suites and local full suite **2,753 (2,633 + 120)** pass, zero failures/errors/skips; pip check and both diff checks pass. Only store.py production changed. Updated only store preservation hashes, unsupported-version fixtures (2 → 3) and the authorized pure-risk import guard; old tests remain present. Frozen production/Decisions/pure tests/dependencies/notebooks/data/results and financial/next-OPEN behavior are preserved.
+- Stage 11.3a is owner-reviewed/FROZEN at `9807ed8`; 11.3b COMPLETE / owner review pending and Stage 11.3 awaits owner freeze. Stage 11 remains INCOMPLETE; 11.4 next / NOT STARTED; Stage 12 NOT STARTED. No credentials, .env inspection, broker/network activity or authenticated Demo read/order/cancellation.
+
 ## 2026-10-15 — Stage 11.3a Durable Risk Journal / Schema-v2 Migration Contract
 
 - Added Accepted Decision 019: future schema v2 in the same RuntimeStore SQLite database/account lock, with risk_configurations, risk_epochs, risk_valuations and risk_verdicts. Runtime contract version remains 1. Architecture/documentation only: current implementation is still schema v1; no migration executed or risk persistence added.

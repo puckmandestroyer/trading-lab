@@ -8,7 +8,7 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 Stage 11 — Runtime Risk Management has STARTED and remains INCOMPLETE.
 
-Stage 11.3 — Durable Risk Journal + Schema/Migration Contract has STARTED and remains INCOMPLETE. Stage 11.3a — Durable Risk Journal / Schema-v2 Migration Contract is COMPLETE / owner review pending under Accepted [Decision 019](decisions/019_runtime_risk_journal_schema.md). Architecture/documentation only: RuntimeStore still implements schema v1; no migration has run and no risk persistence exists. Stage 11.3b implementation is next and NOT STARTED; 11.4–11.8 and Stage 12 remain NOT STARTED.
+Stage 11.3 — Durable Risk Journal + Schema/Migration Contract awaits owner freeze. Stage 11.3a is independently owner-reviewed/FROZEN at `9807ed8d9177149ebd578b93d00b149c7f7d2aed` under Accepted [Decision 019](decisions/019_runtime_risk_journal_schema.md). Stage 11.3b — Durable Risk Journal / Schema-v2 Migration Implementation is COMPLETE / owner review pending: RuntimeStore implements schema v2, explicit v1 migration and ACTIVATION/REPLAY_ONLY persistence. Migration was tested only on temporary fixtures; no real user runtime database was migrated. Stage 11.4 is next and NOT STARTED; 11.5–11.8 and Stage 12 remain NOT STARTED.
 
 Stage 11.2 — Pure Risk State + Valuation + Policy Engine is independently owner-reviewed and FROZEN at `ffb85663af831f5b723bb949c764ac85b3736683`. Its standalone pure module and 123 tests remain unchanged; no runtime integration or broker capability.
 
@@ -20,7 +20,7 @@ Stage 10.1 — Runtime Contract / Architecture is COMPLETE, published and frozen
 
 Stage 10.2 — Runtime State Model + Pure State Machine is COMPLETE, published and frozen at `8b41427d669f5c17717a296113aa7b28b9dd23e3`. Its pure model, public API and tests remain unchanged.
 
-Stage 10.3 — Durable Runtime Persistence + Single-Instance Lock is COMPLETE and FROZEN, with published baseline `56584c462b1226f36941ab02726ed7a621a82dac`. Owner-approved corrections are reviewed and FROZEN: recovery guards at `ad3aca759dbb556d736996bf39b0ba035bb0e512`, durable read APIs at `8b3a482f1d7d2586c2f609aa52f32adf283d8a60`, STARTING/UNKNOWN_OUTCOME restart validation at `a22199f9abd1ce2484aa6dbde500ad126cb66b21`. Schema v1, write APIs, phase graph and locking remain unchanged.
+Stage 10.3 — Durable Runtime Persistence + Single-Instance Lock is COMPLETE and FROZEN, with published baseline `56584c462b1226f36941ab02726ed7a621a82dac`. Owner-approved corrections are reviewed and FROZEN: recovery guards at `ad3aca759dbb556d736996bf39b0ba035bb0e512`, durable read APIs at `8b3a482f1d7d2586c2f609aa52f32adf283d8a60`, STARTING/UNKNOWN_OUTCOME restart validation at `a22199f9abd1ce2484aa6dbde500ad126cb66b21`. Legacy table semantics, write APIs, phase graph and locking remain preserved; the approved Stage 11.3b schema-v2 extension is documented below.
 
 Stage 10.4 — Closed-Candle Market Data Gate is COMPLETE, published and frozen at `1865435bb0310dd5d8e8ce7208d56650dc51590a`. Public/read-only market observations only; no operational runtime or authenticated trading.
 
@@ -36,7 +36,7 @@ Stage 10.9 — Restart / Crash / Ambiguous-Action Recovery is COMPLETE, owner-re
 
 Stage 10.10 — Runtime Integration Regression is COMPLETE OFFLINE, independently owner-reviewed and FROZEN at `329252658aa703b90f107d862e34dbabd81f0f64`.
 
-Both audit-blocker corrections are independently owner-reviewed and FROZEN: account/order read classification at `4e947b192d9e2b3be8b9b050917ca9e03a250320`, public market-data classification at `c273a8be3213a1cbeb3fc12271d17618f2d28b94`. Stages 10.1–10.11 and all approved RuntimeStore/Stage 9 corrections remain FROZEN. Stage 11.3b is next and must not start automatically. Optional authenticated Demo run: NOT PERFORMED / NOT AUTHORIZED.
+Both audit-blocker corrections are independently owner-reviewed and FROZEN: account/order read classification at `4e947b192d9e2b3be8b9b050917ca9e03a250320`, public market-data classification at `c273a8be3213a1cbeb3fc12271d17618f2d28b94`. Stages 10.1–10.11 and all approved RuntimeStore/Stage 9 corrections remain FROZEN. Stage 11.4 is next and must not start automatically. Optional authenticated Demo run: NOT PERFORMED / NOT AUTHORIZED.
 
 Stage 9 — Bybit Demo Exchange Adapter remains COMPLETE/FROZEN, including the owner-reviewed Stage 9.5 pre-submit correction at `77a88fe1b1250cabde6a1a6fa4aa492db056084b`.
 
@@ -136,7 +136,7 @@ At Stage 11.2 completion, local validation passed **123 new focused tests**, ful
 
 ### Durable risk journal / schema-v2 migration contract — Stage 11.3a
 
-Decision 019 is Accepted for architecture/documentation only. Future Stage 11.3b will use schema version **2**, keeping runtime contract version **1**, in the same canonical RuntimeStore database/account lock. Four future immutable tables are specified: `risk_configurations` (canonical policy digest/history), `risk_epochs` (deterministic lineage), `risk_valuations` (hourly book/state/candle/evidence snapshots), and `risk_verdicts` (future decision/proposal/verdict/action relationships). Current implementation remains **schema v1**, with no migration or risk persistence added.
+At Stage 11.3a completion, Decision 019 accepted architecture/documentation only. The separately authorized Stage 11.3b implementation below uses schema version **2**, keeping runtime contract version **1**, in the same canonical RuntimeStore database/account lock. Four future immutable tables are specified: `risk_configurations` (canonical policy digest/history), `risk_epochs` (deterministic lineage), `risk_valuations` (hourly book/state/candle/evidence snapshots), and `risk_verdicts` (future decision/proposal/verdict/action relationships). At that contract-only milestone, implementation remained **schema v1**, with no migration or risk persistence added. Stage 11.3a is now FROZEN at `9807ed8`.
 
 Migration must be a separate explicit, lock-held, offline operation on exact valid v1 with no open store. Ordinary v2 open must reject v1 with a migration-required diagnostic, never reset, repair or auto-migrate. Compare every runtime configuration field exactly except the migration-owned schema version and caller-reviewed configuration digest. One bounded transaction creates v2 tables/indexes and updates those identity fields plus SQLite version metadata, preserving all existing rows/TEXT, action IDs/links, checkpoint state/sequence, pending/HALT/STOPPING, budgets/deadlines and frontiers. Reopen/validate exact v2; failure rolls back or reports an indeterminate result requiring reopen. No broker I/O.
 
@@ -146,20 +146,55 @@ Each valuation binds the durable hourly candle/close and exact RiskBook/RiskStat
 
 Future 11.3b tests must build genuine frozen-v1 fixtures independently of new v2 schema, prove exact row/TEXT preservation and empty-risk migration, fault-safe rollback/reopen, explicit migration refusal cases, and risk digest/state/candle/evidence/initialization/replay/bounds validation. No implementation or test change is made in 11.3a. Unchanged full suite: **2,633 tests**, zero failures/errors/skips, local execution; `pip check` and both diff checks pass. Production/tests/schema/dependencies/previous Decisions/notebooks/data/results remain unchanged. Authenticated Bybit Demo read/order/cancellation: **NOT RUN**.
 
+### Durable risk journal / schema-v2 migration implementation — Stage 11.3b
+
+COMPLETE / owner review pending under frozen Decisions 018/019. Stage 11.3a is independently reviewed/FROZEN at `9807ed8d9177149ebd578b93d00b149c7f7d2aed`. Stage 11.3 overall awaits owner freeze; Stage 11 remains INCOMPLETE. Stage 11.4 LIVE risk authorization integration and Stage 12 are NOT STARTED.
+
+Production changes are limited to `runtime/store.py`. RuntimeStore now implements **schema v2: ten tables, including the four risk tables**, with runtime contract version **1**. Immutable/slotted records: `RiskConfigurationRecord`, `RiskEpochRecord`, `RiskValuationRecord`, `RiskVerdictRecord`; `RiskValuationMode` is ACTIVATION / REPLAY_ONLY / LIVE. Risk policy enums, book/state validation and exact accounting/valuation formulas are reused from the byte-identical Stage 11.2 pure engine.
+
+New public write APIs:
+
+```python
+RuntimeStore.migrate_v1_to_v2(lock: RuntimeAccountLock, configuration: RuntimeConfiguration) -> None
+store.initialize_risk_journal(risk_configuration: RuntimeRiskConfiguration, *, candle_open_ms: int) -> RiskValuationRecord
+store.append_risk_replay_valuation(*, candle_open_ms: int) -> bool
+```
+
+Ordinary open of exact valid v1 raises the fixed `RuntimeStoreMigrationRequiredError`, a `RuntimeStoreIntegrityError` subtype, without changing database bytes. Explicit migration requires the canonical held lock, a safe existing file, no open store on that database, literal exact v1 schema/data validation and compatible reviewed v2 configuration. Only identity schema_version/configuration_digest and SQLite version/schema metadata change. One IMMEDIATE transaction creates the risk tables, validates v2 and commits; exact reopen validation is required before success. Pre-commit failures roll back; uncertain commit/rollback closes and requires reopen without retry. Post-commit validation failure does not claim the source stayed v1. All legacy rows, raw Decimal TEXT, consumed IDs/links, pending/HALT/STOPPING, checkpoint sequence/frontiers and recovery bounds remain exact. Migration leaves all four risk tables EMPTY.
+
+**Migration was tested only on temporary fixtures. No real user runtime database migration was performed.** No risk configuration or capital is invented during migration. Separate once-only activation requires healthy CONFIRMED FLAT/LONG, no pending work, exact runtime BUY budget/currencies, existing durable candle and retained owned executions consistent with confirmed inventory. Future executions cannot be folded into a historical activation. Pure initialization derives the first book/equity/peak/day baseline; all activation inserts roll back together on failure. Identical repeated initialization is an error.
+
+Configuration digest and epoch ID use deterministic canonical SHA256 JSON with exact Decimal strings and fixed-vector tests. Fill snapshots select all durable owned fills with executed_at_ms <= valued_at_ms, ordered by execution time/ID, and hash all fourteen ownership/financial/observation fields; the empty-array digest is explicitly tested. Mark and valued_at derive only from the durable hourly candle close/boundary. Replay advances exactly one hour through the frozen pure engine, including midnight, peak, latch and pending trip notification. An identical complete REPLAY_ONLY retry returns False; conflicts/gaps fail. A changed predecessor fill count/digest blocks continuation without rewriting old valuations; legitimately late evidence does not by itself make the retained old snapshot corrupt on open.
+
+Bounded, fully validated immutable reads:
+
+```python
+store.get_risk_configuration(risk_configuration_digest: str | None = None) -> RiskConfigurationRecord | None
+store.get_current_risk_epoch() -> RiskEpochRecord | None
+store.get_latest_risk_valuation() -> RiskValuationRecord | None
+store.list_risk_valuations(epoch_id: str | None = None) -> tuple[RiskValuationRecord, ...]
+store.get_risk_verdict(candle_open_ms: int) -> RiskVerdictRecord | None
+store.list_risk_verdicts(epoch_id: str | None = None) -> tuple[RiskVerdictRecord, ...]
+```
+
+Empty journals return None/empty tuples. Complete validation covers all ten tables, exact schema/index/FKs, canonical money/digests, epoch lineage, contiguous candle-bound valuations, pure transitions, verdict references and existing row/size bounds; filters never hide corrupt later rows. Schema/models/read validation can represent future LIVE/verdict rows, but **no public LIVE writer, verdict writer, risk rearm/control or runtime authorization integration exists**. All fresh/migrated/initialized/replayed journals contain zero verdicts. Existing Stage 10 public writes do not update risk rows.
+
+Local validation: **120 additive Stage 11.3b tests**, RuntimeStore **350 (230 + 120)**, pure risk **123**, locking **23**, restart **89**, runtime integration **64**, cycle **114**, planner **79**, state **188**, Stage 9.4 **136**, frozen EMA **16**, historical/research/backtest **982**, full suite **2,753 (2,633 + 120)**; zero failures/errors/skips. `pip check` and both diff checks pass. Existing unsupported-version test fixtures now use version 3, the store import guard admits only the new pure-risk dependency, and only the authorized store preservation hashes changed. No old tests were removed or skipped. All other production, pure risk's 123 tests, Decisions 017–019, dependencies, notebooks/data/results and financial/next-OPEN behavior are unchanged. Authenticated Bybit Demo read/order/cancellation: **NOT RUN**.
+
 ### Stage 11 roadmap
 
 | Milestone | Scope | Current status |
 | --- | --- | --- |
 | 11.1 | Runtime Risk Management Contract / Architecture | COMPLETE / owner-reviewed / FROZEN at `e80d318` |
 | 11.2 | Pure Risk State + Valuation + Policy Engine | COMPLETE / owner-reviewed / FROZEN at `ffb8566` |
-| 11.3 | Durable Risk Journal + Schema/Migration Contract | STARTED / INCOMPLETE; internal 11.3a contract complete, 11.3b implementation NOT STARTED |
+| 11.3 | Durable Risk Journal + Schema/Migration Contract | Implementation COMPLETE / owner freeze pending; 11.3a FROZEN, 11.3b COMPLETE / owner review pending |
 | 11.4 | Pre-Trade Risk Gate + Crash-Consistent Authorization | NOT STARTED |
 | 11.5 | Daily Loss / Drawdown / Exposure Circuit Breakers | NOT STARTED |
 | 11.6 | Restart + Risk Trip / Rearm / Operator Controls | NOT STARTED |
 | 11.7 | End-to-End Risk Integration Regression | NOT STARTED |
 | 11.8 | Final Stage 11 Audit + Docs | NOT STARTED |
 
-Stage 11.3 internal subphases: **11.3a — Durable Risk Journal / Schema-v2 Migration Contract: COMPLETE / owner review pending**; **11.3b — Durable Risk Journal / Schema-v2 Migration Implementation: next / NOT STARTED**, requiring separate owner review/authorization after the contract is independently frozen. No Stage 11.4 or Stage 12 work begins.
+Stage 11.3 internal subphases: **11.3a — Durable Risk Journal / Schema-v2 Migration Contract: FROZEN at `9807ed8`**; **11.3b — Durable Risk Journal / Schema-v2 Migration Implementation: COMPLETE / owner review pending**. Stage 11.3 overall awaits owner freeze. No Stage 11.4 or Stage 12 work begins.
 
 ### Canonical 12-stage roadmap
 
@@ -2052,7 +2087,7 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Owner review/freeze of Stage 11.3a — Durable Risk Journal / Schema-v2 Migration Contract. Stage 11.1 is FROZEN at `e80d318`, Stage 11.2 at `ffb8566`; Stage 10 remains COMPLETE / FROZEN at `87888719c3e2c87bd3b8979dd9c4ecc33db6cb65`. Stages 11 and 11.3 remain INCOMPLETE; 11.3b, 11.4–11.8 and Stage 12 are NOT STARTED. Schema v2 is future design only: no migration, risk persistence/integration or authenticated Demo activation. Optional authenticated Demo run: NOT PERFORMED / NOT AUTHORIZED.
+Owner review/freeze of Stage 11.3b — Durable Risk Journal / Schema-v2 Migration Implementation. Stages 11.1–11.3a are FROZEN at `e80d318` / `ffb8566` / `9807ed8`; Stage 10 remains COMPLETE/FROZEN except the explicitly approved store extension. Stage 11 remains INCOMPLETE; Stage 11.3 awaits owner freeze. Schema v2 and explicit migration/ACTIVATION/REPLAY_ONLY persistence are implemented and tested on temporary fixtures only. No real user DB migration or authenticated Demo activity occurred. Stage 11.4 is next / NOT STARTED; 11.5–11.8 and Stage 12 are NOT STARTED.
 
 All frozen source/APIs/schema/Decisions/tests, Stage 8, Stage 5 EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. Process-entry preparation retains unresolved truth before caller-invoked cycle/scheduler work; no automatic resend/cancellation, wallet sizing or actual Demo activation. Tests write runtime artifacts only in temporary directories.
 
@@ -2066,16 +2101,16 @@ All frozen source/APIs/schema/Decisions/tests, Stage 8, Stage 5 EMA behavior, ne
 - Performance analytics beyond the 16 CLOSED-trade summary metrics, separate realized-capital drawdown, ledger-based duration/exposure, candle-level equity, candle-close portfolio drawdown, the aligned Buy-and-Hold comparison, and time-based returns/Sharpe/Sortino with support volatility/downside metrics; broader multi-strategy comparison.
 - Order modification, operator-cancellation orchestration and actual long-running Demo activation/launch layer.
 - Multiple autonomous bot instances and order management.
-- Durable/runtime-integrated operational risk controls; Stage 11.2 is pure policy/valuation only.
+- Runtime-integrated operational risk authorization and controls; pure policy and ACTIVATION/REPLAY_ONLY persistence exist without a LIVE risk gate.
 - PostgreSQL.
 - Dashboards.
 - Docker/deployment.
 
 ## Next milestone
 
-Stage 11.3b — Durable Risk Journal / Schema-v2 Migration Implementation is next and NOT STARTED. It requires separate explicit owner approval/review after Decision 019 is independently frozen; do not begin it automatically. Stages 11 and 11.3 remain INCOMPLETE; 11.4–11.8 and Stage 12 — Production & Live Readiness remain NOT STARTED.
+Stage 11.4 — Pre-Trade Risk Gate + Crash-Consistent Authorization is next and NOT STARTED. It requires separate explicit owner approval/review; do not begin automatically. Stage 11.3b is COMPLETE / owner review pending, Stage 11.3 overall awaits owner freeze, Stage 11 remains INCOMPLETE, and Stage 12 remains NOT STARTED.
 
-Stage 11.3a is COMPLETE / owner review pending. Current RuntimeStore is still schema v1; no migration has run and no risk persistence, runtime integration or new broker capability was added. Stages 11.1–11.2 and Stage 10 remain FROZEN. The optional authenticated Demo run remains NOT PERFORMED / NOT AUTHORIZED. Explicit operator cancellation needs a separately approved API contract.
+Stage 11.3a is FROZEN at `9807ed8`. RuntimeStore now implements schema v2 with explicit v1 migration and ACTIVATION/REPLAY_ONLY risk persistence. No LIVE/verdict writer, runtime risk gate or new broker capability exists. No real user runtime DB migration or authenticated Demo activation was performed. Stages 11.1–11.2, frozen Stage 10 behavior and Decisions 017–019 remain preserved. Explicit operator cancellation still needs a separately approved API contract.
 
 ## Backtesting execution contract
 

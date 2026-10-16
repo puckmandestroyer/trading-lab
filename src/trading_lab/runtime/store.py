@@ -2,7 +2,8 @@
 
 Caller supplies validated facts and checkpoints. This layer binds references,
 preserves exact money and commits related records together; it does not discover
-ownership, calculate inventory/PnL, authorize orders, or verify broker finality.
+ownership, authorize orders, or verify broker finality. Risk persistence derives
+its exact book/state through the frozen pure engine, never from wallet balances.
 Use RuntimeAccountLock first, then open the store; close the store before the
 lock. Fresh initialization is explicit and refuses every existing file.
 """
@@ -11,6 +12,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, fields, replace
 from decimal import Decimal, InvalidOperation
 from enum import Enum
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -20,13 +22,20 @@ import stat
 import sys
 
 from .locking import RuntimeAccountLock
+from ..risk.runtime_risk import (
+    RuntimeRiskConfiguration, RuntimeRiskError, RiskBook, RiskState,
+    RiskExecution, RiskExecutionSide, RiskActionKind, RiskActionProposal, RiskVerdict, RiskReason,
+    initial_risk_book, apply_owned_execution, calculate_risk_equity,
+    initialize_risk_state, advance_risk_state, evaluate_risk,
+)
 from .state import (
     PendingAction, PendingActionKind, PositionEvidence, RuntimeReason,
     RuntimeState, RuntimeStateError, RuntimeStateSnapshot,
 )
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 RUNTIME_CONTRACT_VERSION = 1
+_OPEN_DATABASES = {}  # Canonical paths/counts only; prevents in-process migration.
 _HOUR_MS = 3_600_000
 _MAX_ROWS = 100_000  # Bounded full validation; no truncation/partial success.
 _MAX_DATABASE_BYTES = 256 * 1024 * 1024
@@ -40,6 +49,10 @@ class RuntimeStoreError(RuntimeError):
 
 class RuntimeStoreIntegrityError(RuntimeStoreError):
     """Unsupported, malformed or inconsistent durable evidence."""
+
+
+class RuntimeStoreMigrationRequiredError(RuntimeStoreIntegrityError):
+    """Recognized legacy v1; only explicit migration may upgrade it."""
 
 
 class RuntimeStoreConflictError(RuntimeStoreError):
@@ -168,32 +181,44 @@ class RuntimeConfiguration:
     runtime_contract_version: int = RUNTIME_CONTRACT_VERSION
 
     def __post_init__(self):
-        _require(self.broker_id == "bybit-demo", "Demo broker identity required.")
-        _text(self.account_binding)
-        _require(isinstance(self.bot_id, str) and re.fullmatch(r"[a-z0-9]{1,12}", self.bot_id) is not None, "Invalid bot namespace.")
-        _require(self.strategy_id == "ema_trend", "Initial runtime strategy must be ema_trend.")
-        _digest(self.strategy_implementation_digest)
-        _digest(self.configuration_digest)
-        _require(type(self.strategy_parameters) is tuple and all(type(pair) is tuple and len(pair) == 2 for pair in self.strategy_parameters), "Immutable strategy parameters required.")
-        _require(self.strategy_parameters == (("fast_span", 20), ("slow_span", 50), ("warmup_candles", 50)) and all(type(pair[1]) is int for pair in self.strategy_parameters), "Initial anchored EMA20/50 parameters required.")
-        for value in (self.symbol, self.base_currency, self.quote_currency):
-            _text(value)
-            _require(value.isupper(), "Uppercase instrument identifiers required.")
-        _require(self.base_currency != self.quote_currency and self.symbol == self.base_currency + self.quote_currency, "Instrument currency binding mismatch.")
-        _require(type(self.timeframe) is str and self.timeframe == "60", "Initial timeframe must be 60.")
-        _integer(self.interval_ms)
-        _require(self.interval_ms == _HOUR_MS, "Initial interval must be one hour.")
-        _amount(self.buy_quote_budget, positive=True)
-        _time(self.history_anchor_ms, candle=True)
-        for value in (self.decision_max_age_ms, self.observation_max_age_ms, self.reconciliation_timeout_ms, self.request_timeout_ms, self.max_clock_skew_ms):
-            _integer(value, minimum=1)
-        _integer(self.reconciliation_round_limit, minimum=1, maximum=1000)
-        _integer(self.read_attempt_limit, minimum=1, maximum=3)
-        if self.broker_account_id is not None:
-            _text(self.broker_account_id)
-        _integer(self.schema_version)
-        _integer(self.runtime_contract_version)
-        _require(self.schema_version == SCHEMA_VERSION and self.runtime_contract_version == RUNTIME_CONTRACT_VERSION, "Unsupported runtime schema/contract version.")
+        _validate_runtime_configuration(self, SCHEMA_VERSION)
+
+
+def _validate_runtime_configuration(self, schema_version):
+    _require(self.broker_id == "bybit-demo", "Demo broker identity required.")
+    _text(self.account_binding)
+    _require(isinstance(self.bot_id, str) and re.fullmatch(r"[a-z0-9]{1,12}", self.bot_id) is not None, "Invalid bot namespace.")
+    _require(self.strategy_id == "ema_trend", "Initial runtime strategy must be ema_trend.")
+    _digest(self.strategy_implementation_digest)
+    _digest(self.configuration_digest)
+    _require(type(self.strategy_parameters) is tuple and all(type(pair) is tuple and len(pair) == 2 for pair in self.strategy_parameters), "Immutable strategy parameters required.")
+    _require(self.strategy_parameters == (("fast_span", 20), ("slow_span", 50), ("warmup_candles", 50)) and all(type(pair[1]) is int for pair in self.strategy_parameters), "Initial anchored EMA20/50 parameters required.")
+    for value in (self.symbol, self.base_currency, self.quote_currency):
+        _text(value)
+        _require(value.isupper(), "Uppercase instrument identifiers required.")
+    _require(self.base_currency != self.quote_currency and self.symbol == self.base_currency + self.quote_currency, "Instrument currency binding mismatch.")
+    _require(type(self.timeframe) is str and self.timeframe == "60", "Initial timeframe must be 60.")
+    _integer(self.interval_ms)
+    _require(self.interval_ms == _HOUR_MS, "Initial interval must be one hour.")
+    _amount(self.buy_quote_budget, positive=True)
+    _time(self.history_anchor_ms, candle=True)
+    for value in (self.decision_max_age_ms, self.observation_max_age_ms, self.reconciliation_timeout_ms, self.request_timeout_ms, self.max_clock_skew_ms):
+        _integer(value, minimum=1)
+    _integer(self.reconciliation_round_limit, minimum=1, maximum=1000)
+    _integer(self.read_attempt_limit, minimum=1, maximum=3)
+    if self.broker_account_id is not None:
+        _text(self.broker_account_id)
+    _integer(self.schema_version)
+    _integer(self.runtime_contract_version)
+    _require(self.schema_version == schema_version and self.runtime_contract_version == RUNTIME_CONTRACT_VERSION, "Unsupported runtime schema/contract version.")
+
+
+@dataclass(frozen=True, slots=True)
+class _LegacyConfiguration(RuntimeConfiguration):
+    """Frozen v1 identity decoder, never a public v2 configuration."""
+
+    def __post_init__(self):
+        _validate_runtime_configuration(self, 1)
 
 
 @dataclass(frozen=True, slots=True)
@@ -403,8 +428,239 @@ class OwnedFillRecord:
         _time(self.observed_at_ms)
 
 
+# Persistence records deliberately flatten exact SQL columns. The pure engine
+# remains the only source of accounting and risk-transition formulas.
+class RiskValuationMode(str, Enum):
+    ACTIVATION = "ACTIVATION"
+    REPLAY_ONLY = "REPLAY_ONLY"
+    LIVE = "LIVE"
+
+
+def _canonical_hash(payload):
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":"),
+                                     ensure_ascii=True).encode("utf-8")).hexdigest()
+
+
+@contextmanager
+def _risk_validation():
+    try:
+        yield
+    except RuntimeRiskError:
+        raise RuntimeStoreIntegrityError("Invalid exact risk accounting evidence.") from None
+
+
+def _risk_exact(record, cls):
+    _require(type(record) is cls, "An exact validated risk record is required.")
+    try:
+        with _risk_validation():
+            replace(record)
+    except (AttributeError, TypeError):
+        raise RuntimeStoreError("A complete validated risk record is required.") from None
+
+
+def _risk_shape(record):
+    # Reject subclasses/coercion at the new persistence boundary. Optional and
+    # enum relationships are validated explicitly by each record below.
+    for field in fields(record):
+        if field.type in (str, int, Decimal):
+            _require(type(getattr(record, field.name)) is field.type,
+                     "Exact risk persistence field types are required.")
+
+
+@dataclass(frozen=True, slots=True)
+class RiskConfigurationRecord:
+    risk_configuration_digest: str
+    risk_contract_version: int
+    risk_capital_quote: Decimal
+    buy_quote_budget: Decimal
+    max_entry_notional_quote: Decimal
+    max_position_notional_quote: Decimal
+    max_daily_loss_fraction: Decimal
+    max_drawdown_fraction: Decimal
+    max_entries_per_utc_day: int
+    base_currency: str
+    quote_currency: str
+
+    def __post_init__(self):
+        _risk_shape(self)
+        _digest(self.risk_configuration_digest)
+        _integer(self.risk_contract_version, minimum=1, maximum=1)
+        _integer(self.max_entries_per_utc_day, minimum=1)
+        with _risk_validation():
+            self.configuration
+        payload = _encode(self)
+        payload.pop("risk_configuration_digest")
+        _require(self.risk_configuration_digest == _canonical_hash(payload), "Risk configuration digest/content mismatch.")
+
+    @property
+    def configuration(self) -> RuntimeRiskConfiguration:
+        return RuntimeRiskConfiguration(**{field.name: getattr(self, field.name)
+                                           for field in fields(RuntimeRiskConfiguration)})
+
+
+def _risk_configuration_record(configuration):
+    _risk_exact(configuration, RuntimeRiskConfiguration)
+    values = {"risk_contract_version": 1, **_encode(configuration)}
+    digest = _canonical_hash(values)
+    return RiskConfigurationRecord(digest, 1, **{field.name: getattr(configuration, field.name)
+                                               for field in fields(configuration)})
+
+
+@dataclass(frozen=True, slots=True)
+class RiskEpochRecord:
+    epoch_id: str
+    epoch_sequence: int
+    risk_configuration_digest: str
+    started_at_ms: int
+    parent_epoch_id: str | None = None
+
+    def __post_init__(self):
+        _risk_shape(self)
+        _digest(self.epoch_id)
+        _digest(self.risk_configuration_digest)
+        _integer(self.epoch_sequence, minimum=1)
+        _time(self.started_at_ms, candle=True)
+        _require((self.epoch_sequence == 1) == (self.parent_epoch_id is None), "Risk epoch parent/sequence mismatch.")
+        if self.parent_epoch_id is not None:
+            _digest(self.parent_epoch_id)
+        payload = _encode(self)
+        payload.pop("epoch_id")
+        _require(self.epoch_id == _canonical_hash(payload), "Risk epoch digest/content mismatch.")
+
+
+def _initial_risk_epoch(configuration, started_at_ms):
+    values = dict(risk_configuration_digest=configuration.risk_configuration_digest,
+                  epoch_sequence=1, started_at_ms=started_at_ms, parent_epoch_id=None)
+    return RiskEpochRecord(epoch_id=_canonical_hash(values), **values)
+
+
+@dataclass(frozen=True, slots=True)
+class RiskValuationRecord:
+    epoch_id: str
+    valued_at_ms: int
+    mode: RiskValuationMode
+    symbol: str
+    timeframe: str
+    candle_open_ms: int
+    risk_configuration_digest: str
+    mark_price: Decimal
+    virtual_quote_cash: Decimal
+    owned_base_quantity: Decimal
+    risk_equity: Decimal
+    peak_risk_equity: Decimal
+    utc_day_start_ms: int
+    utc_day_start_risk_equity: Decimal
+    daily_pnl: Decimal
+    entries_this_utc_day: int
+    trip_reason: RiskReason | None
+    tripped_at_ms: int | None
+    trip_pending_report: bool
+    fill_evidence_count: int
+    fill_evidence_digest: str
+
+    def __post_init__(self):
+        _risk_shape(self)
+        for value in (self.epoch_id, self.risk_configuration_digest, self.fill_evidence_digest):
+            _digest(value)
+        _require(type(self.mode) is RiskValuationMode, "An explicit valuation mode is required.")
+        _text(self.symbol)
+        _choice(self.timeframe, {"60"})
+        _time(self.candle_open_ms, candle=True)
+        _time(self.valued_at_ms, candle=True)
+        _require(self.valued_at_ms == self.candle_open_ms + _HOUR_MS, "Risk valuation must bind its candle close boundary.")
+        _require(type(self.mark_price) is Decimal, "Exact Decimal risk mark required.")
+        _amount(self.mark_price, positive=True)
+        _integer(self.fill_evidence_count, maximum=_MAX_ROWS)
+        _integer(self.entries_this_utc_day)
+        with _risk_validation():
+            state = self.state(0)  # The real epoch lower bound is checked on load.
+            _require(calculate_risk_equity(self.book, self.mark_price) == state.risk_equity,
+                     "Risk book/mark/equity mismatch.")
+
+    @property
+    def book(self) -> RiskBook:
+        return RiskBook(self.virtual_quote_cash, self.owned_base_quantity)
+
+    def state(self, epoch_started_at_ms: int) -> RiskState:
+        return RiskState(epoch_started_at_ms=epoch_started_at_ms,
+                         **{field.name: getattr(self, field.name) for field in fields(RiskState)
+                            if field.name != "epoch_started_at_ms"})
+
+
+def _risk_valuation(epoch, mode, candle, book, state, evidence):
+    values = {field.name: getattr(state, field.name) for field in fields(state)
+              if field.name != "epoch_started_at_ms"}
+    return RiskValuationRecord(epoch_id=epoch.epoch_id, mode=mode, symbol=candle.symbol,
+        timeframe=candle.timeframe, candle_open_ms=candle.candle_open_ms,
+        risk_configuration_digest=epoch.risk_configuration_digest, mark_price=candle.close,
+        virtual_quote_cash=book.virtual_quote_cash, owned_base_quantity=book.owned_base_quantity,
+        fill_evidence_count=evidence[0], fill_evidence_digest=evidence[1], **values)
+
+
+@dataclass(frozen=True, slots=True)
+class RiskVerdictRecord:
+    symbol: str
+    timeframe: str
+    candle_open_ms: int
+    epoch_id: str
+    valued_at_ms: int
+    risk_configuration_digest: str
+    proposal_kind: RiskActionKind | None
+    authorized_amount: Decimal | None
+    verdict: RiskVerdict
+    reason: RiskReason | None
+    action_id: str | None
+    evaluated_at_ms: int
+
+    def __post_init__(self):
+        _risk_shape(self)
+        _text(self.symbol)
+        _choice(self.timeframe, {"60"})
+        _time(self.candle_open_ms, candle=True)
+        _time(self.valued_at_ms, candle=True)
+        _time(self.evaluated_at_ms)
+        _require(self.valued_at_ms == self.candle_open_ms + _HOUR_MS
+                 and self.evaluated_at_ms >= self.valued_at_ms, "Risk verdict timing mismatch.")
+        for value in (self.epoch_id, self.risk_configuration_digest):
+            _digest(value)
+        _require(type(self.verdict) is RiskVerdict, "An explicit risk verdict is required.")
+        _require((self.proposal_kind is None) == (self.authorized_amount is None), "Risk proposal requires both kind and amount.")
+        if self.proposal_kind is not None:
+            _require(type(self.proposal_kind) is RiskActionKind and type(self.authorized_amount) is Decimal,
+                     "An explicit exact risk proposal is required.")
+            _amount(self.authorized_amount, positive=True)
+        if self.action_id is not None:
+            _digest(self.action_id)
+        if self.verdict is RiskVerdict.ALLOW:
+            _require(self.reason is None and (self.action_id is not None) == (self.proposal_kind is not None),
+                     "ALLOW binds its action or is accounting only.")
+        else:
+            _require(self.action_id is None and type(self.reason) is RiskReason
+                     and self.proposal_kind is not RiskActionKind.EXIT, "Refusal cannot authorize an action or refuse a valid EXIT.")
+            trip = self.reason in (RiskReason.DAILY_LOSS_LIMIT, RiskReason.MAX_DRAWDOWN)
+            _require(trip == (self.verdict is RiskVerdict.TRIP)
+                     and (self.verdict is not RiskVerdict.BLOCK or self.proposal_kind is RiskActionKind.ENTRY),
+                     "Risk refusal reason/proposal mismatch.")
+
+
+def _fill_evidence(fills, valued_at_ms):
+    selected = tuple(sorted((fill for fill in fills if fill.executed_at_ms <= valued_at_ms),
+                            key=lambda fill: (fill.executed_at_ms, fill.broker_execution_id)))
+    return selected, (len(selected), _canonical_hash([_encode(fill) for fill in selected]))
+
+
+def _risk_book(configuration, fills):
+    with _risk_validation():
+        book = initial_risk_book(configuration)
+        for fill in fills:
+            book = apply_owned_execution(configuration, book, RiskExecution(
+                fill.broker_execution_id, RiskExecutionSide(fill.side), fill.executed_quantity,
+                fill.execution_price, fill.execution_fee, fill.fee_currency, fill.executed_at_ms))
+        return book
+
+
 # Explicit columns: all financial values are TEXT, all time/sequence values INTEGER.
-_SCHEMA = {
+_SCHEMA_V1 = {
     "identity": """CREATE TABLE identity (
         singleton INTEGER PRIMARY KEY CHECK(singleton=1),
         broker_id TEXT NOT NULL, account_binding TEXT NOT NULL, bot_id TEXT NOT NULL,
@@ -472,17 +728,77 @@ _SCHEMA = {
         rearmed_at_ms INTEGER, bootstrap_until_ms INTEGER, replay_until_ms INTEGER
     )""",
 }
-_INDEXES = {
+_INDEXES_V1 = {
     "one_pending_placement": "CREATE UNIQUE INDEX one_pending_placement ON actions((1)) WHERE kind IN ('ENTRY','EXIT') AND phase IN ('PREPARED','ATTEMPT_STARTED','ACKNOWLEDGED','UNKNOWN_OUTCOME')",
     "one_pending_cancel": "CREATE UNIQUE INDEX one_pending_cancel ON actions(parent_action_id) WHERE kind='CANCEL' AND phase IN ('PREPARED','ATTEMPT_STARTED','ACKNOWLEDGED','UNKNOWN_OUTCOME')",
 }
+# v1 is literal above, not inferred by subtracting risk tables from v2.
+_RISK_SCHEMA = {
+    "risk_configurations": """CREATE TABLE risk_configurations (
+        risk_configuration_digest TEXT PRIMARY KEY NOT NULL,
+        risk_contract_version INTEGER NOT NULL,
+        risk_capital_quote TEXT NOT NULL, buy_quote_budget TEXT NOT NULL,
+        max_entry_notional_quote TEXT NOT NULL, max_position_notional_quote TEXT NOT NULL,
+        max_daily_loss_fraction TEXT NOT NULL, max_drawdown_fraction TEXT NOT NULL,
+        max_entries_per_utc_day INTEGER NOT NULL,
+        base_currency TEXT NOT NULL, quote_currency TEXT NOT NULL
+    )""",
+    "risk_epochs": """CREATE TABLE risk_epochs (
+        epoch_id TEXT PRIMARY KEY NOT NULL, epoch_sequence INTEGER UNIQUE NOT NULL,
+        risk_configuration_digest TEXT NOT NULL REFERENCES risk_configurations(risk_configuration_digest),
+        started_at_ms INTEGER NOT NULL, parent_epoch_id TEXT REFERENCES risk_epochs(epoch_id)
+    )""",
+    "risk_valuations": """CREATE TABLE risk_valuations (
+        epoch_id TEXT NOT NULL REFERENCES risk_epochs(epoch_id), valued_at_ms INTEGER NOT NULL,
+        mode TEXT NOT NULL CHECK(mode IN ('ACTIVATION','REPLAY_ONLY','LIVE')),
+        symbol TEXT NOT NULL, timeframe TEXT NOT NULL, candle_open_ms INTEGER NOT NULL,
+        risk_configuration_digest TEXT NOT NULL REFERENCES risk_configurations(risk_configuration_digest),
+        mark_price TEXT NOT NULL, virtual_quote_cash TEXT NOT NULL, owned_base_quantity TEXT NOT NULL,
+        risk_equity TEXT NOT NULL, peak_risk_equity TEXT NOT NULL, utc_day_start_ms INTEGER NOT NULL,
+        utc_day_start_risk_equity TEXT NOT NULL, daily_pnl TEXT NOT NULL,
+        entries_this_utc_day INTEGER NOT NULL, trip_reason TEXT, tripped_at_ms INTEGER,
+        trip_pending_report INTEGER NOT NULL CHECK(trip_pending_report IN (0,1)),
+        fill_evidence_count INTEGER NOT NULL, fill_evidence_digest TEXT NOT NULL,
+        PRIMARY KEY(epoch_id,valued_at_ms),
+        FOREIGN KEY(symbol,timeframe,candle_open_ms) REFERENCES candles(symbol,timeframe,candle_open_ms)
+    )""",
+    "risk_verdicts": """CREATE TABLE risk_verdicts (
+        symbol TEXT NOT NULL, timeframe TEXT NOT NULL, candle_open_ms INTEGER NOT NULL,
+        epoch_id TEXT NOT NULL REFERENCES risk_epochs(epoch_id), valued_at_ms INTEGER NOT NULL,
+        risk_configuration_digest TEXT NOT NULL REFERENCES risk_configurations(risk_configuration_digest),
+        proposal_kind TEXT CHECK(proposal_kind IN ('ENTRY','EXIT')), authorized_amount TEXT,
+        verdict TEXT NOT NULL CHECK(verdict IN ('ALLOW','BLOCK','TRIP')), reason TEXT,
+        action_id TEXT UNIQUE REFERENCES actions(logical_action_id), evaluated_at_ms INTEGER NOT NULL,
+        PRIMARY KEY(symbol,timeframe,candle_open_ms),
+        CHECK((proposal_kind IS NULL) = (authorized_amount IS NULL)),
+        FOREIGN KEY(symbol,timeframe,candle_open_ms) REFERENCES decisions(symbol,timeframe,candle_open_ms),
+        FOREIGN KEY(epoch_id,valued_at_ms) REFERENCES risk_valuations(epoch_id,valued_at_ms)
+    )""",
+}
+_SCHEMA = {**_SCHEMA_V1, **_RISK_SCHEMA}
+_INDEXES = dict(_INDEXES_V1)
+_RISK_MODELS = {
+    "risk_configurations": RiskConfigurationRecord, "risk_epochs": RiskEpochRecord,
+    "risk_valuations": RiskValuationRecord, "risk_verdicts": RiskVerdictRecord,
+}
+
 _MODELS = {"identity": RuntimeConfiguration, "candles": CandleRecord, "decisions": DecisionRecord, "actions": ActionRecord, "fills": OwnedFillRecord}
 _DECIMALS = {
     "identity": {"buy_quote_budget"}, "candles": {"open", "high", "low", "close", "volume"},
     "actions": {"authorized_amount", "submitted_amount"},
     "fills": {"executed_quantity", "execution_price", "execution_fee"}, "checkpoint": {"owned_base_quantity"},
+    "risk_configurations": {"risk_capital_quote", "buy_quote_budget", "max_entry_notional_quote",
+                            "max_position_notional_quote", "max_daily_loss_fraction", "max_drawdown_fraction"},
+    "risk_valuations": {"mark_price", "virtual_quote_cash", "owned_base_quantity", "risk_equity",
+                        "peak_risk_equity", "utc_day_start_risk_equity", "daily_pnl"},
+    "risk_verdicts": {"authorized_amount"},
 }
 _ENUMS = {"actions": {"kind": JournalActionKind, "phase": ActionPhase, "safe_reason": RuntimeReason}, "decisions": {"disposition": DecisionDisposition}}
+
+_ENUMS.update({
+    "risk_valuations": {"mode": RiskValuationMode, "trip_reason": RiskReason},
+    "risk_verdicts": {"proposal_kind": RiskActionKind, "verdict": RiskVerdict, "reason": RiskReason},
+})
 
 
 def _encode(record):
@@ -514,7 +830,7 @@ def _checkpoint_values(checkpoint):
     return result
 
 
-def _decode(table, row):
+def _decode(table, row, *, legacy=False):
     try:
         values = dict(row)
         values.pop("singleton", None)
@@ -542,8 +858,13 @@ def _decode(table, row):
             values.pop("reason")
             values.pop("stopped_from")
             return RuntimeCheckpoint(**values)
-        return _MODELS[table](**values)
-    except (RuntimeStoreError, RuntimeStateError, ValueError, TypeError, KeyError):
+        if table == "risk_valuations":
+            _integer(values["trip_pending_report"], maximum=1)
+            values["trip_pending_report"] = bool(values["trip_pending_report"])
+        if table == "identity" and legacy:
+            return _LegacyConfiguration(**values)
+        return {**_MODELS, **_RISK_MODELS}[table](**values)
+    except (RuntimeStoreError, RuntimeStateError, RuntimeRiskError, ValueError, TypeError, KeyError):
         raise RuntimeStoreIntegrityError("Invalid stored runtime record.") from None
 
 
@@ -620,6 +941,10 @@ class RuntimeStore:
             if not initialize:
                 # Reject another schema or WAL store before changing any setting.
                 schema = {row[0]: row[1] for row in instance._connection.execute("SELECT name,sql FROM sqlite_master WHERE sql IS NOT NULL")}
+                if schema == {**_SCHEMA_V1, **_INDEXES_V1} and instance._connection.execute("PRAGMA user_version").fetchone()[0] == 1 and instance._connection.execute("PRAGMA journal_mode").fetchone()[0] == "delete":
+                    instance._configure()
+                    instance._validate_v1()
+                    raise RuntimeStoreMigrationRequiredError("Explicit runtime schema v1 to v2 migration is required.")
                 if schema != {**_SCHEMA, **_INDEXES} or instance._connection.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_VERSION or instance._connection.execute("PRAGMA journal_mode").fetchone()[0] != "delete":
                     raise RuntimeStoreIntegrityError("Existing runtime schema/version/journal is unsupported.")
             instance._configure()
@@ -627,7 +952,7 @@ class RuntimeStore:
                 with instance._transaction(validate=False):
                     for sql in (*_SCHEMA.values(), *_INDEXES.values()):
                         instance._connection.execute(sql)
-                    instance._connection.execute("PRAGMA user_version=1")
+                    instance._connection.execute("PRAGMA user_version=2")
                     instance._insert("identity", {"singleton": 1, **_encode(configuration)})
                     instance._insert("checkpoint", {"singleton": 1, **_checkpoint_values(RuntimeCheckpoint(0, RuntimeStateSnapshot()))})
                 # Persist the new database's directory entry as well as SQLite's commit.
@@ -640,6 +965,7 @@ class RuntimeStore:
             saved = instance._one("identity")
             if saved != configuration:
                 raise RuntimeStoreConflictError("Stored runtime identity/configuration does not match.")
+            _OPEN_DATABASES[path] = _OPEN_DATABASES.get(path, 0) + 1
             lock._stores += 1
             instance._attached = True
             return instance
@@ -649,6 +975,92 @@ class RuntimeStore:
         except RuntimeStoreError:
             instance.close()
             raise
+
+    def _validate_v1(self):
+        """Decode the literal legacy contract without a v2 identity constructor."""
+        previous = self._configuration
+        try:
+            row = self._connection.execute("SELECT * FROM identity").fetchone()
+            if row is None:
+                raise RuntimeStoreIntegrityError("Legacy identity is missing.")
+            self._configuration = _decode("identity", row, legacy=True)
+            self._legacy_validation = True
+            self._validate_all()
+            return self._configuration
+        finally:
+            self._configuration = previous
+            self._legacy_validation = False
+
+    @classmethod
+    def migrate_v1_to_v2(cls, lock: RuntimeAccountLock, configuration: RuntimeConfiguration) -> None:
+        """Explicit local structural upgrade; never activation or history repair.
+
+        Only temporary test fixtures should be migrated without a separately
+        reviewed operator decision for a real runtime database. A lost commit
+        result requires reopening; this operation never retries it.
+        """
+        _require(type(lock) is RuntimeAccountLock and type(configuration) is RuntimeConfiguration,
+                 "An exact acquired lock and v2 runtime configuration are required.")
+        replace(configuration)
+        lock._assert_held()
+        if (lock.broker_id, lock.account_binding) != (configuration.broker_id, configuration.account_binding):
+            raise RuntimeStoreConflictError("Lock and runtime account identities differ.")
+        path = lock.registry_root / "accounts" / lock.account_key / "runtime.sqlite3"
+        if path != lock.database_path or _OPEN_DATABASES.get(path, 0) or lock._stores:
+            raise RuntimeStoreConflictError("Migration requires the canonical database with no open store.")
+        instance = object.__new__(cls)
+        instance._lock, instance._configuration = lock, configuration
+        instance._connection, instance._attached = None, False
+        committed = False
+        try:
+            for directory in (path.parent.parent, path.parent):
+                if directory.is_symlink() or not directory.is_dir():
+                    raise RuntimeStoreIntegrityError("Existing safe store directories are required.")
+            info = path.lstat()
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > _MAX_DATABASE_BYTES:
+                raise RuntimeStoreIntegrityError("Migration requires a regular unaliased existing database.")
+            for suffix in ("-journal", "-wal", "-shm"):
+                sidecar = path.with_name(path.name + suffix)
+                if sidecar.exists() or sidecar.is_symlink():
+                    metadata = sidecar.lstat()
+                    if suffix != "-journal" or not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+                        raise RuntimeStoreIntegrityError("Unsafe or incompatible SQLite sidecar.")
+            instance._database_path = path
+            instance._database_identity = (info.st_dev, info.st_ino)
+            instance._connection = sqlite3.connect(path.as_uri() + "?mode=rw", uri=True,
+                                                   isolation_level=None, timeout=0)
+            instance._connection.row_factory = sqlite3.Row
+            schema = {row[0]: row[1] for row in instance._connection.execute(
+                "SELECT name,sql FROM sqlite_master WHERE sql IS NOT NULL")}
+            if (schema != {**_SCHEMA_V1, **_INDEXES_V1}
+                    or instance._connection.execute("PRAGMA user_version").fetchone()[0] != 1
+                    or instance._connection.execute("PRAGMA journal_mode").fetchone()[0] != "delete"):
+                raise RuntimeStoreIntegrityError("Migration requires exact supported legacy v1.")
+            instance._configure()
+            source = instance._validate_v1()
+            for field in fields(configuration):
+                if field.name not in {"schema_version", "configuration_digest"} and getattr(source, field.name) != getattr(configuration, field.name):
+                    raise RuntimeStoreConflictError("Legacy runtime configuration is incompatible with the reviewed destination.")
+            with instance._transaction(validate=False):
+                if instance._validate_v1() != source:
+                    raise RuntimeStoreIntegrityError("Legacy migration source changed.")
+                for sql in _RISK_SCHEMA.values():
+                    instance._connection.execute(sql)
+                instance._connection.execute("UPDATE identity SET schema_version=2, configuration_digest=? WHERE singleton=1",
+                                             (configuration.configuration_digest,))
+                instance._connection.execute("PRAGMA user_version=2")
+                instance._validate_all()
+            committed = True
+        except (OSError, sqlite3.Error):
+            raise RuntimeStoreIntegrityError("Cannot complete runtime migration; reopen to inspect the outcome.") from None
+        finally:
+            instance.close()
+        if committed:
+            try:
+                with cls.open(lock, configuration):
+                    pass
+            except RuntimeStoreError:
+                raise RuntimeStoreIntegrityError("Post-commit migration validation failed; reopen to inspect the outcome.") from None
 
     def _configure(self):
         connection = self._connection
@@ -731,7 +1143,7 @@ class RuntimeStore:
         self._verify_settings()
         try:
             row = self._connection.execute("SELECT * FROM " + table + (" WHERE " + where if where else ""), args).fetchone()
-            return None if row is None else _decode(table, row)
+            return None if row is None else _decode(table, row, legacy=getattr(self, "_legacy_validation", False))
         except sqlite3.Error:
             raise RuntimeStoreIntegrityError("Cannot read durable runtime evidence.") from None
 
@@ -801,15 +1213,244 @@ class RuntimeStore:
         except sqlite3.Error:
             raise RuntimeStoreIntegrityError("Cannot enumerate durable fill history.") from None
 
+    def _risk_rows(self, table, order):
+        self._validate_all()
+        try:
+            return tuple(_decode(table, row) for row in self._connection.execute(
+                "SELECT * FROM " + table + " ORDER BY " + order))
+        except sqlite3.Error:
+            raise RuntimeStoreIntegrityError("Cannot read complete durable risk history.") from None
+
+    def get_risk_configuration(self, risk_configuration_digest: str | None = None) -> RiskConfigurationRecord | None:
+        """Current epoch's configuration, or one exact digest; no partial reads."""
+        if risk_configuration_digest is not None:
+            _digest(risk_configuration_digest)
+        configurations = self._risk_rows("risk_configurations", "risk_configuration_digest")
+        if risk_configuration_digest is None:
+            epoch = self.get_current_risk_epoch()
+            risk_configuration_digest = None if epoch is None else epoch.risk_configuration_digest
+        return next((record for record in configurations if record.risk_configuration_digest == risk_configuration_digest), None)
+
+    def get_current_risk_epoch(self) -> RiskEpochRecord | None:
+        epochs = self._risk_rows("risk_epochs", "epoch_sequence")
+        return epochs[-1] if epochs else None
+
+    def get_latest_risk_valuation(self) -> RiskValuationRecord | None:
+        valuations = self.list_risk_valuations()
+        return valuations[-1] if valuations else None
+
+    def list_risk_valuations(self, epoch_id: str | None = None) -> tuple[RiskValuationRecord, ...]:
+        """Complete chronological history, optionally restricted to one epoch."""
+        if epoch_id is not None:
+            _digest(epoch_id)
+        rows = self._risk_rows("risk_valuations", "valued_at_ms,epoch_id")
+        return tuple(row for row in rows if epoch_id is None or row.epoch_id == epoch_id)
+
+    def get_risk_verdict(self, candle_open_ms: int) -> RiskVerdictRecord | None:
+        _time(candle_open_ms, candle=True)
+        return next((row for row in self.list_risk_verdicts() if row.candle_open_ms == candle_open_ms), None)
+
+    def list_risk_verdicts(self, epoch_id: str | None = None) -> tuple[RiskVerdictRecord, ...]:
+        if epoch_id is not None:
+            _digest(epoch_id)
+        rows = self._risk_rows("risk_verdicts", "candle_open_ms,symbol,timeframe")
+        return tuple(row for row in rows if epoch_id is None or row.epoch_id == epoch_id)
+
+    def _risk_compatible(self, configuration):
+        runtime = self._configuration
+        if (configuration.buy_quote_budget, configuration.base_currency, configuration.quote_currency) != (
+                runtime.buy_quote_budget, runtime.base_currency, runtime.quote_currency):
+            raise RuntimeStoreConflictError("Risk policy must match runtime budget and currencies.")
+
+    def _risk_facts(self, configuration, candle_open_ms):
+        candle = self.get_candle(candle_open_ms)
+        if candle is None:
+            raise RuntimeStoreConflictError("Risk valuation requires an existing durable candle.")
+        _time(candle_open_ms + _HOUR_MS, candle=True)
+        selected, evidence = _fill_evidence(self.list_fills(), candle_open_ms + _HOUR_MS)
+        return candle, _risk_book(configuration, selected), evidence
+
+    def initialize_risk_journal(self, risk_configuration: RuntimeRiskConfiguration, *, candle_open_ms: int) -> RiskValuationRecord:
+        """Once-only epoch-1 ACTIVATION from durable fills, never wallet facts."""
+        _time(candle_open_ms, candle=True)
+        record = _risk_configuration_record(risk_configuration)
+        self._risk_compatible(risk_configuration)
+        with self._transaction():
+            self._validate_all()
+            if any(self._connection.execute("SELECT 1 FROM " + table + " LIMIT 1").fetchone()
+                   for table in _RISK_SCHEMA):
+                raise RuntimeStoreConflictError("Risk journal has already been initialized.")
+            checkpoint = self.get_checkpoint()
+            snapshot = checkpoint.snapshot
+            if (snapshot.state not in (RuntimeState.FLAT, RuntimeState.LONG)
+                    or snapshot.position_evidence is not PositionEvidence.CONFIRMED
+                    or snapshot.pending_action is not None):
+                raise RuntimeStoreConflictError("Risk activation requires safe confirmed FLAT or LONG without pending work.")
+            candle, book, evidence = self._risk_facts(risk_configuration, candle_open_ms)
+            if book.owned_base_quantity != snapshot.owned_base_quantity:
+                raise RuntimeStoreConflictError("Activation executions do not match confirmed owned inventory at this boundary.")
+            # Even a future round-trip returning to the same quantity cannot be
+            # silently folded into a historical activation checkpoint.
+            if self._connection.execute("SELECT 1 FROM fills WHERE executed_at_ms>? LIMIT 1",
+                                        (candle_open_ms + _HOUR_MS,)).fetchone():
+                raise RuntimeStoreConflictError("Activation boundary precedes retained owned executions.")
+            with _risk_validation():
+                state = initialize_risk_state(risk_configuration, book, candle.close, candle_open_ms + _HOUR_MS)
+            epoch = _initial_risk_epoch(record, state.valued_at_ms)
+            valuation = _risk_valuation(epoch, RiskValuationMode.ACTIVATION, candle, book, state, evidence)
+            self._insert("risk_configurations", _encode(record))
+            self._insert("risk_epochs", _encode(epoch))
+            self._insert("risk_valuations", _encode(valuation))
+            self._validate_risk_history()
+        return valuation
+
+    def append_risk_replay_valuation(self, *, candle_open_ms: int) -> bool:
+        """Append exactly the next hour; an exact complete replay retry is False.
+
+        Historical evidence is immutable. A changed predecessor snapshot blocks
+        continuation; no old row is rewritten or reinterpreted on ordinary read.
+        """
+        _time(candle_open_ms, candle=True)
+        with self._transaction():
+            self._validate_all()
+            epoch = self.get_current_risk_epoch()
+            if epoch is None:
+                raise RuntimeStoreConflictError("Risk journal must be explicitly initialized first.")
+            configuration = self.get_risk_configuration().configuration
+            valuations = self.list_risk_valuations(epoch.epoch_id)
+            target_ms = candle_open_ms + _HOUR_MS
+            existing = next((row for row in valuations if row.valued_at_ms == target_ms), None)
+            if existing is not None:
+                index = valuations.index(existing)
+                if existing.mode is not RiskValuationMode.REPLAY_ONLY or index == 0:
+                    raise RuntimeStoreConflictError("Only an identical REPLAY_ONLY valuation may be retried.")
+                previous = valuations[index - 1]
+            else:
+                previous = valuations[-1]
+            if target_ms != previous.valued_at_ms + _HOUR_MS:
+                raise RuntimeStoreConflictError("Risk replay must advance by exactly one hour.")
+            _, evidence = _fill_evidence(self.list_fills(), previous.valued_at_ms)
+            if evidence != (previous.fill_evidence_count, previous.fill_evidence_digest):
+                raise RuntimeStoreConflictError("Predecessor owned-fill evidence changed; risk replay is blocked.")
+            candle, book, evidence = self._risk_facts(configuration, candle_open_ms)
+            with _risk_validation():
+                state = advance_risk_state(configuration, previous.state(epoch.started_at_ms), book,
+                                           candle.close, target_ms)
+            expected = _risk_valuation(epoch, RiskValuationMode.REPLAY_ONLY, candle, book, state, evidence)
+            if existing is not None:
+                if existing != expected:
+                    raise RuntimeStoreConflictError("Conflicting immutable risk replay.")
+                return False
+            self._insert("risk_valuations", _encode(expected))
+            self._validate_risk_history()
+        return True
+
+    def _validate_risk_history(self):
+        """Validate retained observations without replaying today's expanded fills.
+
+        Each stored book is valued by the frozen pure engine. Its evidence hash
+        identifies the facts accepted then, not all subsequently discovered fills.
+        """
+        connection = self._connection
+        history = {}
+        for table in _RISK_MODELS:
+            count = connection.execute("SELECT count(*) FROM " + table).fetchone()[0]
+            if count > _MAX_ROWS:
+                raise RuntimeStoreIntegrityError("Risk history exceeds the supported complete-read bound.")
+            history[table] = tuple(_decode(table, row) for row in connection.execute("SELECT * FROM " + table))
+        if not any(history.values()):
+            return
+        configurations = {row.risk_configuration_digest: row for row in history["risk_configurations"]}
+        epochs = sorted(history["risk_epochs"], key=lambda row: row.epoch_sequence)
+        valuations = history["risk_valuations"]
+        verdicts = history["risk_verdicts"]
+        if not configurations or not epochs or not valuations:
+            raise RuntimeStoreIntegrityError("Partially initialized risk journal.")
+        if set(configurations) != {epoch.risk_configuration_digest for epoch in epochs}:
+            raise RuntimeStoreIntegrityError("Risk configuration history has an unbound epoch/configuration.")
+        for record in configurations.values():
+            self._risk_compatible(record.configuration)
+        by_valuation = {(row.epoch_id, row.valued_at_ms): row for row in valuations}
+        by_verdict = {(row.epoch_id, row.valued_at_ms): row for row in verdicts}
+        prior_epoch = None
+        for sequence, epoch in enumerate(epochs, 1):
+            if (epoch.epoch_sequence != sequence or epoch.parent_epoch_id != (None if prior_epoch is None else prior_epoch.epoch_id)
+                    or (prior_epoch is not None and epoch.started_at_ms <= max(
+                        row.valued_at_ms for row in valuations if row.epoch_id == prior_epoch.epoch_id))):
+                raise RuntimeStoreIntegrityError("Risk epoch lineage is not consecutive.")
+            rows = sorted((row for row in valuations if row.epoch_id == epoch.epoch_id), key=lambda row: row.valued_at_ms)
+            if not rows or rows[0].valued_at_ms != epoch.started_at_ms:
+                raise RuntimeStoreIntegrityError("Risk epoch requires its first activation valuation.")
+            configuration = configurations[epoch.risk_configuration_digest].configuration
+            previous = None
+            for row in rows:
+                candle = self.get_candle(row.candle_open_ms)
+                if (row.risk_configuration_digest != epoch.risk_configuration_digest or candle is None
+                        or row.symbol != self._configuration.symbol or row.timeframe != self._configuration.timeframe
+                        or row.mark_price != candle.close):
+                    raise RuntimeStoreIntegrityError("Risk epoch/configuration/candle binding mismatch.")
+                if row.fill_evidence_count == 0 and row.fill_evidence_digest != _canonical_hash([]):
+                    raise RuntimeStoreIntegrityError("Empty risk evidence digest mismatch.")
+                with _risk_validation():
+                    state = row.state(epoch.started_at_ms)
+                    if previous is None:
+                        if row.mode is not RiskValuationMode.ACTIVATION:
+                            raise RuntimeStoreIntegrityError("First risk valuation must be ACTIVATION.")
+                        expected = initialize_risk_state(configuration, row.book, row.mark_price, row.valued_at_ms)
+                    else:
+                        if row.mode is RiskValuationMode.ACTIVATION or row.valued_at_ms != previous.valued_at_ms + _HOUR_MS:
+                            raise RuntimeStoreIntegrityError("Risk valuation history must be consecutive within its epoch.")
+                        if (row.fill_evidence_count < previous.fill_evidence_count
+                                or (row.fill_evidence_count == previous.fill_evidence_count
+                                    and row.fill_evidence_digest != previous.fill_evidence_digest)):
+                            raise RuntimeStoreIntegrityError("Accepted owned-fill evidence cannot regress or change without added executions.")
+                        expected = advance_risk_state(configuration, previous.state(epoch.started_at_ms),
+                                                      row.book, row.mark_price, row.valued_at_ms)
+                    verdict = by_verdict.get((row.epoch_id, row.valued_at_ms))
+                    if row.mode is RiskValuationMode.LIVE:
+                        if verdict is None:
+                            raise RuntimeStoreIntegrityError("LIVE valuation requires its complete verdict transaction.")
+                        proposal = None if verdict.proposal_kind is None else RiskActionProposal(verdict.proposal_kind, verdict.authorized_amount)
+                        evaluation = evaluate_risk(configuration, expected, row.book, row.mark_price, proposal)
+                        if (evaluation.verdict, evaluation.reason) != (verdict.verdict, verdict.reason):
+                            raise RuntimeStoreIntegrityError("Risk verdict differs from the pure policy result.")
+                        expected = evaluation.state
+                    elif verdict is not None:
+                        raise RuntimeStoreIntegrityError("Historical risk valuation cannot authorize a decision.")
+                    if state != expected:
+                        raise RuntimeStoreIntegrityError("Risk valuation differs from its pure state transition.")
+                previous = row
+            prior_epoch = epoch
+        if {row.epoch_id for row in valuations} != {row.epoch_id for row in epochs}:
+            raise RuntimeStoreIntegrityError("Risk valuation references unknown epoch history.")
+        for verdict in verdicts:
+            row = by_valuation.get((verdict.epoch_id, verdict.valued_at_ms))
+            decision = self.get_decision(verdict.candle_open_ms)
+            if (row is None or row.mode is not RiskValuationMode.LIVE or decision is None
+                    or (verdict.symbol, verdict.timeframe, verdict.candle_open_ms, verdict.risk_configuration_digest) != (
+                        row.symbol, row.timeframe, row.candle_open_ms, row.risk_configuration_digest)
+                    or verdict.action_id != decision.action_id):
+                raise RuntimeStoreIntegrityError("Risk verdict/valuation/decision binding mismatch.")
+            if verdict.action_id is not None:
+                action = self.get_action(verdict.action_id)
+                if (action is None or action.kind.value != verdict.proposal_kind.value
+                        or action.authorized_amount != verdict.authorized_amount
+                        or action.symbol != verdict.symbol or action.candle_open_ms != verdict.candle_open_ms):
+                    raise RuntimeStoreIntegrityError("Risk ALLOW action binding mismatch.")
+            if verdict.verdict is RiskVerdict.TRIP and verdict.reason is not row.trip_reason:
+                raise RuntimeStoreIntegrityError("Risk TRIP must retain its valuation latch.")
+
     def _validate_all(self):
         self._verify_settings()
         connection = self._connection
         try:
-            if connection.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_VERSION:
+            legacy = getattr(self, "_legacy_validation", False)
+            if connection.execute("PRAGMA user_version").fetchone()[0] != (1 if legacy else SCHEMA_VERSION):
                 raise RuntimeStoreIntegrityError("Unsupported runtime database version.")
             schema = {row[0]: row[1] for row in connection.execute("SELECT name,sql FROM sqlite_master WHERE sql IS NOT NULL")}
-            if schema != {**_SCHEMA, **_INDEXES}:
-                raise RuntimeStoreIntegrityError("Runtime schema/tables/indexes do not match version 1.")
+            expected_schema = {**_SCHEMA_V1, **_INDEXES_V1} if legacy else {**_SCHEMA, **_INDEXES}
+            if schema != expected_schema:
+                raise RuntimeStoreIntegrityError("Runtime schema/tables/indexes do not match the supported version.")
             if [row[0] for row in connection.execute("PRAGMA quick_check(1)")] != ["ok"] or connection.execute("PRAGMA foreign_key_check").fetchone() is not None:
                 raise RuntimeStoreIntegrityError("SQLite integrity/reference check failed.")
             for table in (*_MODELS, "checkpoint"):
@@ -817,12 +1458,15 @@ class RuntimeStore:
                 if count > _MAX_ROWS or (table in {"identity", "checkpoint"} and count != 1):
                     raise RuntimeStoreIntegrityError("Runtime record count is unsafe or incomplete.")
                 for row in connection.execute("SELECT * FROM " + table):
-                    record = _decode(table, row)
+                    record = _decode(table, row, legacy=legacy)
                     if table == "candles":
                         self._check_instrument(record)
                     if table == "actions":
                         self._check_action_binding(record)
             self._validate_relations()
+            self._validate_bounds()
+            if not legacy:
+                self._validate_risk_history()
         except sqlite3.Error:
             raise RuntimeStoreIntegrityError("SQLite runtime integrity validation failed.") from None
 
@@ -832,7 +1476,8 @@ class RuntimeStore:
 
     def _validate_bounds(self):
         # Refuse a write that would produce a store our bounded loader rejects.
-        for table in (*_MODELS, "checkpoint"):
+        tables = _SCHEMA_V1 if getattr(self, "_legacy_validation", False) else _SCHEMA
+        for table in tables:
             if self._connection.execute("SELECT count(*) FROM " + table).fetchone()[0] > _MAX_ROWS:
                 raise RuntimeStoreIntegrityError("Runtime record count exceeds the supported bound.")
         pages = self._connection.execute("PRAGMA page_count").fetchone()[0]
@@ -1052,16 +1697,21 @@ class RuntimeStore:
             self._save_checkpoint(checkpoint, expected_sequence)
 
     def close(self) -> None:
-        if self._connection is not None:
-            try:
+        try:
+            if self._connection is not None:
                 self._connection.close()
-            except sqlite3.Error:
-                raise RuntimeStoreError("Cannot close runtime store.") from None
-            finally:
-                self._connection = None
-        if self._attached:
-            self._lock._stores -= 1
-            self._attached = False
+        except sqlite3.Error:
+            raise RuntimeStoreError("Cannot close runtime store.") from None
+        finally:
+            self._connection = None
+            if self._attached:
+                self._lock._stores -= 1
+                remaining = _OPEN_DATABASES[self._database_path] - 1
+                if remaining:
+                    _OPEN_DATABASES[self._database_path] = remaining
+                else:
+                    del _OPEN_DATABASES[self._database_path]
+                self._attached = False
 
     def __enter__(self):
         self._live()
