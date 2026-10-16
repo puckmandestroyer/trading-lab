@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-16 — Stage 11.5 Circuit Breaker Runtime Hardening
+
+- Added 30 integrated offline regressions using existing fixtures and frozen cycle/store/pure policy. Zero production/formula/schema/dependency/Decision changes; existing tests/source hashes and notebooks/data remain unchanged.
+- Proved exact/adjacent daily-loss and drawdown thresholds, fixed-capital allowance after profit, raised peaks, simultaneous daily precedence, outgoing-day midnight protection, healthy rollover and peak/latch persistence. Replay/downtime recovery cannot hide a missed breach; interrupted catch-up resumes without duplicate/gap or historical sends.
+- Proved restart latch/baseline/peak durability, valid exact EXIT while tripped, later ENTRY refusal, pending/partial one-lifecycle safety, unrelated wallet exclusion, exact fee application once and fail-closed accounting/HALT precedence. Appreciation above the pre-ENTRY exposure cap causes no forced SELL/resize; notional/exposure reasons remain pure/defensive. No rearm, liquidation or new breaker class.
+- Local execution: 30 new tests; full suite **2,850 (2,820 + 30)**, zero failures/errors/skips. All required frozen groups, unchanged golden **54 / 2 / 2 / 0** identities/economics, `pip check` and both diff checks pass.
+- Stage 11.4 independently owner-reviewed, COMPLETE / FROZEN at `887e6631095fbc37720b49c56c8025807d1e9104`. Stage 11.5 COMPLETE / owner review pending; Stage 11 INCOMPLETE; Stage 11.6 next / NOT STARTED; Stage 12 NOT STARTED. Real user DB migration/risk activation and authenticated Demo read/order/cancellation **NOT RUN**; no credentials or actual broker activity.
+
 ## 2026-10-16 — Stage 11.4b crash-consistent runtime risk gate
 
 - Integrated explicit LIVE activation readiness, consecutive historical risk catch-up, predecessor evidence guards and one atomic store authorization API. Store independently replans and applies frozen pure accounting/policy before committing decision/LIVE valuation/verdict/optional PREPARED/frontier; exact replay cannot authorize again. No schema/version/dependency/Decision changes.
