@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-17 — Stage 12.0 Trading Lab V1 Production & Live Readiness Contract
+
+- Added Decision 022 defining Stage 12 as the final v1.0.0 release gate: local macOS, SQLite, one BTCUSDT hourly EMA Spot LONG/FLAT MARKET bot, existing fixed-budget Stage 11 risk, Telegram outbound alerts and read-only Streamlit dashboard. These visibility/operational capabilities are future work, not implemented here.
+- Fixed the 12.1 observability, 12.2 reviewed Demo smoke/24h/72h/7-day validation, 12.3 local hardening and 12.4 separately authorized controlled Live/audit/release roadmap. Observability never authorizes trading; stop never liquidates/rearms. Dynamic risk-per-trade sizing, new runtime strategies/bots and portfolio/global risk are POST-v1; cloud/Docker/PostgreSQL are not v1 requirements. Future bots require independent risk books/state/history despite shared engine code.
+- Stage 11 independently owner-reviewed, COMPLETE / FROZEN at `b79d511b94fa6e5dd07f59d95e7c51f175f3f756`. Stage 12 STARTED / INCOMPLETE; 12.0 COMPLETE / owner review pending; 12.1–12.4 NOT STARTED; pre-v1, v1.0.0 NOT RELEASED. No automatic 12.1 continuation or release tag.
+- Exactly Decision 022, PROJECT_STATE.md, README.md and CHANGELOG.md change; zero production/test/schema/dependency/previous-Decision changes or new tests. Frozen financial/next-OPEN behavior, notebooks and data/results are preserved. Unchanged full local suite **2,943 passed**, failures/errors/skips **0/0/0**; `pip check` and unstaged/staged diff checks pass.
+- Demo/Live API credentials **NOT USED**; authenticated Bybit Demo/Live read/order/cancel and real user DB migration/activation/rearm **NOT RUN**; real Telegram bot message **NOT SENT**. This is a documentation contract, not operational or Live readiness evidence.
+
 ## 2026-10-16 — Stage 11.8 Final Stage 11 Audit + Documentation
 
 - Audited Decisions 017–021, the actual Stage 11 commit/scope ledger, exact accounting, schema/version/migration, public APIs, atomic authorization/send ordering, breakers, refused-HOLD provenance, replay/restart, independent explicit rearm, network boundaries and capability exclusions. No production/test/schema contract blocker found; Stage 11.7 independently owner-reviewed / FROZEN at `8a57b81b7ea464739d295cf737b057fec79be86f`.
