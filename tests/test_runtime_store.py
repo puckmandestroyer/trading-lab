@@ -2928,7 +2928,7 @@ class RiskReadAndBoundaryTests(RiskPersistenceCase):
             "commit_decision","prepare_cancellation","start_attempt","abandon_prepared","record_observation","close",
             "get_risk_configuration","get_current_risk_epoch","get_latest_risk_valuation","list_risk_valuations",
             "get_risk_verdict","list_risk_verdicts","initialize_risk_journal","append_risk_replay_valuation",
-            "commit_live_risk_decision"})
+            "commit_live_risk_decision", "rearm_runtime_halt", "rearm_risk_epoch"})
         self.assertEqual({mode.value for mode in RiskValuationMode},{"ACTIVATION","REPLAY_ONLY","LIVE"})
 
     def test_no_broker_network_or_environment_dependency(self):
@@ -3098,8 +3098,8 @@ class RiskAdditionalBoundaryTests(RiskPersistenceCase):
     def test_pure_risk_source_and_all_123_tests_are_byte_identical(self):
         root=Path(__file__).resolve().parents[1]
         for relative,expected in (
-            ("src/trading_lab/risk/runtime_risk.py","6dfa26e4317d914184c676aae337a2c23e08314704a7e2f54f7e8014fc0f6737"),
-            ("tests/test_runtime_risk.py","48f23ceb6415ace65f3f63e5429cb14d8d5ad587fc5d31419375c818599a70dc")):
+            ("src/trading_lab/risk/runtime_risk.py","4936450ccc844952290883a6bbf5b21931fd370d9a1f30dd94a766d856164950"),
+            ("tests/test_runtime_risk.py","22428d1a9e5fc025404ece57c34eea309222264c690f02a975b1f4da958b6948")):
             self.assertEqual(hashlib.sha256((root/relative).read_bytes()).hexdigest(),expected)
 
 

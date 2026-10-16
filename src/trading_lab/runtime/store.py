@@ -26,7 +26,7 @@ from ..risk.runtime_risk import (
     RuntimeRiskConfiguration, RuntimeRiskError, RiskBook, RiskState,
     RiskExecution, RiskExecutionSide, RiskActionKind, RiskActionProposal, RiskVerdict, RiskReason,
     initial_risk_book, apply_owned_execution, calculate_risk_equity,
-    initialize_risk_state, advance_risk_state, evaluate_risk, DAY_MS,
+    initialize_risk_state, advance_risk_state, evaluate_risk, rearm_risk_state, DAY_MS,
 )
 from .state import (
     PendingAction, PendingActionKind, PositionEvidence, RuntimeReason,
@@ -529,9 +529,11 @@ class RiskEpochRecord:
         _require(self.epoch_id == _canonical_hash(payload), "Risk epoch digest/content mismatch.")
 
 
-def _initial_risk_epoch(configuration, started_at_ms):
+def _initial_risk_epoch(configuration, started_at_ms, *, parent=None):
     values = dict(risk_configuration_digest=configuration.risk_configuration_digest,
-                  epoch_sequence=1, started_at_ms=started_at_ms, parent_epoch_id=None)
+                  epoch_sequence=1 if parent is None else parent.epoch_sequence + 1,
+                  started_at_ms=started_at_ms,
+                  parent_epoch_id=None if parent is None else parent.epoch_id)
     return RiskEpochRecord(epoch_id=_canonical_hash(values), **values)
 
 
@@ -1237,7 +1239,8 @@ class RuntimeStore:
         return epochs[-1] if epochs else None
 
     def get_latest_risk_valuation(self) -> RiskValuationRecord | None:
-        valuations = self.list_risk_valuations()
+        epoch = self.get_current_risk_epoch()
+        valuations = () if epoch is None else self.list_risk_valuations(epoch.epoch_id)
         return valuations[-1] if valuations else None
 
     def list_risk_valuations(self, epoch_id: str | None = None) -> tuple[RiskValuationRecord, ...]:
@@ -1245,6 +1248,9 @@ class RuntimeStore:
         if epoch_id is not None:
             _digest(epoch_id)
         rows = self._risk_rows("risk_valuations", "valued_at_ms,epoch_id")
+        sequences = {row.epoch_id: row.epoch_sequence
+                     for row in self._risk_rows("risk_epochs", "epoch_sequence")}
+        rows = sorted(rows, key=lambda row: (row.valued_at_ms, sequences[row.epoch_id]))
         return tuple(row for row in rows if epoch_id is None or row.epoch_id == epoch_id)
 
     def get_risk_verdict(self, candle_open_ms: int) -> RiskVerdictRecord | None:
@@ -1303,6 +1309,93 @@ class RuntimeStore:
             self._insert("risk_epochs", _encode(epoch))
             self._insert("risk_valuations", _encode(valuation))
             self._validate_risk_history()
+        return valuation
+
+    def rearm_runtime_halt(self, *, expected_sequence: int, operator_at_ms: int) -> RuntimeCheckpoint:
+        """Explicit HALT → SYNCHRONIZING CAS; risk and broker evidence stay intact.
+
+        This records an operator control, not repaired/confirmed exposure.
+        Indeterminate persistence requires reopening, never blind retry.
+        """
+        _integer(expected_sequence)
+        _time(operator_at_ms)
+        with self._transaction():
+            self._validate_all()
+            current = self.get_checkpoint()
+            if current.sequence != expected_sequence or current.snapshot.state is not RuntimeState.HALTED:
+                raise RuntimeStoreConflictError("HALT rearm requires the current HALTED checkpoint sequence.")
+            if (operator_at_ms <= current.halted_at_ms
+                    or (current.rearmed_at_ms is not None and operator_at_ms < current.rearmed_at_ms)):
+                raise RuntimeStoreConflictError("HALT rearm time must follow the latch and remain monotonic.")
+            snapshot = transition_runtime_state(current.snapshot, RuntimeEvent(RuntimeEventType.OPERATOR_REARMED))
+            checkpoint = replace(current, sequence=current.sequence + 1, snapshot=snapshot,
+                                 halted_at_ms=None, rearmed_at_ms=operator_at_ms)
+            self._save_checkpoint(checkpoint, expected_sequence)
+            self._validate_all()
+        return checkpoint
+
+    def rearm_risk_epoch(self, *, expected_epoch_id: str, operator_at_ms: int) -> RiskValuationRecord:
+        """Explicit same-boundary child epoch from complete durable local evidence.
+
+        Only epoch + ACTIVATION are inserted. No checkpoint, configuration,
+        strategy intent, action or broker state is changed by this control.
+        """
+        _digest(expected_epoch_id)
+        _time(operator_at_ms)
+        with self._transaction():
+            self._validate_all()
+            parent = self.get_current_risk_epoch()
+            if parent is None or parent.epoch_id != expected_epoch_id:
+                raise RuntimeStoreConflictError("Risk rearm requires the current expected epoch.")
+            previous = self.get_latest_risk_valuation()
+            if (previous.trip_reason is None or previous.tripped_at_ms is None
+                    or previous.trip_pending_report):
+                raise RuntimeStoreConflictError("Risk rearm requires a reported automatic trip.")
+            checkpoint = self.get_checkpoint()
+            snapshot = checkpoint.snapshot
+            if (snapshot.state not in (RuntimeState.FLAT, RuntimeState.LONG)
+                    or snapshot.position_evidence is not PositionEvidence.CONFIRMED
+                    or snapshot.pending_action is not None or snapshot.reason is not None
+                    or any(action.phase not in _TERMINAL_PHASES for action in self.list_actions())):
+                raise RuntimeStoreConflictError("Risk rearm requires safe confirmed FLAT or LONG without unresolved work.")
+            if snapshot.desired_position != int(snapshot.state is RuntimeState.LONG):
+                raise RuntimeStoreConflictError("Risk rearm requires aligned strategy intent and exposure.")
+            runtime = self._configuration
+            for observed in (checkpoint.last_reconciled_at_ms, checkpoint.observed_at_ms):
+                if (observed is None or not 0 <= operator_at_ms - observed <= runtime.observation_max_age_ms
+                        or (checkpoint.rearmed_at_ms is not None and observed < checkpoint.rearmed_at_ms)):
+                    raise RuntimeStoreConflictError("Risk rearm requires fresh post-rearm reconciliation evidence.")
+            if not 0 <= operator_at_ms - previous.valued_at_ms <= runtime.decision_max_age_ms:
+                raise RuntimeStoreConflictError("Risk rearm requires a fresh accepted mark.")
+            if previous.candle_open_ms != checkpoint.last_processed_candle_ms:
+                raise RuntimeStoreConflictError("Risk rearm requires aligned risk and runtime frontiers.")
+            fills = self.list_fills()
+            selected, evidence = _fill_evidence(fills, previous.valued_at_ms)
+            if evidence != (previous.fill_evidence_count, previous.fill_evidence_digest):
+                raise RuntimeStoreConflictError("Predecessor owned-fill evidence changed; risk rearm is blocked.")
+            # Quantity equality cannot prove unchanged economics: even a round
+            # trip or a base-fee-offset fill after T must wait for later accounting.
+            if any(fill.executed_at_ms > previous.valued_at_ms for fill in fills):
+                raise RuntimeStoreConflictError("Risk rearm boundary precedes retained owned executions.")
+            record = self.get_risk_configuration(parent.risk_configuration_digest)
+            configuration = record.configuration
+            book = _risk_book(configuration, selected)
+            if book != previous.book or book.owned_base_quantity != snapshot.owned_base_quantity:
+                raise RuntimeStoreConflictError("Risk rearm requires the exact accepted continuous owned book.")
+            consumed = sum(row.verdict is RiskVerdict.ALLOW and row.proposal_kind is RiskActionKind.ENTRY
+                           and row.evaluated_at_ms // DAY_MS * DAY_MS == previous.utc_day_start_ms
+                           for row in self.list_risk_verdicts())
+            if consumed != previous.entries_this_utc_day:
+                raise RuntimeStoreIntegrityError("Risk ENTRY count differs from retained authorization history.")
+            with _risk_validation():
+                state = rearm_risk_state(configuration, previous.state(parent.started_at_ms), book,
+                                         previous.mark_price, previous.valued_at_ms)
+            child = _initial_risk_epoch(record, previous.valued_at_ms, parent=parent)
+            candle = self.get_candle(previous.candle_open_ms)
+            valuation = _risk_valuation(child, RiskValuationMode.ACTIVATION, candle, book, state, evidence)
+            self._insert("risk_epochs", _encode(child))
+            self._insert("risk_valuations", _encode(valuation))
+            self._validate_all()
         return valuation
 
     def append_risk_replay_valuation(self, *, candle_open_ms: int) -> bool:
@@ -1396,8 +1489,8 @@ class RuntimeStore:
         with self._transaction():
             self._validate_all()
             epoch = self.get_current_risk_epoch()
-            if epoch is None or epoch.epoch_sequence != 1:
-                raise RuntimeStoreConflictError("An explicitly activated initial risk epoch is required.")
+            if epoch is None:
+                raise RuntimeStoreConflictError("An explicitly activated risk epoch is required.")
             configuration = self.get_risk_configuration().configuration
             previous = self.get_latest_risk_valuation()
             prior_decision = self.get_decision(candle.candle_open_ms)
@@ -1527,11 +1620,12 @@ class RuntimeStore:
         by_valuation = {(row.epoch_id, row.valued_at_ms): row for row in valuations}
         by_verdict = {(row.epoch_id, row.valued_at_ms): row for row in verdicts}
         entry_counts = {}
-        prior_epoch = None
+        prior_epoch = prior_final = None
         for sequence, epoch in enumerate(epochs, 1):
             if (epoch.epoch_sequence != sequence or epoch.parent_epoch_id != (None if prior_epoch is None else prior_epoch.epoch_id)
-                    or (prior_epoch is not None and epoch.started_at_ms <= max(
-                        row.valued_at_ms for row in valuations if row.epoch_id == prior_epoch.epoch_id))):
+                    or (prior_epoch is not None and (
+                        epoch.started_at_ms != prior_final.valued_at_ms
+                        or epoch.risk_configuration_digest != prior_epoch.risk_configuration_digest))):
                 raise RuntimeStoreIntegrityError("Risk epoch lineage is not consecutive.")
             rows = sorted((row for row in valuations if row.epoch_id == epoch.epoch_id), key=lambda row: row.valued_at_ms)
             if not rows or rows[0].valued_at_ms != epoch.started_at_ms:
@@ -1551,7 +1645,15 @@ class RuntimeStore:
                     if previous is None:
                         if row.mode is not RiskValuationMode.ACTIVATION:
                             raise RuntimeStoreIntegrityError("First risk valuation must be ACTIVATION.")
-                        expected = initialize_risk_state(configuration, row.book, row.mark_price, row.valued_at_ms)
+                        if prior_epoch is None:
+                            expected = initialize_risk_state(configuration, row.book, row.mark_price, row.valued_at_ms)
+                        else:
+                            if (row.book != prior_final.book or row.mark_price != prior_final.mark_price
+                                    or (row.fill_evidence_count, row.fill_evidence_digest) != (
+                                        prior_final.fill_evidence_count, prior_final.fill_evidence_digest)):
+                                raise RuntimeStoreIntegrityError("Child activation must preserve the accepted parent book/mark/evidence.")
+                            expected = rearm_risk_state(configuration, prior_final.state(prior_epoch.started_at_ms),
+                                                        row.book, row.mark_price, row.valued_at_ms)
                     else:
                         if row.mode is RiskValuationMode.ACTIVATION or row.valued_at_ms != previous.valued_at_ms + _HOUR_MS:
                             raise RuntimeStoreIntegrityError("Risk valuation history must be consecutive within its epoch.")
@@ -1581,7 +1683,7 @@ class RuntimeStore:
                     if state.entries_this_utc_day != entry_counts.get(row.utc_day_start_ms, 0):
                         raise RuntimeStoreIntegrityError("Risk ENTRY count differs from retained authorization history.")
                 previous = row
-            prior_epoch = epoch
+            prior_epoch, prior_final = epoch, rows[-1]
         if {row.epoch_id for row in valuations} != {row.epoch_id for row in epochs}:
             raise RuntimeStoreIntegrityError("Risk valuation references unknown epoch history.")
         for verdict in verdicts:

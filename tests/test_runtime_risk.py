@@ -835,7 +835,7 @@ class BoundaryTests(unittest.TestCase):
         functions = {name for name, value in vars(module).items()
                      if inspect.isfunction(value) and value.__module__ == module.__name__ and not name.startswith("_")}
         self.assertEqual(functions, {"initial_risk_book", "apply_owned_execution", "calculate_risk_equity",
-            "initialize_risk_state", "advance_risk_state", "evaluate_risk", "calculate_projected_exposure"})
+            "initialize_risk_state", "advance_risk_state", "evaluate_risk", "calculate_projected_exposure", "rearm_risk_state"})
 
     def test_no_module_level_activation_calls(self):
         tree = ast.parse(inspect.getsource(module))

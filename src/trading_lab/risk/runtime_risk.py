@@ -25,7 +25,7 @@ __all__ = [
     "RiskExecutionSide", "RuntimeRiskConfiguration", "RiskExecution",
     "RiskBook", "RiskState", "RiskActionProposal", "RiskEvaluation",
     "initial_risk_book", "apply_owned_execution", "calculate_risk_equity",
-    "initialize_risk_state", "advance_risk_state", "evaluate_risk",
+    "initialize_risk_state", "advance_risk_state", "evaluate_risk", "rearm_risk_state",
     "calculate_projected_exposure", "HOUR_MS", "DAY_MS",
 ]
 
@@ -371,6 +371,33 @@ def initialize_risk_state(
     equity = calculate_risk_equity(book, mark_price)
     return RiskState(valued_at_ms, valued_at_ms, equity, equity,
                      valued_at_ms // DAY_MS * DAY_MS, equity, Decimal(0), 0)
+
+
+def rearm_risk_state(
+    config: RuntimeRiskConfiguration, previous: RiskState, book: RiskBook,
+    mark_price: Decimal, valued_at_ms: int,
+) -> RiskState:
+    """Reset measurement references at the same accepted tripped boundary.
+
+    Ownership/configuration identity and durable authorization counts must be
+    proved by persistence. Unlike initialization, today's consumed ENTRY count
+    carries into the child; neither the supplied book nor the parent changes.
+    """
+    _record(config, RuntimeRiskConfiguration)
+    _record(previous, RiskState)
+    _time(valued_at_ms, hourly=True)
+    _require(previous.trip_reason in _TRIP_REASONS
+             and previous.tripped_at_ms is not None
+             and previous.trip_pending_report is False,
+             "Rearm requires a reported automatic risk trip.")
+    _require(valued_at_ms == previous.valued_at_ms,
+             "Rearm must use the same accepted valuation boundary.")
+    _require(calculate_risk_equity(book, mark_price) == previous.risk_equity,
+             "Rearm book and mark must reproduce the accepted equity exactly.")
+    equity = previous.risk_equity
+    return RiskState(valued_at_ms, valued_at_ms, equity, equity,
+                     valued_at_ms // DAY_MS * DAY_MS, equity, Decimal(0),
+                     previous.entries_this_utc_day)
 
 
 def _breach(config, equity, peak, baseline):

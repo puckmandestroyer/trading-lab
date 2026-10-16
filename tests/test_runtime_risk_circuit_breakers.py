@@ -515,8 +515,7 @@ class FailClosedBreakerTests(BreakerCase):
 
 class StructuralBreakerBoundaryTests(unittest.TestCase):
     def test_public_store_capabilities_have_no_rearm_clear_or_second_epoch_writer(self):
-        # Exact published public surface; risk remains epoch-1-only, not a new
-        # operator control hidden under another name.
+        # Exact published surface plus the two Decision 021 operator controls.
         self.assertEqual({name for name in vars(RuntimeStore) if not name.startswith("_")}, {
             "open", "migrate_v1_to_v2", "durability_settings", "get_configuration", "get_checkpoint",
             "get_candle", "get_decision", "get_action", "get_fill", "list_actions", "list_fills",
@@ -524,6 +523,7 @@ class StructuralBreakerBoundaryTests(unittest.TestCase):
             "list_risk_valuations", "get_risk_verdict", "list_risk_verdicts", "initialize_risk_journal",
             "append_risk_replay_valuation", "commit_live_risk_decision", "save_checkpoint", "commit_decision",
             "prepare_cancellation", "start_attempt", "abandon_prepared", "record_observation", "close",
+            "rearm_runtime_halt", "rearm_risk_epoch",
         })
 
 

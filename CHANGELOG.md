@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-16 — Stage 11.6b Durable Runtime Risk Rearm Controls
+
+- Added pure `rearm_risk_state` and exactly two local RuntimeStore controls: `rearm_runtime_halt` and `rearm_risk_epoch`. HALT rearm uses frozen OPERATOR_REARMED/CAS to SYNCHRONIZING with reconciliation still required and risk unchanged. Risk rearm inserts only a same-config/shared-T child epoch + ACTIVATION, preserving continuous book/evidence and all-epoch same-day ENTRY count while resetting measurement baseline/peak to current equity.
+- Added safe-state/intent/freshness/frontier/evidence checks, including explicit rejection of any post-T owned fill even when quantity is unchanged. Linear lineage, deterministic shared-T reads, child LIVE/replay authority, parent immutability and all-or-nothing/reopen failure semantics are validated. Restart/midnight/price recovery never rearm; no transferred refused intent or delayed BUY.
+- Local execution: **82 new focused tests; full suite 2,932 (2,850 + 82)**, zero failures/errors/skips; required component suites, unchanged golden **54 / 2 / 2 / 0 / one epoch when unused**, pip check and unstaged/staged diff checks pass. Existing tests change only approved capability/preservation expectations. Production scope is exactly runtime_risk.py/store.py; all other production, Decisions, schema/DDL, dependencies, notebooks and data/results remain unchanged.
+- Stage 11.6a independently owner-reviewed / FROZEN at `a45389ae8c4c4b399373c8be8ff2ea0b1046deed`; Stage 11.6b COMPLETE / owner review pending; 11.6 overall awaits freeze; Stage 11 INCOMPLETE; Stage 11.7 next / NOT STARTED; Stage 12 NOT STARTED. No manual pause/kill, forced liquidation, automatic cancellation, risk configuration editing, schema change or operational UI. Real user migration/activation/rearm, real Runtime HALT rearm and authenticated Demo read/order/cancellation **NOT RUN**.
+
 ## 2026-10-16 — Stage 11.6a Runtime Risk Rearm / Operator Controls Contract
 
 - Added Accepted Decision 021, architecture/documentation only: independent Runtime HALT rearm to SYNCHRONIZING/reconciliation and explicit risk-trip rearm into a child epoch at the same durable candle boundary. Both-latch recovery must rearm runtime and reconcile before risk rearm.
