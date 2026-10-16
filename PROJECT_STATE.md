@@ -199,6 +199,16 @@ Stage 11.4b may add a pure risk_gate.py and extend only store.py/cycle.py, subje
 
 Stage 11.4a local validation: **2,753 unchanged tests passed**, zero failures/errors/skips; pip check and both diff checks pass. Exactly four Markdown files change; zero production/test/schema/dependency/previous-Decision/notebook/data/result changes, zero new tests. Real user DB migration/risk activation and authenticated Bybit Demo read/order/cancellation: **NOT RUN**. Stage 11.4b requires separate authorization and remains NOT STARTED; Stage 11 remains INCOMPLETE; 11.5–11.8 and Stage 12 remain NOT STARTED.
 
+### Decision 020 reachability clarification — 2026-10-16
+
+Stage 11.4a remains the architecture baseline at `6bc9d773040f4f09bb0f9aa103ffe4357a5bb27d`. A narrow owner-requested documentation-only correction clarifies that ENTRY_NOTIONAL_LIMIT and POSITION_NOTIONAL_LIMIT are defensive policy reasons, unreachable as genuine planner ENTRY outcomes under the current fixed-budget, FLAT-only, no-pyramiding runtime. Matching runtime/risk BUY budgets and ordered caps remain unchanged; no policy reason is removed.
+
+Future end-to-end atomic BLOCK acceptance uses reachable ENTRY_COUNT_LIMIT and RISK_LATCH_ACTIVE. Direct defensive pure-policy notional/exposure coverage remains required; invalid configuration, modified planner amounts or bypassed validation cannot substitute for a genuine runtime BLOCK proof. Only Decision 020, this state document and CHANGELOG change; no production/tests/schema/dependencies or runtime risk integration. Real user DB migration/risk activation and authenticated Demo read/order/cancellation: **NOT RUN**.
+
+Local validation of this documentation correction: **2,753 unchanged tests passed**, zero failures/errors/skips; `pip check`, `git diff --check` and `git diff --staged --check` pass. Zero new tests; README and all frozen production/tests/schema/dependencies remain unchanged.
+
+This correction awaits owner review/freeze. **Stage 11.4b remains NOT STARTED and must not resume until the correction is owner-reviewed/frozen.** Stages 11 and 11.4 remain INCOMPLETE; 11.5–11.8 and Stage 12 remain NOT STARTED.
+
 ### Stage 11 roadmap
 
 | Milestone | Scope | Current status |
@@ -2105,9 +2115,11 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
+Owner review/freeze of the documentation-only Decision 020 reachability correction above; Stage 11.4b remains NOT STARTED and must not resume before that review/freeze. Stage 11.4a remains the architecture baseline.
+
 Owner review/freeze of Stage 11.4a — Pre-Trade Risk Gate / Crash-Consistent Authorization Contract. Stages 11.1–11.3 are independently reviewed/FROZEN, with Stage 11.3 finalized at `be0eba0a4a6cb9f2d97165e0eb0da1525cdf951b`. Stage 11.4 has STARTED and remains INCOMPLETE; 11.4a is COMPLETE / owner review pending; 11.4b, 11.5–11.8 and Stage 12 are NOT STARTED. Decision 020 defines future activation, atomic LIVE risk authorization and durable refusal continuation only. Current source/tests/schema remain unchanged; no real user DB migration/activation or authenticated Demo activity.
 
-All frozen source/APIs/schema/Decisions/tests, Stage 8, Stage 5 EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. Process-entry preparation retains unresolved truth before caller-invoked cycle/scheduler work; no automatic resend/cancellation, wallet sizing or actual Demo activation. Tests write runtime artifacts only in temporary directories.
+Outside this owner-requested Decision 020 clarification, all frozen source/APIs/schema/Decisions/tests, Stage 8, Stage 5 EMA behavior, next-OPEN timing and notebooks 01–06 are preserved. Process-entry preparation retains unresolved truth before caller-invoked cycle/scheduler work; no automatic resend/cancellation, wallet sizing or actual Demo activation. Tests write runtime artifacts only in temporary directories.
 
 ## Not implemented yet
 

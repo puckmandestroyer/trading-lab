@@ -187,8 +187,8 @@ All future tests use temporary fixtures/fakes with no credentials or actual brok
 | 1. Empty journal + LIVE ENTRY | RISK_NOT_READY; zero action, decision/frontier advance or automatic initialization. |
 | 2. Empty journal + LIVE HOLD | Same refusal to consume the LIVE frontier, even with no proposal. |
 | 3. Activated healthy ENTRY | ALLOW + LIVE valuation/verdict + matching PREPARED/pending/decision/frontier atomically. |
-| 4. ENTRY notional BLOCK | Exact refused amount, WAIT decision/verdict/frontier, zero action/pending event. |
-| 5. Existing latch ENTRY | BLOCK/RISK_LATCH_ACTIVE; latch preserved. |
+| 4. Daily ENTRY-count cap | Valid planner ENTRY with the UTC day's authorization count already at its maximum → BLOCK/ENTRY_COUNT_LIMIT; exact proposed ENTRY kind/amount retained in the verdict, WAIT decision and frontier consumed atomically, zero action/pending event. |
+| 5. Existing latch ENTRY | Valid planner ENTRY → BLOCK/RISK_LATCH_ACTIVE; exact refused proposal and latch preserved, WAIT decision/frontier, zero action/pending event. |
 | 6. New daily-loss/drawdown breach ENTRY | TRIP, durable latch, no action. |
 | 7. New trip on HOLD | TRIP/no proposal, zero action and no risk-caused runtime HALT. |
 | 8. TRIPPED exact EXIT | ALLOW matching PREPARED EXIT with latch retained and Stage 10 guards intact. |
@@ -206,6 +206,31 @@ All future tests use temporary fixtures/fakes with no credentials or actual brok
 | 20. Activated permissive golden | Exactly 54 decisions / 2 placements / 2 fills / 0 cancellations. |
 
 The permissive, explicitly initialized synthetic golden must retain exact action IDs/orderLinkIds, Decimal submitted amounts, executions, fees, final owned quantity and restart semantics. Risk adds journal/verdict facts without rekeying canonical actions or changing economics when limits do not bind. Also test exact LIVE replay without a second authorization, conflicts, LONG activation with no EXIT bypass, coherent UTC authorization counts/notification consumption, and every independent safety guard around continuation. Frozen Stage 5 EMA/next-OPEN financial results remain unchanged.
+
+### Current runtime BLOCK reachability and defensive coverage
+
+Owner-requested documentation-only correction, 2026-10-16: Stage 11.4a remains the architecture baseline at `6bc9d773040f4f09bb0f9aa103ffe4357a5bb27d`. Acceptance case 4 uses the reachable daily ENTRY-count cap instead of requiring an end-to-end ENTRY-notional refusal. No policy reason, formula, API or configuration invariant changes.
+
+The frozen planner's ENTRY `authorized_amount` is exactly `RuntimeConfiguration.buy_quote_budget`. RuntimeStore requires the risk configuration's BUY budget to equal that runtime budget. Frozen risk configuration requires:
+
+```text
+buy_quote_budget <= max_entry_notional_quote <= max_position_notional_quote
+```
+
+Therefore a genuine planner ENTRY cannot exceed the entry-notional cap. ENTRY also requires confirmed FLAT, zero owned base and no unresolved lifecycle; pyramiding is forbidden. Its projected owned exposure is consequently zero plus the same fixed BUY budget, which cannot exceed the position-notional cap. Neither ENTRY_NOTIONAL_LIMIT nor POSITION_NOTIONAL_LIMIT is a reachable end-to-end planner ENTRY outcome in the current runtime scope.
+
+Both remain valid frozen Stage 11.2 policy reasons and must retain direct pure-engine defensive coverage, including notional-limit and exposure validation under the frozen invariants. Explicitly constructed normalized proposals may exercise defensive integration/store validation where appropriate; inconsistent evidence must be rejected. This coverage must not fabricate either reason as a genuine current planner outcome. Future runtime scopes may exercise these reasons end-to-end only if separately accepted sizing/exposure contracts legally make them reachable.
+
+Future Stage 11.4b must prove atomic BLOCK persistence end-to-end with ENTRY_COUNT_LIMIT and RISK_LATCH_ACTIVE, retain pure coverage for ENTRY_NOTIONAL_LIMIT and POSITION_NOTIONAL_LIMIT/exposure, and may additionally test store rejection of inconsistent constructed inputs. It must never weaken planner/configuration invariants for coverage. In particular, none of these counts as a genuine runtime BLOCK proof:
+
+- `buy_quote_budget > max_entry_notional_quote`;
+- `max_entry_notional_quote > max_position_notional_quote`;
+- mismatched runtime/risk BUY budgets;
+- manually changing a planner ActionRecord's authorized amount;
+- enabling pyramiding;
+- bypassing planner validation.
+
+Such cases may test rejection of invalid evidence only. The matrix still has twenty cases; all other Decision 020 semantics remain unchanged. This correction adds no production/test/schema/dependency changes, migration, activation or Demo operation. Stage 11.4b remains NOT STARTED and must not resume until this correction is owner-reviewed/frozen.
 
 ## Stage 11.4a verification and publication
 

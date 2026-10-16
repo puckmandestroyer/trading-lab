@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-16 — Decision 020 reachability clarification
+
+- Owner-requested documentation-only correction: end-to-end BLOCK acceptance uses reachable ENTRY_COUNT_LIMIT and RISK_LATCH_ACTIVE. Fixed matching BUY budgets, ordered caps and FLAT-only/no-pyramiding ENTRY make ENTRY_NOTIONAL_LIMIT and POSITION_NOTIONAL_LIMIT defensive policy coverage in current scope; no policy reason is removed. Invalid inputs cannot stand in for genuine runtime BLOCK outcomes.
+- No production/test/schema/dependency changes or runtime integration. Real user DB migration/risk activation and authenticated Demo read/order/cancellation **NOT RUN**. Stage 11.4a remains the architecture baseline; Stage 11.4b remains NOT STARTED and must not resume until this correction is owner-reviewed/frozen.
+- Local unchanged full suite: **2,753 tests passed**, zero failures/errors/skips; `pip check` and both diff checks pass. Exactly three Markdown files changed; README and all production/tests remain unchanged.
+
 ## 2026-10-16 — Stage 11.4a Pre-Trade Risk Gate / Atomic Authorization Contract
 
 - Added Accepted Decision 020 for architecture/documentation only: planner proposal is separate from risk permission; explicit activation precedes LIVE frontier consumption, and empty risk journals return nonretryable RISK_NOT_READY without initialization/action/frontier advance. Stage 11.3 is owner-reviewed, COMPLETE/FROZEN at `be0eba0a4a6cb9f2d97165e0eb0da1525cdf951b`.
