@@ -6,7 +6,7 @@ The long-term goal is to support historical market data, multiple independent st
 
 ## Current stage
 
-**Stage 11 — Runtime Risk Management remains INCOMPLETE. Stage 11.3b — Durable Risk Journal / Schema-v2 Migration Implementation is COMPLETE / owner review pending; Stage 11.3 overall awaits owner freeze.** Stages 11.1–11.3a are independently owner-reviewed/FROZEN at `e80d318` / `ffb8566` / `9807ed8d9177149ebd578b93d00b149c7f7d2aed`. Accepted [Decisions 018](decisions/018_runtime_risk_management.md) / [019](decisions/019_runtime_risk_journal_schema.md) and the pure engine are unchanged. **Stage 11.4 is next and NOT STARTED; 11.5–11.8 and Stage 12 remain NOT STARTED.** Each milestone requires explicit owner approval/review.
+**Stage 11 — Runtime Risk Management remains INCOMPLETE. Stage 11.4 has STARTED; Stage 11.4a — Pre-Trade Risk Gate / Crash-Consistent Authorization Contract is COMPLETE / owner review pending.** [Decision 020](decisions/020_runtime_risk_gate_authorization.md) is Accepted for architecture/documentation only. Stages 11.1–11.3 are independently reviewed/FROZEN, with Stage 11.3 finalized at `be0eba0a4a6cb9f2d97165e0eb0da1525cdf951b`. **Stage 11.4b implementation is next and NOT STARTED; 11.5–11.8 and Stage 12 remain NOT STARTED.** No runtime risk integration or new LIVE writer exists yet; each implementation milestone requires separate explicit owner authorization.
 
 **Stage 10 — Demo Trading Runtime is independently owner-reviewed, COMPLETE / FROZEN at `87888719c3e2c87bd3b8979dd9c4ecc33db6cb65` (`Complete Stage 10 final audit`).** All Stage 9/10 contracts and approved corrections remain frozen. No authenticated Demo run was performed; no actual activation starts automatically.
 
@@ -33,6 +33,23 @@ Activation is once-only, including identical requests: it requires confirmed hea
 Canonical SHA256 configuration/epoch identities and complete owned-fill evidence snapshots have fixed test vectors. Later evidence never rewrites accepted history; a changed predecessor evidence digest blocks replay. Fully validated bounded reads are `get_risk_configuration(risk_configuration_digest=None)`, `get_current_risk_epoch()`, `get_latest_risk_valuation()`, `list_risk_valuations(epoch_id=None)`, `get_risk_verdict(candle_open_ms)` and `list_risk_verdicts(epoch_id=None)`; empty results are None/empty tuples. See [the persistence record](PROJECT_STATE.md#durable-risk-journal--schema-v2-migration-implementation--stage-113b) for exact signatures, migration guarantees and validation.
 
 **No public LIVE valuation writer, verdict writer, risk rearm or runtime authorization path exists yet.** Fresh/migrated/initialized/replayed journals have zero verdicts. Stage 10 planner/cycle/scheduler/reconciliation behavior, existing write semantics, lock, pure-risk code/tests, Decisions and historical financial results are preserved. Store preservation hashes and unsupported-version fixtures were adapted to schema v2 without removing tests.
+
+### Pre-trade risk authorization contract — Stage 11.4a
+
+Decision 020 defines this **future Stage 11.4b** boundary; it is not implemented yet:
+
+```text
+planner intent → risk gate → atomic LIVE valuation/verdict → optional PREPARED
+→ existing final pre-submit timing / ATTEMPT_STARTED → Demo mutation
+```
+
+Explicit risk activation must precede genuinely LIVE decision/frontier advancement. An empty journal will mean RISK_NOT_READY for LIVE ENTRY or HOLD, with no action, consumed LIVE candle or automatic initialization. It will not mean risk is disabled. Active risk must catch up missing durable historical hours through REPLAY_ONLY first; missed trips survive, with no historical order. Changed predecessor fill evidence blocks LIVE without rewriting old valuations.
+
+ALLOW of an action must commit together with its matching PREPARED, decision, valuation/verdict and checkpoint/frontier. BLOCK/TRIP of ENTRY consumes the candle through an existing WAIT decision and durable risk refusal, preserves the strategy's desired position, and creates no action. Risk TRIP is separate from runtime HALT: it blocks ENTRY but can permit a valid exact owned-base EXIT, without automatic cancellation or liquidation. Stage 10 safety always wins.
+
+A later FLAT/HOLD/desired-LONG mismatch may avoid a false HALT only with complete contiguous LIVE provenance from a refused ENTRY and subsequent no-action ALLOW/HOLD candles in the same epoch. **It never causes a delayed BUY on HOLD**, even if limits later allow it. The frozen planner, pure risk formulas and final one-attempt send boundary remain authoritative. Future normalized risk outcomes receive no 1s/2s scheduler retry.
+
+Stage 11.4a local validation: **2,753 unchanged tests passed**, zero failures/errors/skips; pip check and both diff checks pass. Only Decision 020 and three status documents change; zero new tests or production/schema/dependency changes. Stage 11.3 is independently owner-reviewed/FROZEN at `be0eba0`. Stage 11.4b requires separate authorization; no real user migration/activation or authenticated Demo operation was performed.
 
 ### Standalone pure risk API — Stage 11.2
 
@@ -327,7 +344,7 @@ Canonical BTC diagnostics retain **6,132 IS / 2,628 OOS**, boundary **2026-06-13
 
 The final audit accepts chronological cold-start OOS evaluation, deterministic sensitivity, descriptive local stability, fixed-configuration expanding walk-forward, consistent downstream diagnostics, and Notebook 06's visual research report. Stage 8 adds **235 tests** to the unchanged 747-test baseline: **982 total**, zero failures, errors, or skips. Frozen Stage 5–7 references, Decisions 010–012, notebook bytes, and BTC SHA256 are preserved. No optimizer, selected best EMA, robustness score, or stitched OOS portfolio exists. Already-seen single-asset/hourly/EMA research does not prove future profitability or provide demo/live trading evidence.
 
-Current focus: owner review/freeze of **Stage 11.3b — Durable Risk Journal / Schema-v2 Migration Implementation**. Stage 11.3a is FROZEN at `9807ed8`; Stage 11 remains INCOMPLETE and Stage 11.3 awaits owner freeze. Schema v2, explicit migration and ACTIVATION/REPLAY_ONLY persistence are implemented; no real user DB migration or LIVE/verdict write integration occurred. **Stage 11.4 is next / NOT STARTED; Stage 12 remains NOT STARTED.** No milestone or authenticated Demo activation starts automatically; earlier completion records retain their original totals.
+Current focus: owner review/freeze of **Stage 11.4a — Pre-Trade Risk Gate / Crash-Consistent Authorization Contract**. Stage 11.3 is COMPLETE/FROZEN at `be0eba0`; Stages 11 and 11.4 remain INCOMPLETE. The new decision defines future activation, LIVE atomic persistence and refusal continuation only; current Python/tests/schema are unchanged. **Stage 11.4b is next / NOT STARTED; 11.5–11.8 and Stage 12 remain NOT STARTED.** Real user DB migration/risk activation and authenticated Demo activity remain NOT RUN. No milestone starts automatically; earlier completion records retain their original totals.
 
 - Stage 1 completed: reusable historical data collection and a validated BTCUSDT hourly snapshot.
 - Stage 2 completed: statistical market analysis of returns, volatility, volume, extreme movements, and BTC buy-and-hold drawdown in `notebooks/01_data_exploration.ipynb`.

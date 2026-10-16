@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-16 — Stage 11.4a Pre-Trade Risk Gate / Atomic Authorization Contract
+
+- Added Accepted Decision 020 for architecture/documentation only: planner proposal is separate from risk permission; explicit activation precedes LIVE frontier consumption, and empty risk journals return nonretryable RISK_NOT_READY without initialization/action/frontier advance. Stage 11.3 is owner-reviewed, COMPLETE/FROZEN at `be0eba0a4a6cb9f2d97165e0eb0da1525cdf951b`.
+- Defined crash-recoverable hourly risk catch-up and predecessor evidence checks; future one-transaction LIVE candle/decision/valuation/verdict/optional PREPARED/checkpoint authorization. Refused ENTRY consumes the candle through WAIT without action; risk TRIP differs from runtime HALT and can permit exact valid EXIT without liquidation or refunding consumed ENTRY slots.
+- Defined a narrow contiguous LIVE refused-intent continuation around the frozen planner: preserve desired LONG after BLOCK/TRIP, avoid false HALT only with durable provenance, never issue a delayed BUY on HOLD. Stage 10 safety, final timing/attempt boundary and exact permissive golden 54/2/2/0 remain required.
+- Stage 11.4a local validation: **2,753 unchanged tests passed**, zero failures/errors/skips; pip check and both diff checks pass. Exactly four Markdown files; zero Python/tests/schema/dependency/previous-Decision/notebook/data/result changes and zero new tests. Real user DB migration/risk activation and authenticated Demo read/order/cancellation NOT RUN; no .env or credential access.
+- Stage 11.4a COMPLETE / owner review pending; Stages 11 and 11.4 INCOMPLETE; 11.4b implementation next / NOT STARTED, requiring separate explicit authorization after contract review/freeze. Stages 11.5–11.8 and Stage 12 NOT STARTED.
+
 ## 2026-10-16 — Stage 11.3b durable risk journal implementation
 
 - RuntimeStore schema v2 adds four immutable risk tables to the existing six; runtime contract stays 1. Added exact configuration/epoch/evidence digests, immutable records, bounded reads, once-only ACTIVATION and consecutive REPLAY_ONLY persistence through the frozen pure risk engine. Late predecessor evidence blocks replay without historical rewriting; no LIVE/verdict writer or runtime risk authorization exists.
