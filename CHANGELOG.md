@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-16 — Stage 11.8 Final Stage 11 Audit + Documentation
+
+- Audited Decisions 017–021, the actual Stage 11 commit/scope ledger, exact accounting, schema/version/migration, public APIs, atomic authorization/send ordering, breakers, refused-HOLD provenance, replay/restart, independent explicit rearm, network boundaries and capability exclusions. No production/test/schema contract blocker found; Stage 11.7 independently owner-reviewed / FROZEN at `8a57b81b7ea464739d295cf737b057fec79be86f`.
+- Documentation only: exactly PROJECT_STATE.md, README.md and CHANGELOG.md; zero production, test, schema, dependency or Decision changes, zero new tests. Historical milestone meanings/totals are preserved; no Decision 022 or new audit artifact. Stage 5 EMA/backtest/next-OPEN behavior, notebooks and data remain unchanged.
+- Local execution: unchanged full suite **2,943 passed**, failures/errors/skips **0/0/0**; all required component suites, `pip check` and unstaged/staged diff checks pass. Unchanged golden **54 decisions / 2 placements / 2 fills / 0 cancellations / 1 risk epoch when rearm unused**, exact IDs/links/amounts/fills/fees/ownership/restart. CI/status checks unavailable / none configured for this evidence; no CI claim.
+- Stage 11.8 and Stage 11 — Runtime Risk Management are **COMPLETE / owner review pending**, not self-declared FROZEN. Stage 12 and 12.1–12.4 **NOT STARTED**; no automatic continuation. Offline-tested Demo risk management does not establish profitability, exchange/long-running reliability, monitoring/deployment hardening, production readiness or live-money safety.
+- Real user DB migration, risk activation/rearm, real Runtime HALT operator rearm and authenticated Bybit Demo read/order/cancellation: **NOT RUN**. No credentials/.env access, real user journal operation or notebook execution during this audit.
+
 ## 2026-10-16 — Stage 11.7 End-to-End Runtime Risk Integration Regression
 
 - Added 11 long offline E2E regressions using the frozen runtime, real adapter parsing, existing external fakes and temporary SQLite. Zero production behavior, existing-test, schema, dependency or Decision changes.
