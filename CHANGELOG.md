@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-16 — Stage 11.7 End-to-End Runtime Risk Integration Regression
+
+- Added 11 long offline E2E regressions using the frozen runtime, real adapter parsing, existing external fakes and temporary SQLite. Zero production behavior, existing-test, schema, dependency or Decision changes.
+- Covered healthy BUY/HOLD/SELL and LONG restart, atomic rollback, crashes before/after ATTEMPT_STARTED, lost ACK without resend, count BLOCK/HOLD continuation, daily-loss/drawdown/midnight TRIP, downtime/interrupted replay and late evidence. Combined pending/partial fills, both HALT/risk latches, explicit controls/reconciliation, LONG child/restart/next LIVE/normal EXIT, cross-epoch exact book/fees/count and wallet exclusion. A copied adversarial net-unchanged post-boundary fill pair still blocks rearm; controls remain broker-free and never automatic.
+- Local execution: **11 new tests; full suite 2,943 (2,932 + 11)**, zero failures/errors/skips; all required component suites, `pip check` and unstaged/staged diff checks pass. Existing golden remains **54 decisions / 2 placements / 2 fills / 0 cancellations / 1 epoch when rearm is unused**, preserving exact IDs/links, amounts/fill economics, ownership and restart behavior. Stage 5 financial/EMA/next-OPEN behavior, notebooks and data remain unchanged.
+- Stage 11.6 independently owner-reviewed, COMPLETE / FROZEN at `a16fe071b508394bba3c79953ddc7e6ae018d3e7`. Stage 11.7 COMPLETE / owner review pending; Stage 11 INCOMPLETE pending 11.8 final audit; Stage 11.8 and Stage 12 NOT STARTED. Evidence establishes offline architecture behavior only, not profitability, exchange/operational reliability or production/live readiness. Real user migration/activation/rearm, real Runtime HALT rearm and authenticated Demo read/order/cancellation **NOT RUN**.
+
 ## 2026-10-16 — Stage 11.6b Durable Runtime Risk Rearm Controls
 
 - Added pure `rearm_risk_state` and exactly two local RuntimeStore controls: `rearm_runtime_halt` and `rearm_risk_epoch`. HALT rearm uses frozen OPERATOR_REARMED/CAS to SYNCHRONIZING with reconciliation still required and risk unchanged. Risk rearm inserts only a same-config/shared-T child epoch + ACTIVATION, preserving continuous book/evidence and all-epoch same-day ENTRY count while resetting measurement baseline/peak to current equity.

@@ -6,7 +6,7 @@ The long-term goal is to support historical market data, multiple independent st
 
 ## Current stage
 
-**Stage 11 — Runtime Risk Management remains INCOMPLETE. Stage 11.6a is independently owner-reviewed / FROZEN at `a45389ae8c4c4b399373c8be8ff2ea0b1046deed`. Stage 11.6b — Runtime Risk Rearm / Operator Controls Implementation is COMPLETE / owner review pending; Stage 11.6 overall awaits freeze.** The local controls implement unchanged Accepted [Decision 021](decisions/021_runtime_risk_rearm_operator_controls.md). Stage 11.5 remains FROZEN at `f1c542b3deb5d1baebd2ea52f70ea0785292e5df`. **Stage 11.7 is next / NOT STARTED; 11.8 and Stage 12 remain NOT STARTED.** No real user migration, activation/rearm or authenticated Demo operation was performed.
+**Stage 11 — Runtime Risk Management remains INCOMPLETE. Stage 11.6 is independently owner-reviewed, COMPLETE / FROZEN at `a16fe071b508394bba3c79953ddc7e6ae018d3e7`. Stage 11.7 — End-to-End Risk Integration Regression is COMPLETE / owner review pending.** The local controls implement unchanged Accepted [Decision 021](decisions/021_runtime_risk_rearm_operator_controls.md); Stage 11.6a remains FROZEN at `a45389ae8c4c4b399373c8be8ff2ea0b1046deed` and Stage 11.5 at `f1c542b3deb5d1baebd2ea52f70ea0785292e5df`. **Stage 11.8 is next / NOT STARTED; Stage 12 remains NOT STARTED.** No real user migration, activation/rearm or authenticated Demo operation was performed.
 
 **Stage 10 — Demo Trading Runtime is independently owner-reviewed, COMPLETE / FROZEN at `87888719c3e2c87bd3b8979dd9c4ecc33db6cb65` (`Complete Stage 10 final audit`).** All Stage 9/10 contracts and approved corrections remain frozen. No authenticated Demo run was performed; no actual activation starts automatically.
 
@@ -117,7 +117,19 @@ Shared-T history is ordered by time/epoch sequence; highest validated sequence i
 
 Local execution: **82 new focused tests**, full suite **2,932 (2,850 + 82)**, zero failures/errors/skips; required component regressions, `pip check` and both diff checks pass. No-rearm golden remains **54 / 2 / 2 / 0**, one epoch, exact IDs/economics and restart behavior. Only the two approved production modules change; all other production, Decisions, dependencies, notebooks/data and Stage 5 EMA/next-OPEN behavior remain unchanged. Existing test edits admit only the approved public surfaces and corresponding preservation guards. See [the implementation record](PROJECT_STATE.md#runtime-risk-rearm--operator-controls-implementation--stage-116b).
 
-Stage 11.6b COMPLETE / owner review pending; 11.6 overall awaits freeze; Stage 11 INCOMPLETE. Stage 11.7 next / NOT STARTED, Stage 12 NOT STARTED. Real user DB migration/risk activation/rearm, real Runtime HALT rearm and authenticated Demo read/order/cancellation: **NOT RUN**.
+Stage 11.6b and Stage 11.6 overall are independently owner-reviewed, COMPLETE / FROZEN at `a16fe071b508394bba3c79953ddc7e6ae018d3e7`; Stage 11 remains INCOMPLETE. The Stage 11.7 evidence is recorded below. Real user DB migration/risk activation/rearm, real Runtime HALT rearm and authenticated Demo read/order/cancellation: **NOT RUN**.
+
+### End-to-end runtime risk regression — Stage 11.7
+
+Eleven long offline scenarios exercise the frozen EMA → planner → risk gate → atomic authorization → real adapters/fake SDK → reconciliation → owned fills → risk accounting path, including actual scheduler wakes and temporary SQLite restarts. No production, existing test, schema, dependency or Decision changed.
+
+Coverage combines healthy BUY/HOLD/SELL and LONG restart; atomic rollback; crashes before/after ATTEMPT_STARTED; lost ACK without resend; ENTRY_COUNT BLOCK and safe HOLD continuation; exact daily-loss/drawdown/midnight trips; downtime and interrupted replay; late-fill refusal; pending/partial outcomes; operational HALT plus risk TRIP; explicit HALT rearm/reconciliation and LONG child epoch; child restart/next LIVE/normal EXIT; continuous exact book/fees/count and unrelated wallet exclusion. A copied adversarial post-boundary BUY+SELL fixture preserves net cash/inventory but still blocks rearm. Uninitialized-risk scheduler behavior and healthy-risk operational HALT precedence are covered too.
+
+Audits compare returned results with reopened durable truth, enforce matching LIVE decision/valuation/verdict/PREPARED, and observe ALLOW before adapter entry plus durable ATTEMPT_STARTED before each fake SDK mutation. Every logical action has at most one automatic placement invocation. No blind resend, forced liquidation, automatic cancellation or automatic rearm; explicit controls cause no broker/market/credential call. [The Stage 11.7 record](PROJECT_STATE.md#end-to-end-runtime-risk-integration-regression--stage-117) gives the scenario matrix and limitations.
+
+Local execution: **11 new tests; full suite 2,943 (2,932 + 11)**, zero failures/errors/skips. All required component suites, `pip check` and both diff checks pass. The unchanged golden retains **54 decisions / 2 placements / 2 fills / 0 cancellations / 1 epoch when rearm is unused**, exact IDs/links and Decimal economics. The new healthy case has one extra final accounting HOLD (55 decisions). Frozen Stage 5 EMA/financial/next-OPEN behavior, notebooks and data are preserved.
+
+This is offline architecture evidence, not proof of profitability, real exchange reliability, production readiness, live-money safety, long-running operational reliability, monitoring or deployment. Real user DB migration/risk activation/rearm, real Runtime HALT rearm and authenticated Demo read/order/cancellation: **NOT RUN**. Stage 11.7 is COMPLETE / owner review pending; Stage 11 remains INCOMPLETE pending Stage 11.8 final audit. Stage 11.8 and Stage 12 are NOT STARTED and do not start automatically.
 
 ### Standalone pure risk API — Stage 11.2
 
@@ -412,7 +424,7 @@ Canonical BTC diagnostics retain **6,132 IS / 2,628 OOS**, boundary **2026-06-13
 
 The final audit accepts chronological cold-start OOS evaluation, deterministic sensitivity, descriptive local stability, fixed-configuration expanding walk-forward, consistent downstream diagnostics, and Notebook 06's visual research report. Stage 8 adds **235 tests** to the unchanged 747-test baseline: **982 total**, zero failures, errors, or skips. Frozen Stage 5–7 references, Decisions 010–012, notebook bytes, and BTC SHA256 are preserved. No optimizer, selected best EMA, robustness score, or stitched OOS portfolio exists. Already-seen single-asset/hourly/EMA research does not prove future profitability or provide demo/live trading evidence.
 
-Current focus: owner review/freeze of **Stage 11.6b**. Stage 11.6a is FROZEN at `a45389a`; 11.6 overall awaits freeze and Stage 11 remains INCOMPLETE. **Stage 11.7 is next / NOT STARTED; 11.8 and Stage 12 remain NOT STARTED.** No next milestone starts automatically; no real user DB migration/activation/rearm or authenticated Demo activity. Earlier completion records retain their original totals.
+Current focus: owner review/freeze of **Stage 11.7**. Stage 11.6 is COMPLETE / FROZEN at `a16fe071`; Stage 11 remains INCOMPLETE. **Stage 11.8 is next / NOT STARTED; Stage 12 remains NOT STARTED.** No next milestone starts automatically; no real user DB migration/activation/rearm or authenticated Demo activity. Earlier completion records retain their original totals.
 
 - Stage 1 completed: reusable historical data collection and a validated BTCUSDT hourly snapshot.
 - Stage 2 completed: statistical market analysis of returns, volatility, volume, extreme movements, and BTC buy-and-hold drawdown in `notebooks/01_data_exploration.ipynb`.
