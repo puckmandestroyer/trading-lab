@@ -25,7 +25,9 @@ from ..exchange.account_state import ReadOnlyBroker
 from ..exchange.bybit_demo_orders import BybitDemoOrderAdapter, BybitDemoOrderRejectedError
 from ..exchange.order_actions import SpotMarketOrderAcknowledgement, SpotMarketOrderRequest
 from ..strategies.ema_trend import generate_ema_signals
+from ..risk.runtime_risk import RiskReason, RiskVerdict
 from .planner import CanonicalDecision, DecisionMode, PlanKind, plan_action
+from .risk_gate import continue_refused_intent
 from .reconciliation import reconcile_startup
 from .state import (
     RuntimeEvent, RuntimeEventType, RuntimeEvidence, RuntimeReason, RuntimeState,
@@ -56,6 +58,9 @@ class CycleOutcome(str, Enum):
     STOPPING = "STOPPING"
     OBSERVED = "OBSERVED"
     ABANDONED_UNSENT = "ABANDONED_UNSENT"
+    RISK_NOT_READY = "RISK_NOT_READY"
+    RISK_BLOCKED = "RISK_BLOCKED"
+    RISK_TRIPPED = "RISK_TRIPPED"
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,6 +75,8 @@ class SingleCycleResult:
     broker_order_id: str | None = None
     new_execution_ids: tuple[str, ...] = ()
     reason: RuntimeReason | None = None
+    risk_verdict: RiskVerdict | None = None
+    risk_reason: RiskReason | None = None
 
     @property
     def processed_candle_count(self) -> int:
@@ -201,6 +208,7 @@ def run_single_cycle(
     last_ms = current.observed_at_ms or 0
     planner_kind = None
     action_id = None
+    risk_verdict = risk_reason = None
 
     def now():
         nonlocal last_ms
@@ -219,7 +227,8 @@ def run_single_cycle(
         action = store.get_action(selected_id) if selected_id is not None else None
         return SingleCycleResult(cp, outcome, tuple(processed), planner_kind, selected_id,
                                  action.broker_order_id if action is not None and action.acknowledgement_broker_ms is not None else None,
-                                 tuple(dict.fromkeys(execution_ids)), reason or cp.snapshot.reason)
+                                 tuple(dict.fromkeys(execution_ids)), reason or cp.snapshot.reason,
+                                 risk_verdict, risk_reason)
 
     def halt(reason):
         cp = store.get_checkpoint()
@@ -321,6 +330,35 @@ def run_single_cycle(
         evaluated_ms = now()
         plan = plan_action(config, current, decision, evaluated_at_ms=evaluated_ms,
                            mode=mode, action_history=store.list_actions())
+        # Operational planner refusals retain precedence. Only an eligible LIVE
+        # decision (or the specific refusal-continuation candidate) consults risk.
+        live = (mode is DecisionMode.LIVE and plan.decision is not None
+                and plan.decision.disposition in (DecisionDisposition.ACTION,
+                                                  DecisionDisposition.NOOP, DecisionDisposition.WAIT))
+        continuation = (mode is DecisionMode.LIVE and plan.kind is PlanKind.HALT
+                        and plan.reason is RuntimeReason.INCONSISTENT_EVIDENCE
+                        and decision.signal == "HOLD" and decision.desired_position == 1)
+        if live or continuation:
+            epoch = store.get_current_risk_epoch()
+            if epoch is None and live:
+                planner_kind = plan.kind
+                return result(CycleOutcome.RISK_NOT_READY)
+            if epoch is not None:
+                latest = store.get_latest_risk_valuation()
+                # Bounded by the complete durable decision history. Separate
+                # historical commits authorize nothing and are crash recoverable.
+                for at in range(latest.candle_open_ms + config.interval_ms,
+                                current.last_processed_candle_ms + 1, config.interval_ms):
+                    store.append_risk_replay_valuation(candle_open_ms=at)
+                if continuation:
+                    verdicts = {row.candle_open_ms: row for row in store.list_risk_verdicts(epoch.epoch_id)}
+                    history = tuple((store.get_decision(row.candle_open_ms), row,
+                                     verdicts.get(row.candle_open_ms))
+                                    for row in store.list_risk_valuations(epoch.epoch_id))
+                    plan = continue_refused_intent(config, current, decision, plan,
+                        evaluated_at_ms=evaluated_ms, epoch=epoch, history=history,
+                        action_history=store.list_actions())
+                    live = plan.kind is PlanKind.NOOP
         planner_kind = plan.kind
         changes = {}
         if plan.decision is not None:
@@ -334,11 +372,25 @@ def run_single_cycle(
             if plan.events:
                 store.save_checkpoint(proposed, expected_sequence=current.sequence)
             return result({PlanKind.HALT: CycleOutcome.HALTED, PlanKind.RECONCILE: CycleOutcome.RECONCILE}.get(plan.kind, CycleOutcome.WAIT), plan.reason)
-        committed = store.commit_decision(record, plan.decision, proposed,
-                                           expected_sequence=current.sequence, action=plan.action)
+        if live:
+            committed = store.commit_live_risk_decision(record, plan.decision, proposed,
+                expected_sequence=current.sequence, evaluated_at_ms=evaluated_ms,
+                proposed_action=plan.action)
+        else:
+            committed = store.commit_decision(record, plan.decision, proposed,
+                                               expected_sequence=current.sequence, action=plan.action)
         if not committed:
             return result(CycleOutcome.WAIT)  # Reload only; replay never licenses a send.
         processed.append(decision.candle_open_ms)
+        if live:
+            verdict = store.get_risk_verdict(decision.candle_open_ms)
+            if verdict is None:
+                raise RuntimeStoreError("Committed LIVE decision requires its durable risk verdict.")
+            risk_verdict, risk_reason = verdict.verdict, verdict.reason
+            if risk_verdict is not RiskVerdict.ALLOW:
+                return result(CycleOutcome.RISK_BLOCKED if risk_verdict is RiskVerdict.BLOCK else CycleOutcome.RISK_TRIPPED)
+            if verdict.action_id != (None if plan.action is None else plan.action.logical_action_id):
+                raise RuntimeStoreError("Durable risk approval must match the proposed placement.")
         if plan.kind == PlanKind.HALT:
             return result(CycleOutcome.HALTED, plan.reason)
         if plan.action is None:

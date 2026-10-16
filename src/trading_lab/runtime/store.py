@@ -26,11 +26,12 @@ from ..risk.runtime_risk import (
     RuntimeRiskConfiguration, RuntimeRiskError, RiskBook, RiskState,
     RiskExecution, RiskExecutionSide, RiskActionKind, RiskActionProposal, RiskVerdict, RiskReason,
     initial_risk_book, apply_owned_execution, calculate_risk_equity,
-    initialize_risk_state, advance_risk_state, evaluate_risk,
+    initialize_risk_state, advance_risk_state, evaluate_risk, DAY_MS,
 )
 from .state import (
     PendingAction, PendingActionKind, PositionEvidence, RuntimeReason,
-    RuntimeState, RuntimeStateError, RuntimeStateSnapshot,
+    RuntimeState, RuntimeStateError, RuntimeStateSnapshot, RuntimeEvent,
+    RuntimeEventType, transition_runtime_state,
 )
 
 SCHEMA_VERSION = 2
@@ -1345,6 +1346,159 @@ class RuntimeStore:
             self._validate_risk_history()
         return True
 
+    def _risk_planning_history(self, epoch):
+        verdicts = {row.candle_open_ms: row for row in self.list_risk_verdicts(epoch.epoch_id)}
+        return tuple((self.get_decision(row.candle_open_ms), row, verdicts.get(row.candle_open_ms))
+                     for row in self.list_risk_valuations(epoch.epoch_id))
+
+    def commit_live_risk_decision(
+        self, candle: CandleRecord, decision: DecisionRecord, checkpoint: RuntimeCheckpoint,
+        *, expected_sequence: int, evaluated_at_ms: int,
+        proposed_action: ActionRecord | None = None,
+    ) -> bool:
+        """Atomically authorize one current LIVE decision from durable facts.
+
+        Inputs are the original frozen planner proposal/checkpoint, never a
+        caller verdict. Refusal replaces its pending event with NO_CHANGE. True
+        means committed; False means an exact already-committed replay and can
+        NEVER license a send. Persistence uncertainty requires reopening.
+        """
+        # Local imports avoid the frozen planner -> record definitions cycle.
+        from .planner import CanonicalDecision, DecisionMode, PlanKind, plan_action, _canonical_intent
+        from .risk_gate import continue_refused_intent, risk_proposal
+
+        _require(type(candle) is CandleRecord and type(decision) is DecisionRecord
+                 and type(checkpoint) is RuntimeCheckpoint, "Exact validated LIVE records are required.")
+        replace(candle)
+        replace(decision)
+        replace(checkpoint, snapshot=replace(checkpoint.snapshot))
+        _integer(expected_sequence)
+        _time(evaluated_at_ms)
+        with _risk_validation():
+            proposal = risk_proposal(proposed_action)
+        self._check_instrument(candle)
+        self._check_instrument(decision)
+        if (candle.candle_open_ms, candle.input_fingerprint) != (decision.candle_open_ms, decision.input_fingerprint):
+            raise RuntimeStoreConflictError("LIVE decision must match its accepted candle.")
+        config = self._configuration
+        if proposed_action is not None:
+            self._check_action_binding(proposed_action)
+            expected_id = hashlib.sha256(_canonical_intent(config, decision, proposed_action.kind,
+                                                           proposed_action.authorized_amount)).hexdigest()
+            if (proposed_action.logical_action_id != expected_id or decision.action_id != expected_id
+                    or proposed_action.candle_open_ms != candle.candle_open_ms
+                    or proposed_action.reconciliation_deadline_ms != decision.available_at_ms + config.reconciliation_timeout_ms
+                    or proposed_action.remaining_reconciliation_rounds != config.reconciliation_round_limit
+                    or proposed_action.remaining_read_attempts != config.read_attempt_limit
+                    or (proposal.kind is RiskActionKind.ENTRY and proposal.authorized_amount != config.buy_quote_budget)):
+                raise RuntimeStoreConflictError("LIVE proposal differs from canonical frozen planner intent.")
+
+        with self._transaction():
+            self._validate_all()
+            epoch = self.get_current_risk_epoch()
+            if epoch is None or epoch.epoch_sequence != 1:
+                raise RuntimeStoreConflictError("An explicitly activated initial risk epoch is required.")
+            configuration = self.get_risk_configuration().configuration
+            previous = self.get_latest_risk_valuation()
+            prior_decision = self.get_decision(candle.candle_open_ms)
+            if prior_decision is not None:
+                prior_verdict = self.get_risk_verdict(candle.candle_open_ms)
+                expected_decision = decision
+                if prior_verdict is not None and prior_verdict.verdict is not RiskVerdict.ALLOW and proposal is not None:
+                    expected_decision = replace(decision, disposition=DecisionDisposition.WAIT, action_id=None)
+                if (prior_verdict is None or prior_verdict.epoch_id != epoch.epoch_id
+                        or self.get_candle(candle.candle_open_ms) != candle or prior_decision != expected_decision
+                        or (prior_verdict.proposal_kind, prior_verdict.authorized_amount, prior_verdict.evaluated_at_ms)
+                        != (None if proposal is None else proposal.kind,
+                            None if proposal is None else proposal.authorized_amount, evaluated_at_ms)):
+                    raise RuntimeStoreConflictError("Conflicting immutable LIVE replay.")
+                if prior_verdict.action_id is not None:
+                    saved = self.get_action(prior_verdict.action_id)
+                    if proposed_action is None or any(getattr(saved, name) != getattr(proposed_action, name) for name in _INTENT_FIELDS):
+                        raise RuntimeStoreConflictError("LIVE replay cannot replace its original action.")
+                return False
+
+            current = self.get_checkpoint()
+            if current.sequence != expected_sequence:
+                raise RuntimeStoreConflictError("Stale LIVE checkpoint sequence.")
+            if (current.last_processed_candle_ms is None
+                    or candle.candle_open_ms != current.last_processed_candle_ms + _HOUR_MS
+                    or previous.candle_open_ms != current.last_processed_candle_ms
+                    or candle.candle_open_ms + _HOUR_MS != previous.valued_at_ms + _HOUR_MS):
+                raise RuntimeStoreConflictError("LIVE requires the next frontier and consecutive risk hour after catch-up.")
+            canonical = CanonicalDecision(decision.symbol, decision.timeframe, decision.candle_open_ms,
+                                          decision.input_fingerprint, decision.signal, decision.desired_position,
+                                          decision.available_at_ms)
+            actions = self.list_actions()
+            plan = plan_action(config, current, canonical, evaluated_at_ms=evaluated_at_ms,
+                               mode=DecisionMode.LIVE, action_history=actions)
+            if plan.kind is PlanKind.HALT:
+                plan = continue_refused_intent(config, current, canonical, plan, evaluated_at_ms=evaluated_at_ms,
+                    epoch=epoch, history=self._risk_planning_history(epoch), action_history=actions)
+            if (plan.kind not in (PlanKind.NOOP, PlanKind.WAIT, PlanKind.PLACE_BUY, PlanKind.PLACE_SELL)
+                    or plan.decision is None or plan.decision.disposition not in (
+                        DecisionDisposition.NOOP, DecisionDisposition.WAIT, DecisionDisposition.ACTION)
+                    or decision != plan.decision or proposed_action != plan.action):
+                raise RuntimeStoreConflictError("Operational planner evidence does not permit this LIVE proposal.")
+            snapshot = current.snapshot
+            for event in plan.events:
+                snapshot = transition_runtime_state(snapshot, event)
+            expected_checkpoint = replace(current, sequence=current.sequence + 1, snapshot=snapshot,
+                                          last_processed_candle_ms=candle.candle_open_ms)
+            if checkpoint != expected_checkpoint:
+                raise RuntimeStoreConflictError("LIVE checkpoint differs from its independent planner transition.")
+
+            fills = self.list_fills()
+            _, predecessor_evidence = _fill_evidence(fills, previous.valued_at_ms)
+            if predecessor_evidence != (previous.fill_evidence_count, previous.fill_evidence_digest):
+                raise RuntimeStoreConflictError("Predecessor owned-fill evidence changed; LIVE is blocked.")
+            selected, evidence = _fill_evidence(fills, candle.candle_open_ms + _HOUR_MS)
+            book = _risk_book(configuration, selected)
+            # A read may observe fills after this closed mark. No-action
+            # accounting keeps its temporal cutoff; a placement must agree with
+            # the currently confirmed quantity as well as that cutoff book.
+            if proposal is not None and book.owned_base_quantity != current.snapshot.owned_base_quantity:
+                raise RuntimeStoreConflictError("Current owned exposure differs from the closed-boundary risk book.")
+            # Pure state counts use the valued UTC day, whereas durable counts
+            # use authorization time. Refuse a cross-day clock mismatch; never
+            # relabel either timestamp or modify the frozen pure engine.
+            day = (candle.candle_open_ms + _HOUR_MS) // DAY_MS * DAY_MS
+            if evaluated_at_ms // DAY_MS * DAY_MS != day:
+                raise RuntimeStoreConflictError("LIVE authorization and valuation UTC days must agree.")
+            verdicts = self.list_risk_verdicts()
+            if verdicts and evaluated_at_ms < max(row.evaluated_at_ms for row in verdicts):
+                raise RuntimeStoreConflictError("LIVE authorization time cannot regress.")
+            consumed = sum(row.verdict is RiskVerdict.ALLOW and row.proposal_kind is RiskActionKind.ENTRY
+                           and row.evaluated_at_ms // DAY_MS * DAY_MS == day for row in verdicts)
+            with _risk_validation():
+                state = advance_risk_state(configuration, previous.state(epoch.started_at_ms), book,
+                                           candle.close, candle.candle_open_ms + _HOUR_MS)
+                if state.entries_this_utc_day != consumed:
+                    raise RuntimeStoreIntegrityError("Risk ENTRY count differs from retained authorization history.")
+                evaluation = evaluate_risk(configuration, state, book, candle.close, proposal)
+            authorized = proposed_action if evaluation.verdict is RiskVerdict.ALLOW else None
+            accepted_decision, accepted_checkpoint = decision, expected_checkpoint
+            if proposed_action is not None and authorized is None:
+                accepted_decision = replace(decision, disposition=DecisionDisposition.WAIT, action_id=None)
+                snapshot = transition_runtime_state(current.snapshot, RuntimeEvent(
+                    RuntimeEventType.NO_CHANGE, desired_position=decision.desired_position))
+                accepted_checkpoint = replace(expected_checkpoint, snapshot=snapshot)
+            valuation = _risk_valuation(epoch, RiskValuationMode.LIVE, candle, book, evaluation.state, evidence)
+            verdict = RiskVerdictRecord(candle.symbol, candle.timeframe, candle.candle_open_ms, epoch.epoch_id,
+                valuation.valued_at_ms, epoch.risk_configuration_digest,
+                None if proposal is None else proposal.kind, None if proposal is None else proposal.authorized_amount,
+                evaluation.verdict, evaluation.reason, None if authorized is None else authorized.logical_action_id,
+                evaluated_at_ms)
+            self._insert("candles", _encode(candle))
+            if authorized is not None:
+                self._insert_prepared(authorized)
+            self._insert("decisions", _encode(accepted_decision))
+            self._insert("risk_valuations", _encode(valuation))
+            self._insert("risk_verdicts", _encode(verdict))
+            self._save_checkpoint(accepted_checkpoint, expected_sequence)
+            self._validate_all()
+        return True
+
     def _validate_risk_history(self):
         """Validate retained observations without replaying today's expanded fills.
 
@@ -1372,6 +1526,7 @@ class RuntimeStore:
             self._risk_compatible(record.configuration)
         by_valuation = {(row.epoch_id, row.valued_at_ms): row for row in valuations}
         by_verdict = {(row.epoch_id, row.valued_at_ms): row for row in verdicts}
+        entry_counts = {}
         prior_epoch = None
         for sequence, epoch in enumerate(epochs, 1):
             if (epoch.epoch_sequence != sequence or epoch.parent_epoch_id != (None if prior_epoch is None else prior_epoch.epoch_id)
@@ -1415,10 +1570,16 @@ class RuntimeStore:
                         if (evaluation.verdict, evaluation.reason) != (verdict.verdict, verdict.reason):
                             raise RuntimeStoreIntegrityError("Risk verdict differs from the pure policy result.")
                         expected = evaluation.state
+                        if verdict.evaluated_at_ms // DAY_MS * DAY_MS != row.utc_day_start_ms:
+                            raise RuntimeStoreIntegrityError("Risk authorization and valuation UTC days differ.")
+                        if verdict.verdict is RiskVerdict.ALLOW and verdict.proposal_kind is RiskActionKind.ENTRY:
+                            entry_counts[row.utc_day_start_ms] = entry_counts.get(row.utc_day_start_ms, 0) + 1
                     elif verdict is not None:
                         raise RuntimeStoreIntegrityError("Historical risk valuation cannot authorize a decision.")
                     if state != expected:
                         raise RuntimeStoreIntegrityError("Risk valuation differs from its pure state transition.")
+                    if state.entries_this_utc_day != entry_counts.get(row.utc_day_start_ms, 0):
+                        raise RuntimeStoreIntegrityError("Risk ENTRY count differs from retained authorization history.")
                 previous = row
             prior_epoch = epoch
         if {row.epoch_id for row in valuations} != {row.epoch_id for row in epochs}:
@@ -1431,14 +1592,43 @@ class RuntimeStore:
                         row.symbol, row.timeframe, row.candle_open_ms, row.risk_configuration_digest)
                     or verdict.action_id != decision.action_id):
                 raise RuntimeStoreIntegrityError("Risk verdict/valuation/decision binding mismatch.")
+            if decision.disposition not in (DecisionDisposition.ACTION, DecisionDisposition.NOOP, DecisionDisposition.WAIT):
+                raise RuntimeStoreIntegrityError("LIVE policy requires an operational decision disposition.")
+            if verdict.proposal_kind is RiskActionKind.ENTRY and (
+                    verdict.authorized_amount != self._configuration.buy_quote_budget
+                    or decision.signal != "LONG_ENTRY" or decision.desired_position != 1):
+                raise RuntimeStoreIntegrityError("Risk ENTRY must retain the exact frozen planner proposal.")
+            if verdict.verdict is not RiskVerdict.ALLOW and verdict.proposal_kind is not None and (
+                    decision.disposition is not DecisionDisposition.WAIT or row.owned_base_quantity != 0):
+                raise RuntimeStoreIntegrityError("Refused ENTRY requires confirmed zero exposure and a no-action WAIT.")
             if verdict.action_id is not None:
                 action = self.get_action(verdict.action_id)
                 if (action is None or action.kind.value != verdict.proposal_kind.value
                         or action.authorized_amount != verdict.authorized_amount
                         or action.symbol != verdict.symbol or action.candle_open_ms != verdict.candle_open_ms):
                     raise RuntimeStoreIntegrityError("Risk ALLOW action binding mismatch.")
+                from .planner import _canonical_intent
+                if (hashlib.sha256(_canonical_intent(self._configuration, decision, action.kind,
+                                                    action.authorized_amount)).hexdigest() != action.logical_action_id
+                        or action.reconciliation_deadline_ms != decision.available_at_ms + self._configuration.reconciliation_timeout_ms):
+                    raise RuntimeStoreIntegrityError("Risk action differs from canonical planner identity/timing.")
             if verdict.verdict is RiskVerdict.TRIP and verdict.reason is not row.trip_reason:
                 raise RuntimeStoreIntegrityError("Risk TRIP must retain its valuation latch.")
+        # Recheck the entire epoch, including its ACTIVATION anchor. This is
+        # independent of the cycle's interpretation and also runs on reopen.
+        from .risk_gate import refusal_frontiers
+        for epoch in epochs:
+            rows = sorted((row for row in valuations if row.epoch_id == epoch.epoch_id), key=lambda row: row.valued_at_ms)
+            links = tuple((self.get_decision(row.candle_open_ms), row,
+                           by_verdict.get((row.epoch_id, row.valued_at_ms))) for row in rows)
+            actions = tuple(_decode("actions", action) for action in connection.execute("SELECT * FROM actions"))
+            proved = refusal_frontiers(self._configuration, epoch, links, actions)
+            for decision, row, verdict in links:
+                if (row.mode is RiskValuationMode.LIVE and row.owned_base_quantity == 0
+                        and decision.signal == "HOLD" and decision.desired_position == 1
+                        and decision.disposition is DecisionDisposition.NOOP
+                        and row.candle_open_ms not in proved):
+                    raise RuntimeStoreIntegrityError("LIVE refused-intent HOLD lacks complete durable provenance.")
 
     def _validate_all(self):
         self._verify_settings()
@@ -1602,6 +1792,10 @@ class RuntimeStore:
             next_candle = self._configuration.history_anchor_ms if current.last_processed_candle_ms is None else current.last_processed_candle_ms + _HOUR_MS
             if decision.candle_open_ms != next_candle or checkpoint.last_processed_candle_ms != next_candle or checkpoint.snapshot.desired_position != decision.desired_position:
                 raise RuntimeStoreConflictError("New decision must advance the contiguous frontier and matching intent.")
+            cutoffs = tuple(value for value in (current.bootstrap_until_ms, current.replay_until_ms) if value is not None)
+            if (cutoffs and decision.candle_open_ms > max(cutoffs)
+                    and decision.disposition in (DecisionDisposition.ACTION, DecisionDisposition.NOOP, DecisionDisposition.WAIT)):
+                raise RuntimeStoreConflictError("Classified LIVE work requires atomic risk authorization.")
             self._insert("candles", _encode(candle))
             if decision.action_id is not None:
                 _require(isinstance(action, ActionRecord), "ACTION decision requires a prepared action.")

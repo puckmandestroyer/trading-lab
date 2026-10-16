@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-16 — Stage 11.4b crash-consistent runtime risk gate
+
+- Integrated explicit LIVE activation readiness, consecutive historical risk catch-up, predecessor evidence guards and one atomic store authorization API. Store independently replans and applies frozen pure accounting/policy before committing decision/LIVE valuation/verdict/optional PREPARED/frontier; exact replay cannot authorize again. No schema/version/dependency/Decision changes.
+- Added reachable ENTRY_COUNT_LIMIT/RISK_LATCH_ACTIVE refusal persistence, TRIP without operational HALT, exact owned-base EXIT permission with latch retained, and complete durable refused-HOLD continuation without delayed BUY. Counts survive abandonment/rejection/uncertainty/restart; no policy reason removed, rearm or forced liquidation added.
+- Frozen post-ALLOW preflight/timing/ATTEMPT_STARTED/send tail and scheduler production remain byte-identical. Added **67 focused offline regressions**; local full suite **2,820 (2,753 + 67)**, zero failures/errors/skips; `pip check` and both diff checks pass. Adapted temporary fixtures with explicit permissive activation and 1 ms synthetic golden fill latency; exact golden **54 decisions / 2 placements / 2 fills / 0 cancellations**, IDs/amounts/quantities/prices/fees/ownership/restart and existing scheduler assertions remain. Equality-boundary late evidence has a direct refusal regression.
+- Corrected Decision 020 is owner-reviewed/FROZEN at `73c1df6`; Stage 11.4b COMPLETE / owner review pending, Stage 11.4 overall awaits freeze, Stage 11 INCOMPLETE. Stage 11.5 and Stage 12 NOT STARTED. Real user DB migration/risk activation and authenticated Demo read/order/cancellation **NOT RUN**; no credentials or external broker activity.
+
 ## 2026-10-16 — Decision 020 reachability clarification
 
 - Owner-requested documentation-only correction: end-to-end BLOCK acceptance uses reachable ENTRY_COUNT_LIMIT and RISK_LATCH_ACTIVE. Fixed matching BUY budgets, ordered caps and FLAT-only/no-pyramiding ENTRY make ENTRY_NOTIONAL_LIMIT and POSITION_NOTIONAL_LIMIT defensive policy coverage in current scope; no policy reason is removed. Invalid inputs cannot stand in for genuine runtime BLOCK outcomes.

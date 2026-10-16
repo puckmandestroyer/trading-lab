@@ -39,7 +39,7 @@ from trading_lab.runtime.state import PositionEvidence, RuntimeReason, RuntimeSt
 from trading_lab.runtime.store import ActionPhase, DecisionDisposition, RuntimeStore, RuntimeStoreError
 from trading_lab.strategies.ema_trend import generate_ema_signals
 from tests.test_bybit_spot_rules import synthetic_response
-from tests.test_runtime_store import configuration
+from tests.test_runtime_store import configuration, initialize_permissive_risk
 
 
 D = Decimal
@@ -148,7 +148,8 @@ class BrokerTransport:
         result = {"list": deepcopy(records), "nextPageCursor": ""}
         if category:
             result["category"] = "spot"
-        return {"retCode": 0, "time": self.case.clock.ms, "result": result, "private_raw": PRIVATE}
+        # Private observations include the fixture's explicit 1 ms fill latency.
+        return {"retCode": 0, "time": self.case.clock.ms + 1, "result": result, "private_raw": PRIVATE}
 
     def get_wallet_balance(self, **params):
         c = self.case
@@ -192,6 +193,8 @@ class BrokerTransport:
         action = c.store.get_action(c.store.get_checkpoint().snapshot.pending_action.logical_action_id)
         c.assertIs(action.phase, ActionPhase.PREPARED)
         c.assertEqual(action.attempt_count, 0)
+        verdict = c.store.get_risk_verdict(action.candle_open_ms)
+        c.assertEqual((verdict.verdict.value, verdict.action_id), ("ALLOW", action.logical_action_id))
         c.audit("PREPARED")
         return synthetic_response()
 
@@ -319,14 +322,14 @@ class IntegrationCase(unittest.TestCase):
         self.remote_fills.append({"execId": execution_id, "orderId": order_id, "orderLinkId": order["orderLinkId"],
             "symbol": "BTCUSDT", "side": order["side"], "execType": "Trade", "execQty": str(quantity),
             "execPrice": "100.123456789" if buy else "111.123456789", "execFee": str(fee if fee is not None else (D("0.00005") if buy else D("0.01"))),
-            "feeCurrency": "BTC" if buy else "USDT", "execTime": str(self.clock.ms), "private_raw": PRIVATE})
+            "feeCurrency": "BTC" if buy else "USDT", "execTime": str(self.clock.ms + 1), "private_raw": PRIVATE})
         rows = [r for r in self.remote_fills if r["orderId"] == order_id]
         with localcontext() as context:
             context.prec = 60
             base = sum((D(r["execQty"]) for r in rows), D("0"))
             quote = sum((D(r["execQty"]) * D(r["execPrice"]) for r in rows), D("0"))
             order.update(orderStatus=status, cumExecQty=str(base), cumExecValue=str(quote),
-                         avgPrice=str(quote / base), updatedTime=str(self.clock.ms))
+                         avgPrice=str(quote / base), updatedTime=str(self.clock.ms + 1))
 
     def wake(self, price, *, hours=1, before=None):
         def event(seconds):
@@ -339,14 +342,22 @@ class IntegrationCase(unittest.TestCase):
 
     def scheduler(self, events=()):
         self.stop = Stop(self, events)
-        result = run_hourly_scheduler(self.store, self.market, self.broker, self.adapter, self.stop,
-                                      utc_now=self.clock.now, monotonic=lambda: self.clock.elapsed)
+        # Wrap only fixture activation between real cycles; runtime never initializes risk.
+        with patch("trading_lab.runtime.scheduler.run_single_cycle", side_effect=self.activated_cycle):
+            result = run_hourly_scheduler(self.store, self.market, self.broker, self.adapter, self.stop,
+                                          utc_now=self.clock.now, monotonic=lambda: self.clock.elapsed)
         self.capture()
         return result
 
+    def activated_cycle(self, *args, **kwargs):
+        result = run_single_cycle(*(args or (self.store, self.market, self.broker, self.adapter)),
+            **(kwargs or dict(utc_now=self.clock.now, monotonic=lambda: self.clock.elapsed)))
+        if result.outcome in (CycleOutcome.BOOTSTRAP, CycleOutcome.REPLAY_ONLY):
+            initialize_permissive_risk(self.store)
+        return result
+
     def cycle(self):
-        result = run_single_cycle(self.store, self.market, self.broker, self.adapter,
-                                  utc_now=self.clock.now, monotonic=lambda: self.clock.elapsed)
+        result = self.activated_cycle()
         self.capture()
         return result
 
@@ -423,6 +434,14 @@ class IntegrationCase(unittest.TestCase):
         self.assertEqual([f.fee_currency for f in fills], ["BTC", "USDT"])
         self.assertEqual([f.action_id for f in fills], [ENTRY_ID, EXIT_ID])
         self.assertEqual(len(self.sends), 2)
+        valuations, verdicts = self.store.list_risk_valuations(), self.store.list_risk_verdicts()
+        self.assertEqual([row.mode.value for row in valuations], ["ACTIVATION", "LIVE", "LIVE", "LIVE", "LIVE"])
+        self.assertEqual([row.candle_open_ms for row in valuations], list(range(49 * HOUR, 54 * HOUR, HOUR)))
+        self.assertEqual([row.verdict.value for row in verdicts], ["ALLOW"] * 4)
+        self.assertEqual([row.action_id for row in verdicts], [ENTRY_ID, None, None, EXIT_ID])
+        self.assertEqual([row.entries_this_utc_day for row in valuations], [0, 1, 1, 1, 1])
+        self.assertEqual(valuations[-1].owned_base_quantity, D("0.04995"))  # EXIT fill is after this mark.
+        self.assertEqual(self.cancels, [])
         self.assertTrue({"PREPARED", "ATTEMPT_STARTED", "ACKNOWLEDGED", "STOPPING"}.issubset(self.audits))
         self.assertTrue({RuntimeState.SYNCHRONIZING, RuntimeState.FLAT, RuntimeState.ORDER_PENDING, RuntimeState.LONG}.issubset(
             {t[2] for t in self.trace}))
@@ -619,7 +638,7 @@ class CrashIntegrationTests(IntegrationCase):
         self.assertIsNot(self.store.get_checkpoint().snapshot.state, RuntimeState.STOPPING)
 
     def test_prepared_commit_crash_retires_unsent_and_consumes_candle(self):
-        self.crash_entry("commit_decision", lambda *args, **kw: kw.get("action") is not None, after=True)
+        self.crash_entry("commit_live_risk_decision", lambda *args, **kw: kw.get("proposed_action") is not None, after=True)
         self.assertIs(self.store.get_action(ENTRY_ID).phase, ActionPhase.PREPARED)
         self.audit("PREPARED")
         self.reopen()
@@ -1112,14 +1131,14 @@ class PreservationIntegrationTests(IntegrationCase):
         # market/cycle corrections. Only their corresponding hashes are refreshed.
         hashes = {
             "runtime/__init__.py": "8843b5105846f5386e9ac799f06b8446688043482618cbb8d3fc5a6655f40b60",
-            "runtime/cycle.py": "1bb6df969546392c75bc9d7091d6cf8c7fa9ca102042171b5ede3ccf52b90db3",
+            "runtime/cycle.py": "9099043265bfa8c048d52cbc9cf3de725f450207bc25f58807cf95fcd919107e",
             "runtime/locking.py": "b10c5a8ac5e4ed4b8a7616b656602319c4e238eb0d2404fc2d31e6d636048273",
             "runtime/planner.py": "e97b0f9c709e909c56f132cfd5a718a3fbb8a488debb0c71823415adb0605686",
             "runtime/reconciliation.py": "2c9386a5f4e3670144722e53202f869c8b7ce6e67ce963342a45bbf6f9ef0bb9",
             "runtime/recovery.py": "847a7634018925c9815f52e2f9ff7654ab422ea61fd877fdb418c1806d1b58f4",
             "runtime/scheduler.py": "f588124296a4442ab0c969ae55202d991ee1e003d500a5aa3f373f03d074608d",
             "runtime/state.py": "014b92aca145d61a57df230d3c3747025768090d2b96cdeaa97a96e5ad2675bc",
-            "runtime/store.py": "cd64f38fe3c695617bd8bf90ba82d80fa20ceaca28727eecc76bd0b7c95929d2",
+            "runtime/store.py": "97b8a4e2cf82d7b8e445eb3a02f5320fa9dec39f807e419ea8970a292189b68a",
             "data/closed_candles.py": "1c2068060dd73729f8bd3468901fd9c34b3807509906801f8f03af1d83914af6",
             "exchange/bybit_public_market.py": "62183a274d7a04a0aaac5642a0801ca61221717e2ac344c5ab77aeabad504b1b",
             "exchange/bybit_demo.py": "322500c83ce6077c51b8d7ba966b421c661ced7888bde3052f8d4892900eb748",

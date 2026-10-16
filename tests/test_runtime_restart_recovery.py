@@ -813,13 +813,13 @@ class FrozenCycleCrashTests(CycleRestartCase):
     def test_crash_a_failed_prepared_transaction_has_no_partial_history_or_send(self):
         self.bootstrap()
         self.advance("110")
-        commit = self.store.commit_decision
+        commit = self.store.commit_live_risk_decision
 
         def failed(*args, **kwargs):
             with patch.object(self.store, "_commit", side_effect=sqlite3.OperationalError("Synthetic disk failure")):
                 return commit(*args, **kwargs)
 
-        with patch.object(self.store, "commit_decision", side_effect=failed), self.assertRaises(RuntimeStoreError):
+        with patch.object(self.store, "commit_live_risk_decision", side_effect=failed), self.assertRaises(RuntimeStoreError):
             self.run_cycle()
         self.assert_no_send()
         self.restart()
@@ -837,13 +837,13 @@ class FrozenCycleCrashTests(CycleRestartCase):
     def test_crash_b_prepared_commit_is_abandoned_and_never_reauthorized(self):
         self.bootstrap()
         self.advance("110")
-        commit = self.store.commit_decision
+        commit = self.store.commit_live_risk_decision
 
         def committed_then_died(*args, **kwargs):
             commit(*args, **kwargs)
             raise RuntimeStoreError("Synthetic death after prepared commit")
 
-        with patch.object(self.store, "commit_decision", side_effect=committed_then_died), self.assertRaises(RuntimeStoreError):
+        with patch.object(self.store, "commit_live_risk_decision", side_effect=committed_then_died), self.assertRaises(RuntimeStoreError):
             self.run_cycle()
         original = self.store.list_actions()[0]
         original_decision = self.store.get_decision(50 * HOUR)
@@ -1232,11 +1232,11 @@ class RestartBoundaryTests(unittest.TestCase):
         # owner-approved read-failure correction. Not runtime constants.
         expected = {
             "state": "014b92aca145d61a57df230d3c3747025768090d2b96cdeaa97a96e5ad2675bc",
-            "store": "cd64f38fe3c695617bd8bf90ba82d80fa20ceaca28727eecc76bd0b7c95929d2",
+            "store": "97b8a4e2cf82d7b8e445eb3a02f5320fa9dec39f807e419ea8970a292189b68a",
             "locking": "b10c5a8ac5e4ed4b8a7616b656602319c4e238eb0d2404fc2d31e6d636048273",
             "reconciliation": "2c9386a5f4e3670144722e53202f869c8b7ce6e67ce963342a45bbf6f9ef0bb9",
             "planner": "e97b0f9c709e909c56f132cfd5a718a3fbb8a488debb0c71823415adb0605686",
-            "cycle": "1bb6df969546392c75bc9d7091d6cf8c7fa9ca102042171b5ede3ccf52b90db3",
+            "cycle": "9099043265bfa8c048d52cbc9cf3de725f450207bc25f58807cf95fcd919107e",
             "scheduler": "f588124296a4442ab0c969ae55202d991ee1e003d500a5aa3f373f03d074608d",
             "__init__": "8843b5105846f5386e9ac799f06b8446688043482618cbb8d3fc5a6655f40b60",
         }

@@ -6,7 +6,7 @@ The long-term goal is to support historical market data, multiple independent st
 
 ## Current stage
 
-**Stage 11 — Runtime Risk Management remains INCOMPLETE. Stage 11.4 has STARTED; Stage 11.4a — Pre-Trade Risk Gate / Crash-Consistent Authorization Contract is COMPLETE / owner review pending.** [Decision 020](decisions/020_runtime_risk_gate_authorization.md) is Accepted for architecture/documentation only. Stages 11.1–11.3 are independently reviewed/FROZEN, with Stage 11.3 finalized at `be0eba0a4a6cb9f2d97165e0eb0da1525cdf951b`. **Stage 11.4b implementation is next and NOT STARTED; 11.5–11.8 and Stage 12 remain NOT STARTED.** No runtime risk integration or new LIVE writer exists yet; each implementation milestone requires separate explicit owner authorization.
+**Stage 11 — Runtime Risk Management remains INCOMPLETE. Stage 11.4b — Pre-Trade Risk Gate / Crash-Consistent Authorization Implementation is COMPLETE / owner review pending; Stage 11.4 overall awaits freeze.** Decision 020's architecture baseline is FROZEN at `6bc9d773`; its owner-reviewed reachability correction is FROZEN at `73c1df6227dcaf409df2f254c63f83e63e85aa45`. Stages 11.1–11.3 remain FROZEN. LIVE decisions now require explicit risk activation and atomic durable risk permission. **Stage 11.5 is next / NOT STARTED; 11.6–11.8 and Stage 12 remain NOT STARTED.** No real user migration, activation or authenticated Demo operation was performed.
 
 **Stage 10 — Demo Trading Runtime is independently owner-reviewed, COMPLETE / FROZEN at `87888719c3e2c87bd3b8979dd9c4ecc33db6cb65` (`Complete Stage 10 final audit`).** All Stage 9/10 contracts and approved corrections remain frozen. No authenticated Demo run was performed; no actual activation starts automatically.
 
@@ -20,7 +20,7 @@ Local Stage 11.3b validation passes **120 additive persistence tests**, **350 Ru
 
 ### Local risk persistence — Stage 11.3b
 
-Import records and APIs explicitly from `trading_lab.runtime.store`. New immutable/slotted records are `RiskConfigurationRecord`, `RiskEpochRecord`, `RiskValuationRecord` and `RiskVerdictRecord`; modes are ACTIVATION / REPLAY_ONLY / LIVE. Public writes are limited to:
+Import records and APIs explicitly from `trading_lab.runtime.store`. New immutable/slotted records are `RiskConfigurationRecord`, `RiskEpochRecord`, `RiskValuationRecord` and `RiskVerdictRecord`; modes are ACTIVATION / REPLAY_ONLY / LIVE. Stage 11.3b public risk writes are:
 
 ```python
 RuntimeStore.migrate_v1_to_v2(lock, configuration) -> None
@@ -32,24 +32,45 @@ Activation is once-only, including identical requests: it requires confirmed hea
 
 Canonical SHA256 configuration/epoch identities and complete owned-fill evidence snapshots have fixed test vectors. Later evidence never rewrites accepted history; a changed predecessor evidence digest blocks replay. Fully validated bounded reads are `get_risk_configuration(risk_configuration_digest=None)`, `get_current_risk_epoch()`, `get_latest_risk_valuation()`, `list_risk_valuations(epoch_id=None)`, `get_risk_verdict(candle_open_ms)` and `list_risk_verdicts(epoch_id=None)`; empty results are None/empty tuples. See [the persistence record](PROJECT_STATE.md#durable-risk-journal--schema-v2-migration-implementation--stage-113b) for exact signatures, migration guarantees and validation.
 
-**No public LIVE valuation writer, verdict writer, risk rearm or runtime authorization path exists yet.** Fresh/migrated/initialized/replayed journals have zero verdicts. Stage 10 planner/cycle/scheduler/reconciliation behavior, existing write semantics, lock, pure-risk code/tests, Decisions and historical financial results are preserved. Store preservation hashes and unsupported-version fixtures were adapted to schema v2 without removing tests.
+**At Stage 11.3b completion, no public LIVE writer or runtime authorization path existed.** Its migration/initialization/replay APIs still create no verdicts; Stage 11.4b adds only the atomic LIVE boundary below. No standalone LIVE/verdict writer or risk rearm exists. Frozen planner/scheduler/reconciliation behavior, lock, pure-risk code/tests, Decisions and historical financial results are preserved. Store preservation hashes and unsupported-version fixtures were adapted to schema v2 without removing tests.
 
 ### Pre-trade risk authorization contract — Stage 11.4a
 
-Decision 020 defines this **future Stage 11.4b** boundary; it is not implemented yet:
+Frozen Decision 020 defines the boundary implemented by Stage 11.4b below:
 
 ```text
 planner intent → risk gate → atomic LIVE valuation/verdict → optional PREPARED
 → existing final pre-submit timing / ATTEMPT_STARTED → Demo mutation
 ```
 
-Explicit risk activation must precede genuinely LIVE decision/frontier advancement. An empty journal will mean RISK_NOT_READY for LIVE ENTRY or HOLD, with no action, consumed LIVE candle or automatic initialization. It will not mean risk is disabled. Active risk must catch up missing durable historical hours through REPLAY_ONLY first; missed trips survive, with no historical order. Changed predecessor fill evidence blocks LIVE without rewriting old valuations.
+Explicit risk activation must precede genuinely LIVE decision/frontier advancement. An empty journal means RISK_NOT_READY for LIVE ENTRY or HOLD, with no action, consumed LIVE candle or automatic initialization. It does not mean risk is disabled. Active risk must catch up missing durable historical hours through REPLAY_ONLY first; missed trips survive, with no historical order. Changed predecessor fill evidence blocks LIVE without rewriting old valuations.
 
 ALLOW of an action must commit together with its matching PREPARED, decision, valuation/verdict and checkpoint/frontier. BLOCK/TRIP of ENTRY consumes the candle through an existing WAIT decision and durable risk refusal, preserves the strategy's desired position, and creates no action. Risk TRIP is separate from runtime HALT: it blocks ENTRY but can permit a valid exact owned-base EXIT, without automatic cancellation or liquidation. Stage 10 safety always wins.
 
-A later FLAT/HOLD/desired-LONG mismatch may avoid a false HALT only with complete contiguous LIVE provenance from a refused ENTRY and subsequent no-action ALLOW/HOLD candles in the same epoch. **It never causes a delayed BUY on HOLD**, even if limits later allow it. The frozen planner, pure risk formulas and final one-attempt send boundary remain authoritative. Future normalized risk outcomes receive no 1s/2s scheduler retry.
+A later FLAT/HOLD/desired-LONG mismatch may avoid a false HALT only with complete contiguous LIVE provenance from a refused ENTRY and subsequent no-action ALLOW/HOLD candles in the same epoch. **It never causes a delayed BUY on HOLD**, even if limits later allow it. The frozen planner, pure risk formulas and final one-attempt send boundary remain authoritative. Normalized risk outcomes receive no 1s/2s scheduler retry.
 
-Stage 11.4a local validation: **2,753 unchanged tests passed**, zero failures/errors/skips; pip check and both diff checks pass. Only Decision 020 and three status documents change; zero new tests or production/schema/dependency changes. Stage 11.3 is independently owner-reviewed/FROZEN at `be0eba0`. Stage 11.4b requires separate authorization; no real user migration/activation or authenticated Demo operation was performed.
+Stage 11.4a local validation: **2,753 unchanged tests passed**, zero failures/errors/skips; pip check and both diff checks pass. Only Decision 020 and three status documents change; zero new tests or production/schema/dependency changes. Stage 11.3 is independently owner-reviewed/FROZEN at `be0eba0`. That contract and its reachability correction are now owner-reviewed/FROZEN; no real user migration/activation or authenticated Demo operation was performed.
+
+### Pre-trade risk authorization implementation — Stage 11.4b
+
+Import the atomic API from `trading_lab.runtime.store`:
+
+```python
+store.commit_live_risk_decision(candle, decision, checkpoint, *,
+    expected_sequence, evaluated_at_ms, proposed_action=None) -> bool
+```
+
+The store independently replans against durable evidence, checks predecessor fill count/digest and consecutive hourly valuation/frontier, reconstructs the cutoff book through the frozen pure engine, then commits candle + decision + post-evaluation LIVE valuation + verdict + optional PREPARED + checkpoint together. Only ALLOW may persist a placement. True means committed; an exact replay returns False and cannot license another send. Conflicts, broken accounting and indeterminate persistence fail closed. Schema stays **2**, runtime contract **1**; no standalone LIVE/verdict writer or rearm API.
+
+The cycle returns **RISK_NOT_READY** without consuming a genuinely LIVE candle when the journal is empty; activation remains explicit. Initialized risk catches up missing durable historical hours through REPLAY_ONLY before LIVE, retaining missed trips with zero historical sends. Changed predecessor evidence blocks LIVE without rewriting observations. Accounting selects only fills executed through the closed mark; a proposed placement must also match currently confirmed ownership. Authorization and valuation UTC days must agree.
+
+Reachable ENTRY refusals use **ENTRY_COUNT_LIMIT** and **RISK_LATCH_ACTIVE**. BLOCK/TRIP retains exact strategy intent/proposal in a WAIT decision/verdict, advances the frontier atomically and creates no action/pending event. TRIP is separate from runtime HALT; an exact valid strategy EXIT may ALLOW with the latch retained. ENTRY_NOTIONAL_LIMIT/POSITION_NOTIONAL_LIMIT remain frozen defensive pure-policy reasons; no invalid budget, changed planner amount or pyramiding is used to fabricate them end-to-end.
+
+The pure `runtime/risk_gate.py` proves complete same-epoch LIVE refusal provenance for later FLAT/HOLD/desired-LONG accounting. Missing, historical, malformed, ownership, epoch or action breaks preserve frozen planner safety. HOLD always has no proposal, including after midnight; no delayed BUY. Consumed ENTRY approvals survive preflight/timing refusal, abandonment, rejection, partial/ambiguous fills and restart.
+
+The frozen post-ALLOW send flow remains byte-identical: preflight → final `before_submit` timing → durable ATTEMPT_STARTED → at most one mutation. Scheduler production/retry rules are unchanged; the three risk outcomes get no 1s/2s retry. No automatic resend/cancel/liquidation or risk rearm was added.
+
+Local validation: **67 new focused tests passed**; local full suite **2,820 (2,753 + 67)** passed with zero failures/errors/skips. Component checks: pure risk **123**, RuntimeStore **350**, cycle **114**, scheduler **86**, restart **89**, integration **64**, reconciliation **100**, planner **79**, state **188**, Stage 9.4 **136**, Stage 9.5 **100**, frozen EMA **16**, historical/research/backtest **982**; all passed. `pip check` and both diff checks pass. The permissive temporary golden retains **54 decisions / 2 placements / 2 fills / 0 cancellations**, exact action IDs/links, amounts, quantities/prices/fees and ownership/restart assertions. Its synthetic fills now have explicit 1 ms latency after the valued boundary; scheduler timing assertions are unchanged, and equality-boundary late evidence has a separate refusal regression. No real user DB migration/risk activation or authenticated Demo read/order/cancellation was run.
 
 ### Standalone pure risk API — Stage 11.2
 
@@ -69,7 +90,7 @@ Financial inputs require finite exact Decimal values without coercion; local ari
 
 Supply every consecutive closed UTC hour. Midnight first tests the outgoing day's final equity against its old baseline, then resets the new day's baseline/count; it never clears peak or trip. Daily loss wins simultaneous first daily/drawdown breaches. Thread each returned immutable state: `trip_pending_report` records a newly latched notification, consumed by evaluation without clearing its reason/time. New trip gives TRIP for ENTRY/no proposal, or ALLOW for exact EXIT; an existing latch BLOCKS ENTRY. No-proposal ALLOW authorizes no order. Only ENTRY ALLOW increments the pure count. Invalid evidence raises `RuntimeRiskError`; no silent resize or forced exit exists.
 
-The caller supplies already-owned, deduplicated, temporally appropriate executions/book and an accepted authoritative mark. `apply_owned_execution` is **not idempotent**. Initialization is first valid activation/testing, not operator rearm. RuntimeStore supplies durable identities/evidence cutoffs. Pending reservations, atomic authorization and runtime risk adapters remain later milestones; the reservation helper only calculates exposure. RuntimeStore now reuses this module for local persistence validation and ACTIVATION/REPLAY_ONLY accounting; planner/cycle/scheduler risk authorization is not integrated. Stage 7 sizing and `risk/__init__.py` remain unchanged.
+The caller supplies already-owned, deduplicated, temporally appropriate executions/book and an accepted authoritative mark. `apply_owned_execution` is **not idempotent**. Initialization is first valid activation/testing, not operator rearm. RuntimeStore supplies durable identities/evidence cutoffs. The reservation helper only calculates exposure; the frozen one-pending-lifecycle guard prevents concurrent authorization. RuntimeStore reuses this module for ACTIVATION/REPLAY_ONLY accounting and atomic LIVE authorization; cycle integration is described above. Stage 7 sizing and `risk/__init__.py` remain unchanged.
 
 **Stage 9 — Bybit Demo Exchange Adapter remains COMPLETE after its final audit. All milestones 9.1–9.7 passed under unchanged Decisions 013–016.**
 
@@ -344,7 +365,7 @@ Canonical BTC diagnostics retain **6,132 IS / 2,628 OOS**, boundary **2026-06-13
 
 The final audit accepts chronological cold-start OOS evaluation, deterministic sensitivity, descriptive local stability, fixed-configuration expanding walk-forward, consistent downstream diagnostics, and Notebook 06's visual research report. Stage 8 adds **235 tests** to the unchanged 747-test baseline: **982 total**, zero failures, errors, or skips. Frozen Stage 5–7 references, Decisions 010–012, notebook bytes, and BTC SHA256 are preserved. No optimizer, selected best EMA, robustness score, or stitched OOS portfolio exists. Already-seen single-asset/hourly/EMA research does not prove future profitability or provide demo/live trading evidence.
 
-Current focus: owner review/freeze of **Stage 11.4a — Pre-Trade Risk Gate / Crash-Consistent Authorization Contract**. Stage 11.3 is COMPLETE/FROZEN at `be0eba0`; Stages 11 and 11.4 remain INCOMPLETE. The new decision defines future activation, LIVE atomic persistence and refusal continuation only; current Python/tests/schema are unchanged. **Stage 11.4b is next / NOT STARTED; 11.5–11.8 and Stage 12 remain NOT STARTED.** Real user DB migration/risk activation and authenticated Demo activity remain NOT RUN. No milestone starts automatically; earlier completion records retain their original totals.
+Current focus: owner review/freeze of **Stage 11.4b** and Stage 11.4 overall. Corrected Decision 020 is FROZEN at `73c1df6`; Stage 11 remains INCOMPLETE. **Stage 11.5 is next / NOT STARTED; 11.6–11.8 and Stage 12 remain NOT STARTED.** Real user DB migration/risk activation and authenticated Demo activity remain NOT RUN. No milestone starts automatically; earlier completion records retain their original totals.
 
 - Stage 1 completed: reusable historical data collection and a validated BTCUSDT hourly snapshot.
 - Stage 2 completed: statistical market analysis of returns, volatility, volume, extreme movements, and BTC buy-and-hold drawdown in `notebooks/01_data_exploration.ipynb`.
@@ -604,9 +625,9 @@ Trading Lab/
 │   ├── analytics/         # Trade metrics, realized drawdown, time, CLOSE equity
 │   ├── robustness/        # IS/OOS, grids, local variation, walk-forward, diagnostics
 │   ├── exchange/          # Public market data and Demo-only read/action adapters
-│   ├── runtime/           # State, journal, restart preparation, cycle and scheduler
+│   ├── runtime/           # Journal, risk gate, restart preparation, cycle and scheduler
 │   ├── execution/         # Future order and execution management
-│   ├── risk/              # Future centralized risk checks
+│   ├── risk/              # Research sizing and pure runtime risk policy
 │   ├── database/          # Future storage integration
 │   └── config/            # Future application configuration
 ├── strategies/            # Existing Python placeholders, preserved

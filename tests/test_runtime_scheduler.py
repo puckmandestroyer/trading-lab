@@ -22,7 +22,7 @@ from trading_lab.runtime.state import (
     RuntimeStateSnapshot, transition_runtime_state,
 )
 from trading_lab.runtime.store import ActionPhase, RuntimeStoreError
-from tests.test_runtime_store import StoreCase, HOUR, fill
+from tests.test_runtime_store import StoreCase, HOUR, fill, initialize_permissive_risk
 from tests.test_runtime_cycle import CycleCase, utc
 from tests import test_runtime_integration_regression as integration_fixtures
 
@@ -717,9 +717,9 @@ class PublicAndStructuralTests(SchedulerCase):
         # Literal frozen hashes plus the approved store, reconciliation and
         # cycle market-classification corrections. No runtime constants.
         expected = {
-            "cycle": "1bb6df969546392c75bc9d7091d6cf8c7fa9ca102042171b5ede3ccf52b90db3",
+            "cycle": "9099043265bfa8c048d52cbc9cf3de725f450207bc25f58807cf95fcd919107e",
             "state": "014b92aca145d61a57df230d3c3747025768090d2b96cdeaa97a96e5ad2675bc",
-            "store": "cd64f38fe3c695617bd8bf90ba82d80fa20ceaca28727eecc76bd0b7c95929d2",
+            "store": "97b8a4e2cf82d7b8e445eb3a02f5320fa9dec39f807e419ea8970a292189b68a",
             "locking": "b10c5a8ac5e4ed4b8a7616b656602319c4e238eb0d2404fc2d31e6d636048273",
             "reconciliation": "2c9386a5f4e3670144722e53202f869c8b7ce6e67ce963342a45bbf6f9ef0bb9",
             "planner": "e97b0f9c709e909c56f132cfd5a718a3fbb8a488debb0c71823415adb0605686",
@@ -794,6 +794,7 @@ class FrozenCycleIntegrationTests(CycleCase):
         stop = FakeStop(clock)
 
         def hour(seconds):
+            initialize_permissive_risk(self.store)
             clock.advance(round(seconds * 1000))
             self.now_ms = clock.ms
             self.prices.append("110")

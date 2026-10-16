@@ -1521,7 +1521,7 @@ class StoreBoundaryTests(StoreCase):
 
     def test_modules_have_no_broker_network_strategy_or_scheduler_imports(self):
         from trading_lab.runtime import locking
-        allowed = {"contextlib", "dataclasses", "decimal", "enum", "hashlib", "json", "os", "pathlib", "re", "sqlite3", "stat", "sys", "fcntl", "locking", "state", "risk.runtime_risk"}
+        allowed = {"contextlib", "dataclasses", "decimal", "enum", "hashlib", "json", "os", "pathlib", "re", "sqlite3", "stat", "sys", "fcntl", "locking", "state", "risk.runtime_risk", "planner", "risk_gate"}
         for source in (module, locking):
             tree = ast.parse(inspect.getsource(source))
             names = {node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)}
@@ -1972,6 +1972,16 @@ from trading_lab.runtime.store import (
 def risk_configuration(**changes):
     return replace(RuntimeRiskConfiguration(D(1000), configuration().buy_quote_budget,
         D(200), D(500), D("0.1"), D("0.2"), 2, "BTC", "USDT"), **changes)
+
+
+def initialize_permissive_risk(store):
+    """Explicit offline fixture activation after historical bootstrap only."""
+    cp = store.get_checkpoint()
+    if (store.get_current_risk_epoch() is None and cp.last_processed_candle_ms is not None
+            and cp.snapshot.state in (RuntimeState.FLAT, RuntimeState.LONG)):
+        store.initialize_risk_journal(risk_configuration(risk_capital_quote=D(100000),
+            max_daily_loss_fraction=D(1), max_drawdown_fraction=D(1),
+            max_entries_per_utc_day=10000), candle_open_ms=cp.last_processed_candle_ms)
 
 
 def sql_insert(connection, table, values):
@@ -2917,7 +2927,8 @@ class RiskReadAndBoundaryTests(RiskPersistenceCase):
             "get_candle","get_decision","get_action","get_fill","list_actions","list_fills","save_checkpoint",
             "commit_decision","prepare_cancellation","start_attempt","abandon_prepared","record_observation","close",
             "get_risk_configuration","get_current_risk_epoch","get_latest_risk_valuation","list_risk_valuations",
-            "get_risk_verdict","list_risk_verdicts","initialize_risk_journal","append_risk_replay_valuation"})
+            "get_risk_verdict","list_risk_verdicts","initialize_risk_journal","append_risk_replay_valuation",
+            "commit_live_risk_decision"})
         self.assertEqual({mode.value for mode in RiskValuationMode},{"ACTIVATION","REPLAY_ONLY","LIVE"})
 
     def test_no_broker_network_or_environment_dependency(self):
@@ -3054,6 +3065,8 @@ class RiskAdditionalBoundaryTests(RiskPersistenceCase):
         verdict=RiskVerdictRecord("BTCUSDT","60",HOUR,epoch.epoch_id,2*HOUR,epoch.risk_configuration_digest,
             None,None,RiskVerdict.ALLOW,None,None,2*HOUR)
         # TEST-ONLY future atomic fixture, not a production LIVE writer.
+        # LIVE accounting binds an operational NOOP, rather than BOOTSTRAP.
+        self.store._connection.execute("UPDATE decisions SET disposition='NOOP' WHERE candle_open_ms=?", (HOUR,))
         with self.store._transaction():
             self.store._insert("risk_valuations",module._encode(row))
             self.store._insert("risk_verdicts",module._encode(verdict))

@@ -36,7 +36,7 @@ from trading_lab.runtime.state import PositionEvidence, RuntimeEvent, RuntimeEve
 from trading_lab.runtime.store import ActionPhase, DecisionDisposition, RuntimeStore, RuntimeStoreError
 from trading_lab.strategies.ema_trend import generate_ema_signals
 from tests.test_bybit_demo_orders import FakeActionSession, ack_response
-from tests.test_runtime_store import HOUR, StoreCase, configuration
+from tests.test_runtime_store import HOUR, StoreCase, configuration, initialize_permissive_risk
 from tests.test_runtime_planner import canonical, checkpoint
 from tests import test_runtime_integration_regression as integration_fixtures
 
@@ -216,8 +216,11 @@ class CycleCase(StoreCase):
         self.now_ms = len(self.prices) * HOUR + 1000
 
     def run_cycle(self):
-        return run_single_cycle(self.store, self.market, self.broker, self.order_adapter,
-                                utc_now=lambda: utc(self.now_ms), monotonic=lambda: 1.0)
+        result = run_single_cycle(self.store, self.market, self.broker, self.order_adapter,
+                                  utc_now=lambda: utc(self.now_ms), monotonic=lambda: 1.0)
+        if result.outcome in (CycleOutcome.BOOTSTRAP, CycleOutcome.REPLAY_ONLY):
+            initialize_permissive_risk(self.store)
+        return result
 
     def bootstrap(self):
         result = self.run_cycle()
@@ -660,7 +663,7 @@ class PlacementTests(CycleCase):
     def test_exact_persistence_and_observation_order_with_no_external_transaction(self):
         self.bootstrap()
         self.advance("110")
-        commit, start, observe = self.store.commit_decision, self.store.start_attempt, self.store.record_observation
+        commit, start, observe = self.store.commit_live_risk_decision, self.store.start_attempt, self.store.record_observation
 
         def prepared(*args, **kwargs):
             result = commit(*args, **kwargs)
@@ -680,7 +683,7 @@ class PlacementTests(CycleCase):
                 self.assertEqual(self.store.get_checkpoint().snapshot.owned_base_quantity, D("0"))
             return result
 
-        with patch.object(self.store, "commit_decision", side_effect=prepared), \
+        with patch.object(self.store, "commit_live_risk_decision", side_effect=prepared), \
              patch.object(self.store, "start_attempt", side_effect=attempt), \
              patch.object(self.store, "record_observation", side_effect=observation), \
              patch.object(module, "reconcile_startup", wraps=reconcile_startup) as rounds:
@@ -755,7 +758,12 @@ class PlacementTests(CycleCase):
         self.advance("80")
         self.broker.status = OrderStatus.FILLED
         params = [params for name, params in self.session.calls if name == "place_order"][0]
+        # The recovered fill is at this closed cutoff, fetched 1 second later;
+        # a separate Stage 11.4b regression refuses post-cutoff EXIT evidence.
+        observed_ms = self.now_ms
+        self.now_ms -= 1000
         self.broker.publish(params, "order-1")
+        self.now_ms = observed_ms
         result = self.run_cycle()
         self.assertIs(result.planner_kind, PlanKind.PLACE_SELL)
         self.assertIs(result.checkpoint.snapshot.state, RuntimeState.FLAT)
@@ -935,13 +943,13 @@ class PersistenceTests(CycleCase):
     def test_decision_transaction_fault_rolls_back_prepared_and_frontier(self):
         self.bootstrap()
         self.advance("110")
-        original = self.store.commit_decision
+        original = self.store.commit_live_risk_decision
 
         def fail(*args, **kwargs):
             with patch.object(self.store, "_commit", side_effect=sqlite3.OperationalError("Synthetic decision fault")):
                 return original(*args, **kwargs)
 
-        with patch.object(self.store, "commit_decision", side_effect=fail), self.assertRaises(RuntimeStoreError):
+        with patch.object(self.store, "commit_live_risk_decision", side_effect=fail), self.assertRaises(RuntimeStoreError):
             self.run_cycle()
         self.reopen()
         self.assertIsNone(self.store.get_decision(50 * HOUR))
@@ -1008,13 +1016,13 @@ class PersistenceTests(CycleCase):
     def test_exact_commit_replay_never_sends_in_memory_authorization(self):
         self.bootstrap()
         self.advance("110")
-        original = self.store.commit_decision
+        original = self.store.commit_live_risk_decision
 
         def replay(*args, **kwargs):
             original(*args, **kwargs)
             return original(*args, **kwargs)  # Real public exact replay, False.
 
-        with patch.object(self.store, "commit_decision", side_effect=replay):
+        with patch.object(self.store, "commit_live_risk_decision", side_effect=replay):
             result = self.run_cycle()
         self.assertIs(result.outcome, CycleOutcome.WAIT)
         self.assertEqual(result.processed_candle_count, 0)
@@ -1066,13 +1074,13 @@ class PersistenceTests(CycleCase):
     def test_retained_prepared_action_is_abandoned_by_initial_reconciliation_without_send(self):
         self.bootstrap()
         self.advance("110")
-        original = self.store.commit_decision
+        original = self.store.commit_live_risk_decision
 
         def stop_after_commit(*args, **kwargs):
             original(*args, **kwargs)
             raise RuntimeStoreError("Synthetic stop after prepared commit")
 
-        with patch.object(self.store, "commit_decision", side_effect=stop_after_commit), self.assertRaises(RuntimeStoreError):
+        with patch.object(self.store, "commit_live_risk_decision", side_effect=stop_after_commit), self.assertRaises(RuntimeStoreError):
             self.run_cycle()
         self.reopen()
         result = self.run_cycle()
@@ -1331,7 +1339,7 @@ class MarketAndSafetyTests(CycleCase):
             result.outcome = CycleOutcome.WAIT
         self.assertEqual({field.name for field in fields(result)}, {
             "checkpoint", "outcome", "processed_candle_open_ms", "planner_kind", "logical_action_id",
-            "broker_order_id", "new_execution_ids", "reason"})
+            "broker_order_id", "new_execution_ids", "reason", "risk_verdict", "risk_reason"})
 
     def test_structural_scope_has_no_private_store_sdk_execution_or_scheduler(self):
         source = inspect.getsource(module)
@@ -1617,7 +1625,8 @@ class PureBoundaryValidationTests(unittest.TestCase):
 
     def test_cycle_outcomes_are_explicit_and_finite(self):
         self.assertEqual([value.value for value in CycleOutcome], ["BOOTSTRAP", "REPLAY_ONLY", "NO_NEW_DATA", "NOOP", "WAIT",
-                                                                  "RECONCILE", "HALTED", "STOPPING", "OBSERVED", "ABANDONED_UNSENT"])
+                                                                  "RECONCILE", "HALTED", "STOPPING", "OBSERVED", "ABANDONED_UNSENT",
+                                                                  "RISK_NOT_READY", "RISK_BLOCKED", "RISK_TRIPPED"])
 
 
 if __name__ == "__main__":
