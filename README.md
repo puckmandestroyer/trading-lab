@@ -6,7 +6,7 @@ The long-term goal is to support historical market data, multiple independent st
 
 ## Current stage
 
-**Stage 11 — Runtime Risk Management remains INCOMPLETE. Stage 11.5 — Daily Loss / Drawdown / Exposure Circuit Breaker Hardening & Offline Regression is COMPLETE / owner review pending.** Stage 11.4 is independently owner-reviewed, COMPLETE / FROZEN at `887e6631095fbc37720b49c56c8025807d1e9104`; Decisions 018–020 and all existing production remain unchanged. Stage 11.5 adds tests/documentation only. **Stage 11.6 is next / NOT STARTED; 11.7–11.8 and Stage 12 remain NOT STARTED.** No real user migration, activation or authenticated Demo operation was performed.
+**Stage 11 — Runtime Risk Management remains INCOMPLETE. Stage 11.6 has STARTED / INCOMPLETE; Stage 11.6a — Restart / Risk Rearm / Operator Controls Contract is COMPLETE / owner review pending.** Accepted [Decision 021](decisions/021_runtime_risk_rearm_operator_controls.md) is architecture/documentation only; no operator rearm implementation exists. Stage 11.5 is independently owner-reviewed, COMPLETE / FROZEN at `f1c542b3deb5d1baebd2ea52f70ea0785292e5df`. **Stage 11.6b implementation is next / NOT STARTED and requires separate owner authorization after contract freeze; 11.7–11.8 and Stage 12 remain NOT STARTED.** No real user migration, activation/rearm or authenticated Demo operation was performed.
 
 **Stage 10 — Demo Trading Runtime is independently owner-reviewed, COMPLETE / FROZEN at `87888719c3e2c87bd3b8979dd9c4ecc33db6cb65` (`Complete Stage 10 final audit`).** All Stage 9/10 contracts and approved corrections remain frozen. No authenticated Demo run was performed; no actual activation starts automatically.
 
@@ -74,7 +74,7 @@ Local validation: **67 new focused tests passed**; local full suite **2,820 (2,7
 
 ### Circuit breaker hardening / offline regression — Stage 11.5
 
-Stage 11.4 is owner-reviewed, COMPLETE / FROZEN at `887e663`. Stage 11.5 adds **30 integrated offline tests and documentation only**: zero production/formula/schema/dependency/Decision changes, with existing tests/source hashes untouched. Tests reuse the real cycle/store/pure engine and existing temporary fake-broker fixtures.
+Stage 11.5 is owner-reviewed, COMPLETE / FROZEN at `f1c542b`. On parent Stage 11.4 (`887e663`), it added **30 integrated offline tests and documentation only**: zero production/formula/schema/dependency/Decision changes, with existing tests/source hashes untouched. Tests reuse the real cycle/store/pure engine and existing temporary fake-broker fixtures.
 
 Exact Decimal daily-loss/drawdown boundaries, adjacent values and fixed-capital thresholds are proved durably. Midnight checks outgoing losses before resetting the day, while preserving peak/latch. Replay retains missed breaches despite later recovery and resumes the next missing hour after interruption. Restart preserves peak, baseline and trip; a genuine exact strategy EXIT can still ALLOW, and later ENTRY stays blocked by the latch. Pending/partial lifecycles retain their full authorization and consumed count, preventing a second placement; ACK is not a fill.
 
@@ -82,7 +82,22 @@ Position appreciation above the pre-ENTRY cap causes no automatic trip, SELL or 
 
 Local execution: **30 new tests passed; full suite 2,850 (2,820 + 30)**, zero failures/errors/skips. All required unchanged component suites pass, including **67 risk-gate** and **123 pure-risk** tests; `pip check` and both diff checks pass. The unchanged golden remains **54 decisions / 2 placements / 2 fills / 0 cancellations** with exact IDs/economics/ownership/restart behavior. See [the detailed hardening record](PROJECT_STATE.md#circuit-breaker-runtime-hardening--offline-regression--stage-115) for evidence and component counts.
 
-No new breaker, rearm/epoch 2/operator control, forced liquidation or production behavior was added. Real user DB migration/risk activation and authenticated Demo read/order/cancellation: **NOT RUN**. Stage 11.6 and Stage 12 remain NOT STARTED; no milestone starts automatically.
+No new breaker, rearm/epoch 2/operator control, forced liquidation or production behavior was added. Real user DB migration/risk activation and authenticated Demo read/order/cancellation: **NOT RUN**. At that milestone Stage 11.6 was NOT STARTED; its separately authorized contract follows. No implementation starts automatically.
+
+### Restart / risk rearm / operator controls contract — Stage 11.6a
+
+[Decision 021](decisions/021_runtime_risk_rearm_operator_controls.md) defines **future controls only**. Stage 11.6b requires separate authorization after owner review/freeze; the following APIs/helpers do not exist yet:
+
+```text
+Runtime HALT rearm: HALTED → SYNCHRONIZING → normal reconciliation
+Risk rearm: TRIPPED epoch N → explicit operator control → epoch N+1 ACTIVATION
+```
+
+The latches are independent. If both are active, rearm runtime first, reconcile to confirmed safe FLAT/LONG, then explicitly rearm risk. Risk rearm rejects HALTED, pending/unsafe/stale evidence, incomplete history and unreported trip notifications. It requires aligned intent: FLAT/desired=0 or LONG/desired=1; a refused desired-LONG cannot carry its same-epoch HOLD provenance into a child epoch or trigger a delayed BUY.
+
+The child uses the same risk configuration, exact continuous cash/inventory book and authoritative durable candle CLOSE at the parent's latest valuation boundary. Its peak and partial-day loss baseline deliberately reset to current equity; **same-day consumed ENTRY count carries**. No new capital, configuration edit, historical action replay or checkpoint frontier advance. Schema stays 2/runtime contract 1. Failed commits are all-or-nothing or require reopen; repeated/stale controls cannot create another reset/epoch.
+
+Restart, midnight and price recovery never rearm. Initial 11.6 includes no manual risk pause/trip, liquidation or broker/network capability. Production/state/recovery/orchestration remain unchanged in this documentation milestone. Local execution: unchanged full suite **2,850 passed**, zero failures/errors/skips; zero new tests. `pip check`, `git diff --check` and `git diff --staged --check` pass. Stage 11.6b and Stage 11.7–11.8/12 remain NOT STARTED; no real user database operation or authenticated Demo activity was performed.
 
 ### Standalone pure risk API — Stage 11.2
 
@@ -377,7 +392,7 @@ Canonical BTC diagnostics retain **6,132 IS / 2,628 OOS**, boundary **2026-06-13
 
 The final audit accepts chronological cold-start OOS evaluation, deterministic sensitivity, descriptive local stability, fixed-configuration expanding walk-forward, consistent downstream diagnostics, and Notebook 06's visual research report. Stage 8 adds **235 tests** to the unchanged 747-test baseline: **982 total**, zero failures, errors, or skips. Frozen Stage 5–7 references, Decisions 010–012, notebook bytes, and BTC SHA256 are preserved. No optimizer, selected best EMA, robustness score, or stitched OOS portfolio exists. Already-seen single-asset/hourly/EMA research does not prove future profitability or provide demo/live trading evidence.
 
-Current focus: owner review/freeze of **Stage 11.5**. Stage 11.4 is COMPLETE / FROZEN at `887e663`; Stage 11 remains INCOMPLETE. **Stage 11.6 is next / NOT STARTED; 11.7–11.8 and Stage 12 remain NOT STARTED.** Real user DB migration/risk activation and authenticated Demo activity remain NOT RUN. No milestone starts automatically; earlier completion records retain their original totals.
+Current focus: owner review/freeze of **Stage 11.6a / Decision 021**. Stage 11.5 is COMPLETE / FROZEN at `f1c542b`; Stages 11 and 11.6 remain INCOMPLETE. **Stage 11.6b implementation is next / NOT STARTED; 11.7–11.8 and Stage 12 remain NOT STARTED.** Separate authorization is required; no real user DB migration/activation/rearm or authenticated Demo activity. Earlier completion records retain their original totals.
 
 - Stage 1 completed: reusable historical data collection and a validated BTCUSDT hourly snapshot.
 - Stage 2 completed: statistical market analysis of returns, volatility, volume, extreme movements, and BTC buy-and-hold drawdown in `notebooks/01_data_exploration.ipynb`.

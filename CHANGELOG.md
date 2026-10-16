@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-16 — Stage 11.6a Runtime Risk Rearm / Operator Controls Contract
+
+- Added Accepted Decision 021, architecture/documentation only: independent Runtime HALT rearm to SYNCHRONIZING/reconciliation and explicit risk-trip rearm into a child epoch at the same durable candle boundary. Both-latch recovery must rearm runtime and reconcile before risk rearm.
+- Defined same configuration/continuous book, intentional current-equity baseline/peak reset, retained same-day ENTRY count, fresh caught-up evidence and aligned-intent prerequisite. Parent history remains immutable; atomic failures require rollback/reopen, repeated controls create no duplicate reset. No manual pause, liquidation, schema change or broker capability.
+- Stage 11.5 independently owner-reviewed, COMPLETE / FROZEN at `f1c542b3deb5d1baebd2ea52f70ea0785292e5df`. Stage 11.6a COMPLETE / owner review pending; Stages 11 and 11.6 INCOMPLETE; 11.6b implementation next / NOT STARTED, requiring separate authorization; 11.7–11.8 and Stage 12 NOT STARTED.
+- Exactly four Markdown files; zero production/test/schema/dependency/previous-Decision/notebook/data/result changes and zero new tests. Local execution: unchanged full suite **2,850 passed**, zero failures/errors/skips; zero new tests. `pip check`, `git diff --check` and `git diff --staged --check` pass. Real user DB migration/risk activation/rearm, real Runtime HALT rearm and authenticated Demo read/order/cancellation **NOT RUN**; no credentials or actual broker activity.
+
 ## 2026-10-16 — Stage 11.5 Circuit Breaker Runtime Hardening
 
 - Added 30 integrated offline regressions using existing fixtures and frozen cycle/store/pure policy. Zero production/formula/schema/dependency/Decision changes; existing tests/source hashes and notebooks/data remain unchanged.

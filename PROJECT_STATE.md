@@ -8,7 +8,9 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 Stage 11 — Runtime Risk Management has STARTED and remains INCOMPLETE.
 
-Stage 11.4 — Pre-Trade Risk Gate + Crash-Consistent Authorization, including 11.4b, is independently owner-reviewed, COMPLETE / FROZEN at `887e6631095fbc37720b49c56c8025807d1e9104`. Decision 020 remains FROZEN, including its reachability correction at `73c1df6`. Stage 11.5 — Daily Loss / Drawdown / Exposure Circuit Breaker Hardening & Offline Regression is COMPLETE / owner review pending. It adds tests/documentation only, with zero production changes. Stage 11 remains INCOMPLETE; 11.6 is next / NOT STARTED; 11.7–11.8 and Stage 12 remain NOT STARTED.
+Stage 11.6 — Restart + Risk Trip / Rearm / Operator Controls has STARTED and remains INCOMPLETE. Stage 11.6a — Restart / Risk Rearm / Operator Controls Contract is COMPLETE / owner review pending under Accepted [Decision 021](decisions/021_runtime_risk_rearm_operator_controls.md). Architecture/documentation only: no rearm implementation exists. Stage 11.6b implementation is next / NOT STARTED and requires separate owner authorization after contract review/freeze. Stage 11.7–11.8 and Stage 12 remain NOT STARTED.
+
+Stage 11.5 is independently owner-reviewed, COMPLETE / FROZEN at `f1c542b3deb5d1baebd2ea52f70ea0785292e5df`. Stage 11.4 remains COMPLETE / FROZEN at `887e6631095fbc37720b49c56c8025807d1e9104`; Decisions 018–020, including the reachability correction at `73c1df6`, remain unchanged.
 
 Stage 11.3 — Durable Risk Journal + Schema/Migration Contract, including 11.3b, is independently owner-reviewed, COMPLETE / FROZEN at `be0eba0a4a6cb9f2d97165e0eb0da1525cdf951b`. Stage 11.3a is FROZEN at `9807ed8`. RuntimeStore implements schema v2, explicit v1 migration and ACTIVATION/REPLAY_ONLY persistence. Migration was tested only on temporary fixtures; no real user runtime database was migrated or risk-activated.
 
@@ -38,7 +40,7 @@ Stage 10.9 — Restart / Crash / Ambiguous-Action Recovery is COMPLETE, owner-re
 
 Stage 10.10 — Runtime Integration Regression is COMPLETE OFFLINE, independently owner-reviewed and FROZEN at `329252658aa703b90f107d862e34dbabd81f0f64`.
 
-Both audit-blocker corrections are independently owner-reviewed and FROZEN: account/order read classification at `4e947b192d9e2b3be8b9b050917ca9e03a250320`, public market-data classification at `c273a8be3213a1cbeb3fc12271d17618f2d28b94`. Stages 10.1–10.11 and all approved RuntimeStore/Stage 9 corrections remain FROZEN. Stages 11.4–11.5 are documented below; Stage 11.6 must not start automatically. Optional authenticated Demo run: NOT PERFORMED / NOT AUTHORIZED.
+Both audit-blocker corrections are independently owner-reviewed and FROZEN: account/order read classification at `4e947b192d9e2b3be8b9b050917ca9e03a250320`, public market-data classification at `c273a8be3213a1cbeb3fc12271d17618f2d28b94`. Stages 10.1–10.11 and all approved RuntimeStore/Stage 9 corrections remain FROZEN. Stages 11.4–11.6a are documented below; Stage 11.6b must not start automatically. Optional authenticated Demo run: NOT PERFORMED / NOT AUTHORIZED.
 
 Stage 9 — Bybit Demo Exchange Adapter remains COMPLETE/FROZEN, including the owner-reviewed Stage 9.5 pre-submit correction at `77a88fe1b1250cabde6a1a6fa4aa492db056084b`.
 
@@ -236,7 +238,7 @@ Real user DB migration: **NOT RUN**. Real user risk activation: **NOT RUN**. Aut
 
 ### Circuit breaker runtime hardening / offline regression — Stage 11.5
 
-COMPLETE / owner review pending on the frozen Stage 11.4 baseline `887e6631095fbc37720b49c56c8025807d1e9104`. Added only `tests/test_runtime_risk_circuit_breakers.py` and current documentation. Production code, existing tests/source hashes, schema/version, dependencies and Decisions are byte-identical to that baseline. No breaker formula or production behavior was added or changed.
+Independently owner-reviewed, COMPLETE / FROZEN at `f1c542b3deb5d1baebd2ea52f70ea0785292e5df`, on parent `887e6631095fbc37720b49c56c8025807d1e9104`. Stage 11.5 added only `tests/test_runtime_risk_circuit_breakers.py` and current documentation. Production code, existing tests/source hashes, schema/version, dependencies and Decisions are byte-identical to that baseline. No breaker formula or production behavior was added or changed.
 
 The 30 additive tests reuse Stage 11.4 fake-broker/temporary-journal fixtures and exercise the real cycle, planner, persistence and frozen pure engine:
 
@@ -250,7 +252,23 @@ The 30 additive tests reuse Stage 11.4 fake-broker/temporary-journal fixtures an
 
 Local execution: **30 new tests**, existing risk gate **67**, pure risk **123**, RuntimeStore **350**, cycle **114**, scheduler **86**, restart **89**, integration/golden **64**, reconciliation **100**, planner **79**, state **188**, Stage 9.4 **136**, Stage 9.5 **100**, frozen EMA **16**, historical/research/backtest **982**; all passed. Full suite **2,850 (2,820 + 30)**, zero failures/errors/skips; `pip check`, `git diff --check` and `git diff --staged --check` pass. Unchanged golden **54 decisions / 2 placements / 2 fills / 0 cancellations**, exact IDs/links, authorized/submitted amounts, execution quantities/prices/fees, final ownership and restart behavior.
 
-No rearm/epoch 2/operator control, forced liquidation, new breaker class, production monitoring or Stage 11.6 implementation. Real user DB migration: **NOT RUN**. Real user risk activation: **NOT RUN**. Authenticated Bybit Demo read: **NOT RUN**. Authenticated Bybit Demo order: **NOT RUN**. Authenticated Bybit Demo cancellation: **NOT RUN**. Stage 11 remains INCOMPLETE; 11.6 is next / NOT STARTED; Stage 12 NOT STARTED.
+Stage 11.5 added no rearm/epoch 2/operator control, forced liquidation, new breaker class, production monitoring or Stage 11.6 implementation. Real user DB migration: **NOT RUN**. Real user risk activation: **NOT RUN**. Authenticated Bybit Demo read: **NOT RUN**. Authenticated Bybit Demo order: **NOT RUN**. Authenticated Bybit Demo cancellation: **NOT RUN**. At Stage 11.5 completion, 11.6 was next / NOT STARTED; its separately authorized contract follows. Stage 11 remains INCOMPLETE; Stage 12 NOT STARTED.
+
+### Restart / risk rearm / operator controls contract — Stage 11.6a
+
+Accepted [Decision 021](decisions/021_runtime_risk_rearm_operator_controls.md) is architecture/documentation only, COMPLETE / owner review pending on frozen baseline `f1c542b3deb5d1baebd2ea52f70ea0785292e5df`. Stage 11.6 has STARTED / INCOMPLETE. Stage 11.6b requires separate owner authorization after contract review/freeze; no operator rearm implementation or new callable API exists yet.
+
+Future controls are independent. Runtime HALT rearm applies the frozen OPERATOR_REARMED event, HALTED → SYNCHRONIZING, preserving last-known exposure/pending identity/desired intent and requiring subsequent reconciliation; it records rearmed_at_ms and clears current halted_at_ms without touching risk. Risk rearm requires confirmed safe FLAT/desired=0 or LONG/desired=1, no pending work, fresh durable reconciliation/mark, caught-up history, unchanged fill evidence and a surfaced trip notification. When both latches exist: explicitly rearm runtime → reconcile successfully → only then explicitly rearm risk.
+
+Risk rearm atomically creates only a child epoch plus ACTIVATION at the parent's latest accepted candle boundary T, using the same configuration, exact CLOSE and continuous cash/inventory/evidence. It intentionally resets the child's loss baseline and peak to current equity, but carries the same-day consumed ENTRY count across retained epochs. No capital credit, configuration edit, historical rewrite, frontier advance, new decision/verdict/action or delayed BUY. FLAT/desired=1 is rejected because Decision 020 refusal provenance cannot cross epochs. LONG rearm retains exact ownership and buys nothing.
+
+Future production scope is only a new pure rearm_risk_state helper and narrow RuntimeStore controls/child validation/read selection. State/recovery/reconciliation/planner/gate/cycle/scheduler/exchange remain frozen. Schema **2**, runtime contract **1**, Decimal storage/durability/CAS/phase graph unchanged; no migration. Decision 021 explicitly requires same-T parent/child ordering, carried-count validation and next-LIVE child authority without changing orchestration. Crash results are all-or-nothing or require reopen; stale/repeated controls cannot create another reset/epoch. Parent trips/history stay immutable.
+
+Restart, midnight and price recovery never rearm. Initial 11.6 includes no manual pause/trip, forced liquidation, broker read/order/cancel, HTTP or credential access. STOPPING remains separate and cannot resume in the same process. Decision 021 lists at least 25 required future acceptance cases; Stage 11.7 retains the later broad integration scope. The no-rearm golden must remain 54 / 2 / 2 / 0 with one initial epoch and unchanged IDs/economics.
+
+Stage 11.6a changes exactly four Markdown files; zero production/tests/schema/dependencies/previous-Decision/notebook/data/result changes and zero new tests. Local execution: unchanged full suite **2,850 passed**, zero failures/errors/skips; zero new tests. `pip check`, `git diff --check` and `git diff --staged --check` pass.
+
+Real user DB migration: **NOT RUN**. Real user risk activation/rearm: **NOT RUN**. Runtime HALT operator rearm on a real runtime: **NOT RUN**. Authenticated Bybit Demo read: **NOT RUN**. Authenticated Bybit Demo order: **NOT RUN**. Authenticated Bybit Demo cancellation: **NOT RUN**. Stage 11 remains INCOMPLETE; 11.6b next / NOT STARTED; 11.7–11.8 and Stage 12 NOT STARTED.
 
 ### Stage 11 roadmap
 
@@ -260,12 +278,12 @@ No rearm/epoch 2/operator control, forced liquidation, new breaker class, produc
 | 11.2 | Pure Risk State + Valuation + Policy Engine | COMPLETE / owner-reviewed / FROZEN at `ffb8566` |
 | 11.3 | Durable Risk Journal + Schema/Migration Contract | COMPLETE / owner-reviewed / FROZEN at `be0eba0` |
 | 11.4 | Pre-Trade Risk Gate + Crash-Consistent Authorization | COMPLETE / owner-reviewed / FROZEN at `887e663` |
-| 11.5 | Daily Loss / Drawdown / Exposure Circuit Breaker Hardening & Offline Regression | COMPLETE / owner review pending |
-| 11.6 | Restart + Risk Trip / Rearm / Operator Controls | NOT STARTED |
+| 11.5 | Daily Loss / Drawdown / Exposure Circuit Breaker Hardening & Offline Regression | COMPLETE / owner-reviewed / FROZEN at `f1c542b` |
+| 11.6 | Restart + Risk Trip / Rearm / Operator Controls | STARTED / INCOMPLETE; 11.6a contract COMPLETE / owner review pending; 11.6b NOT STARTED |
 | 11.7 | End-to-End Risk Integration Regression | NOT STARTED |
 | 11.8 | Final Stage 11 Audit + Docs | NOT STARTED |
 
-Stage 11.3 internal subphases are COMPLETE / FROZEN: **11.3a contract at `9807ed8`** and **11.3b implementation at `be0eba0`**. Stage 11.4 internal subphases: **11.4a FROZEN at `6bc9d773`, corrected Decision 020 FROZEN at `73c1df6`**; **11.4b implementation and Stage 11.4 overall FROZEN at `887e663`**. Stage 11.5 is COMPLETE / owner review pending; Stage 11.6 and Stage 12 must not begin automatically.
+Stage 11.3 internal subphases are COMPLETE / FROZEN: **11.3a contract at `9807ed8`** and **11.3b implementation at `be0eba0`**. Stage 11.4 internal subphases: **11.4a FROZEN at `6bc9d773`, corrected Decision 020 FROZEN at `73c1df6`**; **11.4b implementation and Stage 11.4 overall FROZEN at `887e663`**. Stage 11.5 is COMPLETE / FROZEN at `f1c542b`. Stage 11.6a is COMPLETE / owner review pending; 11.6b, 11.7–11.8 and Stage 12 remain NOT STARTED. No implementation starts automatically.
 
 ### Canonical 12-stage roadmap
 
@@ -2158,9 +2176,9 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Owner review/freeze of Stage 11.5 — Circuit Breaker Hardening & Offline Regression. Stage 11.4 is independently reviewed, COMPLETE / FROZEN at `887e663`; Stage 11.5 adds offline tests/documentation only. Stage 11 remains INCOMPLETE; 11.6 is next / NOT STARTED; 11.7–11.8 and Stage 12 remain NOT STARTED.
+Owner review/freeze of Stage 11.6a — Restart / Risk Rearm / Operator Controls Contract. Stage 11.5 is COMPLETE / FROZEN at `f1c542b`. Stages 11 and 11.6 remain INCOMPLETE; 11.6b implementation next / NOT STARTED, requiring separate owner authorization after contract freeze. Stage 11.7–11.8 and Stage 12 remain NOT STARTED.
 
-All frozen production, existing tests, contracts/Decisions, schema, dependencies, Stage 5 EMA/next-OPEN behavior, notebooks and data/results are preserved byte-for-byte in Stage 11.5. Temporary fixtures supply all operational evidence; no real user migration/activation, credentials or authenticated Demo operation.
+All frozen production/tests, previous Decisions, schema, dependencies, Stage 5 EMA/next-OPEN behavior, notebooks and data/results are preserved byte-for-byte in Stage 11.6a. Only Decision 021 and three current documents change. No real user migration/activation/rearm, credentials or authenticated Demo operation.
 
 ## Not implemented yet
 
@@ -2179,7 +2197,7 @@ All frozen production, existing tests, contracts/Decisions, schema, dependencies
 
 ## Next milestone
 
-Stage 11.6 — Restart + Risk Trip / Rearm / Operator Controls is next and NOT STARTED. Do not begin automatically. First complete owner review/freeze of Stage 11.5. Stage 11.4 is COMPLETE / FROZEN at `887e663`; Decisions 018–020 remain FROZEN. Stage 11 remains INCOMPLETE and Stage 12 remains NOT STARTED.
+Stage 11.6b — Runtime Risk Rearm / Operator Controls Implementation is next and NOT STARTED. Do not begin automatically; separate owner authorization is required after Decision 021 review/freeze. Stage 11.6a is COMPLETE / owner review pending; Stages 11 and 11.6 remain INCOMPLETE. Stage 11.7–11.8 and Stage 12 remain NOT STARTED.
 
 Real user runtime DB migration/risk activation and authenticated Demo read/order/cancellation remain NOT RUN. No approval to perform those operations follows from offline implementation or tests.
 
