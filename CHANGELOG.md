@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-17 — Stage 12.1d Generic Streamlit Runtime Dashboard
+
+- Added a framework-independent generic dashboard read model, bounded secure read-only health/JSONL loader, deterministic deduped history, exact formatting/display ratios, conservative confirmed closed-cycle/execution-reference views and sparse recorded-observation charts. Missing/stale/corrupt/incomplete data remains explicit; no ACK-as-fill, synthetic PnL or trade from current LONG.
+- Added the same six-view Streamlit template and read-only instance selector/filters/manual refresh for current EMA/BTCUSDT and synthetic future Donchian/ETHUSDT observability data, without strategy-specific core branches or a new runtime strategy. Added only `streamlit==1.66.0` to requirements; no existing dependency upgrades. Updated dashboard startup/limitations and separate POST-v1 research-dashboard direction.
+- Local validation: **81 new dashboard tests passed** (16 model / 23 analytics / 31 loader / 11 app), including installed Streamlit AppTest without browser/server; **3,239 full-suite tests passed**, failures/errors/skips **0/0/0**. All 142 frozen observability / 73 Telegram tests, targeted Stage 11/runtime/EMA, pip and both diff checks passed; golden 54/2/2/0/1 and exact IDs/economics unchanged. Frozen observability/Telegram/trading/schema/Decisions/old tests/notebooks/data/results unchanged. Current v1 runtime remains EMA-only; no RuntimeStore/broker/Telegram access or application writes/trading controls.
+- Generic identity correction independently owner-reviewed / FROZEN at `82ce7c58`; Stage 12.1d COMPLETE / owner review pending, Stage 12.1e and 12.2–12.4 NOT STARTED, Stages 12/12.1 INCOMPLETE, v1.0.0 NOT RELEASED. No real monitoring, credential, notification, broker or user-DB operation; do not begin 12.1e automatically.
+
 ## 2026-10-17 — Narrow Stage 12.1b generic observability strategy identity correction
 
 - Removed the unintended EMA-only restriction from derived event/health records using shared bounded ASCII `[a-z][a-z0-9_]{0,31}` validation. Demo broker/hourly bounds remain unchanged. Synthetic Donchian identity is parser evidence only: the v1 execution runtime and RuntimeConfiguration remain strictly ema_trend-only; no new strategy is implemented or authorized.

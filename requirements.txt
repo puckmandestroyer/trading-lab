@@ -4,3 +4,4 @@ matplotlib
 jupyterlab
 requests
 pybit==5.17.0
+streamlit==1.66.0

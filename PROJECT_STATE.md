@@ -6,7 +6,7 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 ## Current stage
 
-Stage 12.1b remains FROZEN at `265bf33e68f714988f763fa264ec231504a3a01a`, with the narrow owner-approved generic-strategy observability correction COMPLETE / owner review pending against `557774a7f3833d8ac339a5ffa609908f5356c6ff`. Stage 12.1c is independently owner-reviewed / FROZEN at `557774a`; Stage 12.1a remains FROZEN at `cc293372d3c89bb05c8eb2280f17f3c8a764f5b1`. Stages 12 and 12.1 remain STARTED / INCOMPLETE. **12.1d remains BLOCKED / NOT STARTED until this correction is owner-reviewed/frozen.** 12.1e and 12.2–12.4 NOT STARTED; **v1.0.0 NOT RELEASED**. Do not begin Streamlit automatically.
+Stage 12.1d — Generic Streamlit Runtime Dashboard is COMPLETE / owner review pending against frozen `82ce7c585e0d0a98a203f9bfd353d6dc15ca0e44`. Stage 12.1b and its generic-strategy identity correction are independently owner-reviewed / FROZEN at `265bf33` / `82ce7c58`; Stage 12.1c remains FROZEN at `557774a`, 12.1a at `cc29337`. Stages 12 and 12.1 remain STARTED / INCOMPLETE. **12.1e — Observability Offline Regression + Audit is next / NOT STARTED; do not begin automatically.** 12.2–12.4 NOT STARTED; **v1.0.0 NOT RELEASED**.
 
 Stage 12.0 — Trading Lab V1 Production & Live Readiness Contract / [Decision 022](decisions/022_trading_lab_v1_production_live_readiness.md) is independently owner-reviewed, COMPLETE / FROZEN at `0b275c91abe53068dc4b0b05ade7be710d13cef6` (`Define Trading Lab v1 readiness contract`). Decision 022 is unchanged.
 
@@ -44,7 +44,7 @@ Stage 10.9 — Restart / Crash / Ambiguous-Action Recovery is COMPLETE, owner-re
 
 Stage 10.10 — Runtime Integration Regression is COMPLETE OFFLINE, independently owner-reviewed and FROZEN at `329252658aa703b90f107d862e34dbabd81f0f64`.
 
-Both audit-blocker corrections are independently owner-reviewed and FROZEN: account/order read classification at `4e947b192d9e2b3be8b9b050917ca9e03a250320`, public market-data classification at `c273a8be3213a1cbeb3fc12271d17618f2d28b94`. Stages 10.1–10.11 and all approved RuntimeStore/Stage 9 corrections remain FROZEN. Stage 11 implementation and final audit are documented below; Stage 12.1d must not start automatically. Optional authenticated Demo run: NOT PERFORMED / NOT AUTHORIZED.
+Both audit-blocker corrections are independently owner-reviewed and FROZEN: account/order read classification at `4e947b192d9e2b3be8b9b050917ca9e03a250320`, public market-data classification at `c273a8be3213a1cbeb3fc12271d17618f2d28b94`. Stages 10.1–10.11 and all approved RuntimeStore/Stage 9 corrections remain FROZEN. Stage 11 implementation and final audit are documented below; Stage 12.1e must not start automatically. Optional authenticated Demo run: NOT PERFORMED / NOT AUTHORIZED.
 
 Stage 9 — Bybit Demo Exchange Adapter remains COMPLETE/FROZEN, including the owner-reviewed Stage 9.5 pre-submit correction at `77a88fe1b1250cabde6a1a6fa4aa492db056084b`.
 
@@ -104,15 +104,35 @@ Stage 6 — Generic Backtesting Engine remains COMPLETE at `df72973de837ecbd4ee8
 
 Stage 5 — Analytics remains COMPLETE and frozen at `a3fde091be234fd78d216f6338752a810fa117f0` (`Complete Stage 5 analytics report`).
 
-## Generic observability strategy identity — narrow Stage 12.1b correction
+## Generic Streamlit runtime dashboard — Stage 12.1d
 
-COMPLETE / owner review pending. This separate owner-approved correction changes only `ObservabilityEvent.__post_init__` and `HealthSnapshot.__post_init__` strategy validation through one shared helper: ASCII `[a-z][a-z0-9_]{0,31}` (1–32 characters, lowercase initial letter). Invalid/empty/oversize/uppercase/Unicode/path-like/whitespace/non-string values fail explicitly. Broker identity remains `bybit-demo`, timeframe remains `60`; event taxonomy/envelope/IDs, canonical encoding, financial validation and health semantics are unchanged.
+COMPLETE / owner review pending. Adds framework-independent `src/trading_lab/dashboard/{__init__,model,loader,analytics,formatting}.py`, thin `dashboard/app.py` and four focused test files; updates dashboard README, three current documents and only the direct requirement `streamlit==1.66.0`. No frozen observability/Telegram/runtime/risk/exchange/strategy/backtest source, schema, Decision, existing test, notebook/data/result change. No existing package was upgraded; Streamlit and its required new framework dependencies were installed for local offline tests.
+
+The generic immutable read model explicitly carries broker/account/bot/strategy/symbol/timeframe identity, validated health/events, viewer freshness/age, exact display drawdown and conservative confirmed closed cycles/execution references. Public APIs: DashboardInstance/Discovery/Overview/Execution/Trade/Model, DASHBOARD_VIEWS, discover_instances, load_dashboard, build_dashboard_model, recent_events, filter_events, history_series, display_percentage and formatting helpers. No singleton instance or strategy renderer registry is required.
+
+The same loader/model/formatter/six-view Streamlit template accepts synthetic `ema_trend / BTCUSDT / bot1 / 60` and `donchian / ETHUSDT / bot2 / 60` through frozen observability parsers, without constructing Donchian RuntimeConfiguration or adding strategy-specific UI branches. The v1 execution runtime remains EMA-only; no new strategy is authorized/implemented. Future compatible observability producers reuse the UI without copying it.
+
+Six views: Overview; Position / Orders; Risk; Trades; Runtime Health; Event / Error History. They show exact known exposure/pending/configuration/risk/epoch facts, accepted marks, raw states/reasons, timestamps and explicit unavailable data. Current LONG, signals, PREPARED and ACK never manufacture historical trades/fills. Confirmed position transitions are ordered by durable checkpoint sequence for closed-cycle pairing, with partial quantity continuity required. PnL is copied only from exact closing-event evidence; missing PnL and execution/fee references stay unavailable, without fee aggregation/conversion. Trip/rearm and HALT/rearm remain distinct retained events.
+
+Data is local health.json and JSONL only. There is no RuntimeStore/SQLite/broker/market/Telegram access, mutation/control UI, runtime hook, command receiver, poller or application write. Refresh/instance/filter controls only re-read files. Startup requires an explicit absolute root; the documented command binds Streamlit to 127.0.0.1 and disables usage telemetry. No credentials. Empty roots show the fixed empty state; invalid candidates/errors are sanitized.
+
+Directory-relative read-only/no-follow opens reject symlink ancestors/escapes, special/hardlinked files and non-private ownership/permissions, without repair. Discovery scans direct root candidates only (256 entries / 64 instances). History bounds: 4,096 instance entries, newest 7 UTC segments, 4 MiB per segment / 8 MiB total, 10,000 scanned records. Default display: 250 unique events, hard maximum 1,000. Latest observation per event ID wins; canonical bytes break exact time ties. Display ordering is observed_at_ms / occurred_at_ms / event_id, newest first. Identity/date mismatches and complete corrupt records explicitly disable selected history; torn tails retain preceding valid records with degradation. Limits/older unselected history are explicit; no source rewrite/deletion.
+
+Viewer freshness ages generated_at_ms at a separate default 120,000ms presentation threshold; future time is UNKNOWN and stale snapshots cannot remain current because stored generated_freshness was FRESH. Raw stored health/reasons remain visible. Display drawdown uses Decimal arithmetic rounded to six places, with exact sources preserved. Quantity/risk-equity/daily-PnL charts use actual retained event observations only; float conversion happens solely at the final plotting boundary and rejects nonzero underflow/non-finite values. Insufficient data stays unavailable, never a series synthesized from a current snapshot.
+
+Local validation: **81 new dashboard tests passed** (16 model / 23 analytics / 31 loader / 11 app); **3,239 full-suite tests passed (3,158 + 81)**, failures/errors/skips **0/0/0**. Frozen observability: 34 model / 33 health / 41 projection / 34 storage = 142; unchanged Telegram 73. Targeted frozen suites passed: Stage 11 E2E 11, rearm 82, breakers 30, gate 67, pure risk 123, RuntimeStore 350, runtime integration 64 and EMA 16. Golden remains **54 decisions / 2 placements / 2 fills / 0 cancellations / 1 risk epoch**, exact IDs/links/economics unchanged. `pip check`, `git diff --check` and `git diff --staged --check` passed. Tests cover the common generic pipeline, states/freshness, history/partial trades/PnL, safety/bounds and Streamlit AppTest rendering/selection/filter/refresh without a browser/server. A future separate POST-v1 Research / Backtest Dashboard may provide strategy/symbol/timeframe selection, backtests, cross-asset/strategy comparison, robustness, walk-forward and parameter heatmaps. None is implemented here. Stage 12.1e NOT STARTED; Stages 12/12.1 INCOMPLETE; v1.0.0 NOT RELEASED.
+
+Real Streamlit runtime monitoring session: **NOT RUN**. Real Telegram token/chat ID: **NOT USED**; real Telegram message: **NOT SENT**; external Telegram API request: **NOT RUN**. Demo/Live credentials: **NOT USED**; authenticated Bybit Demo/Live read/order/cancel: **NOT RUN**; real user DB migration/activation/rearm: **NOT RUN**.
+
+## Generic observability strategy identity — narrow Stage 12.1b correction (frozen completion record)
+
+Independently owner-reviewed / FROZEN at `82ce7c585e0d0a98a203f9bfd353d6dc15ca0e44`. The original completion scope/results below are retained. This separate owner-approved correction changed only `ObservabilityEvent.__post_init__` and `HealthSnapshot.__post_init__` strategy validation through one shared helper: ASCII `[a-z][a-z0-9_]{0,31}` (1–32 characters, lowercase initial letter). Invalid/empty/oversize/uppercase/Unicode/path-like/whitespace/non-string values fail explicitly. Broker identity remains `bybit-demo`, timeframe remains `60`; event taxonomy/envelope/IDs, canonical encoding, financial validation and health semantics are unchanged.
 
 The v1 execution runtime remains **ema_trend-only**. The correction generalizes only the derived observability identity validator so the read-only observability/dashboard layer is reusable by future strategy runtimes. No additional runtime strategy is authorized or implemented. Same-schema record/parser fixtures accept `ema_trend / BTCUSDT / bot1` and `donchian / ETHUSDT / bot2`; a Donchian RuntimeConfiguration is still rejected. Current make_event/projection/build_health_snapshot construction boundaries retain their existing EMA-only runtime input.
 
 Fixed vectors captured from frozen `557774a` preserve all 28 EMA fixture event IDs, their canonical JSON bytes and inactive/active canonical EMA health encodings. Telegram/projection/storage and all trading/runtime/risk/exchange/strategy/backtest source, existing tests, schema, dependencies, Decisions, notebooks/data/results are preserved apart from the two authorized observability test files receiving new cases. Only these two production files, two focused test files and three current documents change.
 
-Local validation: **34 model / 33 health / 41 projection / 34 storage / 73 unchanged Telegram tests passed** (142 Stage 12.1b, including 11 new regressions). Full suite: **3,158 passed (3,147 + 11)**, failures/errors/skips **0/0/0**. Targeted frozen suites passed: Stage 11 risk E2E 11, rearm 82, circuit breakers 30, gate 67, pure risk 123, RuntimeStore 350, runtime integration 64 and EMA 16. Golden remains **54 decisions / 2 placements / 2 fills / 0 cancellations / 1 risk epoch**, exact IDs/links/economics unchanged. `pip check`, `git diff --check` and `git diff --staged --check` passed. All 56 pre-existing model/health test methods remain byte-identical. Tests use synthetic records and temporary fixtures only. This is not Stage 12.1d. That milestone remains BLOCKED / NOT STARTED until owner review/freeze; 12.1e and 12.2–12.4 NOT STARTED, Stages 12/12.1 INCOMPLETE, v1.0.0 NOT RELEASED.
+Local validation: **34 model / 33 health / 41 projection / 34 storage / 73 unchanged Telegram tests passed** (142 Stage 12.1b, including 11 new regressions). Full suite: **3,158 passed (3,147 + 11)**, failures/errors/skips **0/0/0**. Targeted frozen suites passed: Stage 11 risk E2E 11, rearm 82, circuit breakers 30, gate 67, pure risk 123, RuntimeStore 350, runtime integration 64 and EMA 16. Golden remains **54 decisions / 2 placements / 2 fills / 0 cancellations / 1 risk epoch**, exact IDs/links/economics unchanged. `pip check`, `git diff --check` and `git diff --staged --check` passed. All 56 pre-existing model/health test methods remain byte-identical. Tests use synthetic records and temporary fixtures only. This correction is now FROZEN at `82ce7c58`; the separately authorized Stage 12.1d implementation is recorded above; 12.1e and 12.2–12.4 NOT STARTED, Stages 12/12.1 INCOMPLETE, v1.0.0 NOT RELEASED.
 
 Real Streamlit runtime monitoring session: **NOT RUN**. Real Telegram token/chat ID: **NOT USED**; real Telegram message: **NOT SENT**; external Telegram API request: **NOT RUN**. Demo/Live credentials: **NOT USED**; authenticated Bybit Demo/Live read/order/cancel: **NOT RUN**; real user DB migration/activation/rearm: **NOT RUN**.
 
@@ -185,9 +205,9 @@ Streamlit's required views are Overview, Position / Orders, Risk, Trades, Runtim
 | Phase | Milestone | Scope | Status |
 | --- | --- | --- | --- |
 | 12.1 — Observability & Operator Visibility (STARTED / INCOMPLETE) | 12.1a | Observability Event / Logging Contract | COMPLETE / FROZEN at cc29337 |
-| 12.1 | 12.1b | Structured Logs + Health Snapshot | FROZEN at 265bf33 + narrow identity correction / owner review pending |
+| 12.1 | 12.1b | Structured Logs + Health Snapshot | FROZEN at 265bf33 + identity correction FROZEN at 82ce7c58 |
 | 12.1 | 12.1c | Telegram Outbound Alerts | COMPLETE / FROZEN at 557774a |
-| 12.1 | 12.1d | Streamlit Dashboard | BLOCKED / NOT STARTED until identity correction review/freeze |
+| 12.1 | 12.1d | Generic Streamlit Runtime Dashboard | COMPLETE / owner review pending |
 | 12.1 | 12.1e | Observability Offline Regression + Audit | NOT STARTED |
 | 12.2 — Long-Running Bybit Demo Validation | 12.2a | Demo Activation / Runbook Contract | NOT STARTED |
 | 12.2 | 12.2b | Controlled 24h → 72h Demo Run | NOT STARTED |
@@ -219,7 +239,7 @@ Stage 12.0 verification: unchanged full local suite **2,943 passed**, failures/e
 
 ## Runtime risk contract — Stage 11.1
 
-Milestone records below retain their original scope, completion-time status and test totals. The Current stage and narrow Stage 12.1b correction sections state current status; Stage 12.1b is FROZEN at `265bf33`, Stage 12.1a at `cc29337`, Stage 12.0 at `0b275c9` and Stage 11 at `b79d511`.
+Milestone records below retain their original scope, completion-time status and test totals. The Current stage and Stage 12.1d dashboard sections state current status; Stage 12.1b is FROZEN at `265bf33`, Stage 12.1a at `cc29337`, Stage 12.0 at `0b275c9` and Stage 11 at `b79d511`.
 
 Decision 018 defines the future flow: closed market data → strategy intent → Stage 10 planner proposal → runtime risk gate → durable risk authorization → PREPARED → ATTEMPT_STARTED → Stage 9.5 Demo mutation. Strategy intent, proposed action and permission to take risk are separate facts. Stage 7 `position_fraction` remains historical research allocation, not runtime sizing.
 
@@ -512,11 +532,11 @@ Real user DB migration: **NOT RUN**. Real user risk activation/rearm: **NOT RUN*
 | 11.7 | End-to-End Risk Integration Regression | COMPLETE / owner-reviewed / FROZEN at `8a57b81` |
 | 11.8 | Final Stage 11 Audit + Docs | COMPLETE / owner-reviewed / FROZEN at `b79d511` |
 
-Stage 11.3 internal subphases are COMPLETE / FROZEN: **11.3a contract at `9807ed8`** and **11.3b implementation at `be0eba0`**. Stage 11.4 internal subphases: **11.4a FROZEN at `6bc9d773`, corrected Decision 020 FROZEN at `73c1df6`**; **11.4b implementation and Stage 11.4 overall FROZEN at `887e663`**. Stage 11.5 is COMPLETE / FROZEN at `f1c542b`. Stage 11.6a is FROZEN at `a45389a`; 11.6b and Stage 11.6 overall are COMPLETE / FROZEN at `a16fe071`. Stage 11.7 is COMPLETE / FROZEN at `8a57b81`. Stage 11.8 and Stage 11 overall are independently owner-reviewed, COMPLETE / FROZEN at `b79d511`. Stage 12.0 and 12.1a are frozen documentation-only contracts; 12.1b–c implementations are recorded above and 12.1d must not start automatically.
+Stage 11.3 internal subphases are COMPLETE / FROZEN: **11.3a contract at `9807ed8`** and **11.3b implementation at `be0eba0`**. Stage 11.4 internal subphases: **11.4a FROZEN at `6bc9d773`, corrected Decision 020 FROZEN at `73c1df6`**; **11.4b implementation and Stage 11.4 overall FROZEN at `887e663`**. Stage 11.5 is COMPLETE / FROZEN at `f1c542b`. Stage 11.6a is FROZEN at `a45389a`; 11.6b and Stage 11.6 overall are COMPLETE / FROZEN at `a16fe071`. Stage 11.7 is COMPLETE / FROZEN at `8a57b81`. Stage 11.8 and Stage 11 overall are independently owner-reviewed, COMPLETE / FROZEN at `b79d511`. Stage 12.0 and 12.1a are frozen documentation-only contracts; 12.1b–d implementations are recorded above and 12.1e must not start automatically.
 
 ### Canonical 12-stage roadmap
 
-Stages 1–11 retain their accepted scope/history. Stage 12 — Production & Live Readiness is the final top-level stage and v1 release gate under frozen Decision 022 at `0b275c9`. Stage 12.1 — Observability & Operator Visibility is STARTED / INCOMPLETE: 12.1a FROZEN at `cc29337`, 12.1b FROZEN at `265bf33` plus narrow identity correction / owner review pending; 12.1c FROZEN at `557774a`; 12.1d BLOCKED / NOT STARTED pending correction review; 12.1e NOT STARTED. 12.2 Long-Running Bybit Demo Validation, 12.3 Local V1 Hardening and 12.4 Controlled Live Validation remain NOT STARTED. The exact milestone roadmap is recorded above. Prior top-level Stages 13–15 naming is superseded only for future planning; historical records and previous Decisions are unchanged. Architecture contracts authorize no Demo activation or Live operation.
+Stages 1–11 retain their accepted scope/history. Stage 12 — Production & Live Readiness is the final top-level stage and v1 release gate under frozen Decision 022 at `0b275c9`. Stage 12.1 — Observability & Operator Visibility is STARTED / INCOMPLETE: 12.1a FROZEN at `cc29337`, 12.1b FROZEN at `265bf33` plus identity correction FROZEN at `82ce7c58`; 12.1c FROZEN at `557774a`; 12.1d COMPLETE / owner review pending; 12.1e NOT STARTED. 12.2 Long-Running Bybit Demo Validation, 12.3 Local V1 Hardening and 12.4 Controlled Live Validation remain NOT STARTED. The exact milestone roadmap is recorded above. Prior top-level Stages 13–15 naming is superseded only for future planning; historical records and previous Decisions are unchanged. Architecture contracts authorize no Demo activation or Live operation.
 
 ## Completed
 
@@ -2405,9 +2425,9 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Owner review/freeze of the narrow Stage 12.1b generic observability strategy-identity correction, COMPLETE / owner review pending. Stage 12.1c is FROZEN at `557774a`, 12.1a at `cc29337`, 12.0 at `0b275c9` and Stage 11 at `b79d511`. Stages 12 and 12.1 remain INCOMPLETE; 12.1d BLOCKED / NOT STARTED until correction review/freeze; 12.1e and 12.2–12.4 NOT STARTED; v1.0.0 NOT RELEASED.
+Owner review/freeze of Stage 12.1d — Generic Streamlit Runtime Dashboard, COMPLETE / owner review pending. Stages 12.1a–c and the generic identity correction at `82ce7c58` remain FROZEN. Stages 12 and 12.1 INCOMPLETE; 12.1e and 12.2–12.4 NOT STARTED; v1.0.0 NOT RELEASED.
 
-This correction modifies only derived event/health strategy validation, adds focused tests and updates current documentation. The v1 execution runtime remains strictly ema_trend-only; no new strategy, dashboard, schema, dependency, Decision or Telegram change. No automatic runtime emission/delivery, Streamlit session, real credentials/token use, authenticated Demo/Live activity, real user migration/activation/rearm or real Telegram message/request occurred.
+The dashboard adds only its generic read-model/loader/analytics/formatting package, thin Streamlit app, focused tests and documentation, with Streamlit as the sole new direct dependency. Frozen observability/Telegram/trading/schema/Decisions are preserved. No new strategy, control UI, automatic runtime emission, authenticated broker/Telegram operation, credential use, real user migration/activation/rearm or real monitoring session occurred.
 
 ## Not implemented yet
 
@@ -2421,12 +2441,12 @@ This correction modifies only derived event/health strategy validation, adds foc
 - Multiple autonomous bot instances and order management.
 - Manual risk pause/kill, risk configuration editing and operational controls UI.
 - PostgreSQL.
-- Dashboards.
+- Separate research/backtest and global bot-comparison dashboards; real runtime monitoring/automatic observability integration.
 - Docker/deployment.
 
 ## Next milestone
 
-Stage 12.1d — Streamlit Dashboard remains BLOCKED / NOT STARTED until the narrow Stage 12.1b identity correction is owner-reviewed/frozen and dashboard work is separately resumed. Stages 12.1a–c remain FROZEN outside this correction; 12.1e and 12.2–12.4 NOT STARTED. Do not begin automatically. Stages 12 and 12.1 remain INCOMPLETE; v1.0.0 NOT RELEASED.
+Stage 12.1e — Observability Offline Regression + Audit is next / NOT STARTED, requiring separate authorization after Stage 12.1d review/freeze. Stages 12.1a–c and the identity correction remain FROZEN; 12.1d COMPLETE / owner review pending. 12.2–12.4 NOT STARTED. Do not begin automatically. Stages 12 and 12.1 INCOMPLETE; v1.0.0 NOT RELEASED.
 
 Real user runtime DB migration/risk activation and authenticated Demo read/order/cancellation remain NOT RUN. No approval to perform those operations follows from offline implementation or tests.
 
