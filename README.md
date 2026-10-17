@@ -6,7 +6,7 @@ The long-term goal is to support historical market data, multiple independent st
 
 ## Current stage
 
-**Stage 12.1d baseline is independently owner-reviewed / FROZEN at `fcae94557e536181f3db9e577817dada1c33665f`; its narrow performance/light-theme correction is COMPLETE / owner review pending.** Stages 12.1a–c remain FROZEN, including the independently owner-reviewed generic observability identity correction at `82ce7c585e0d0a98a203f9bfd353d6dc15ca0e44` and Telegram at `557774a7f3833d8ac339a5ffa609908f5356c6ff`. Stages 12 and 12.1 remain STARTED / INCOMPLETE; **12.1e — Observability Offline Regression + Audit is next / NOT STARTED; do not begin automatically.** 12.2–12.4 NOT STARTED; **v1.0.0 NOT RELEASED**.
+**Stage 12.1e — Observability Offline Regression + Final Audit: AUDIT EXECUTED / acceptance BLOCKED.** Offline component regression passes; **Stage 12.1 overall remains INCOMPLETE / BLOCKED** pending separately owner-approved automatic runtime → observability integration. Stages 12.1a–d, including the generic identity and light performance UI corrections, are independently owner-reviewed / FROZEN at baseline `0c3b6a82c0e0aa435ab7590ddba398380dc97528`. Stage 12 remains INCOMPLETE; **12.2a and all 12.2–12.4 work remain NOT STARTED; do not begin automatically. v1.0.0 remains NOT RELEASED.**
 
 **Stage 12.0 / Decision 022 is independently owner-reviewed, COMPLETE / FROZEN at `0b275c91abe53068dc4b0b05ade7be710d13cef6` (`Define Trading Lab v1 readiness contract`).** Its v1 boundary/release gate remains unchanged.
 
@@ -18,7 +18,27 @@ The integrated risk boundary is **Strategy → Planner → Risk Gate → Durable
 
 **Current limits:** Demo only; one account/bot/EMA strategy/symbol; hourly `60`; LONG/FLAT Spot MARKET. No short/leverage/borrowing, automatic liquidation, risk-generated stop loss/take profit/trailing stop, manual risk kill/pause, configuration editing or operational controls UI. No long-running Demo validation or live trading has occurred.
 
-### Stage 12.1d performance / light-theme correction
+### Stage 12.1e — Offline observability audit: acceptance BLOCKED
+
+The combined offline pipeline passes: accepted public RuntimeStore facts → event projection → real JSONL/health storage → fake Telegram delivery/receipts → the same real dashboard loader/model. **24 new audit tests and 3,297 full-suite tests (3,273 + 24) passed**, failures/errors/skips **0/0/0**. Frozen observability 142 / Telegram 73 / dashboard 115, Stage 10/11 crash/restart/risk/integration, golden and EMA checks passed; `pip check` and both diff checks passed. No frozen production, old tests, Decisions, schema, dependency, notebook or data changes. The [full acceptance matrix and unchanged source hashes](PROJECT_STATE.md#stage-121e--observability-offline-regression--final-audit) separate component evidence from runtime readiness.
+
+**The frozen runtime does not automatically emit observability.** Source/AST searches find no observability dependency or projection/storage/delivery calls in runtime/authority/entrypoint paths. `run_single_cycle`, `run_hourly_scheduler`, `reconcile_startup` and `prepare_process_restart` do not invoke the standalone observability helpers. This covers start, cycle/scheduler, successful commit, stop and critical-failure paths.
+
+| Automatic runtime boundary | Wired? |
+| --- | --- |
+| Runtime process start | **NO** |
+| Cycle/scheduler | **NO** |
+| Post-commit event projection | **NO** |
+| health.json update | **NO** |
+| Telegram dispatch | **NO** |
+
+Therefore this audit records **Stage 12.1e AUDIT EXECUTED / acceptance BLOCKED** and **Stage 12.1 overall INCOMPLETE / BLOCKED** pending a separate owner-approved runtime-observability integration correction. No hooks are added here. Offline composition, manual fixtures and a dashboard preview do not prove automatic runtime integration or operational Telegram/dashboard visibility. Real Demo validation must not rely on them yet.
+
+Regression covers restart/reprojection identities, partial BUY/growth/partial SELL/zero CLOSE, ACK/unknown distinctions, independent TRIP/HALT and rearm, exact Decimal/null-vs-zero, atomic readable/stale health, torn/interior-corrupt history, sanitized bounded failures, notification dedupe/ambiguity/receipt failure, secret/resource bounds, generic identities and deleting all derived artifacts without changing trading truth. Golden remains 54 decisions / 2 placements / 2 fills / 0 cancellations / 1 risk epoch with exact IDs/economics. Performance history remains sparse supported retained risk-event evidence only; a current +20% snapshot with no equity events has no history graph. There is no invented hourly series or new event.
+
+Stages 12.1a–d and both corrections remain independently FROZEN at `0c3b6a82`; Stage 12.1 overall is not frozen. Stage 12.2 remains NOT STARTED; v1.0.0 remains NOT RELEASED. No real monitoring, credentials, Telegram message/request, authenticated Demo/Live operation or real user DB migration/activation/rearm occurred. Wait for owner review; do not implement the correction or begin 12.2 automatically.
+
+### Stage 12.1d performance / light-theme correction (frozen completion record)
 
 The primary workflow is **select strategy/model → current Net P&L / Return / Risk Equity / Drawdown / Daily P&L / Position → historical Strategy Performance % → technical monitoring**. The main header selector displays `60` as `1H`; canonical identity stays in Runtime Health. Native Streamlit light cards place the performance summary on the left and percentage chart on the right, with secondary operational status and at most five confirmed closed cycles below. All six views, manual refresh, exact details and existing conservative trade/history handling remain available. Project-local `.streamlit/config.toml` supplies the light theme without global settings, CSS/JavaScript injection or dependencies.
 
@@ -108,11 +128,11 @@ V1 targets **local macOS, one runtime instance / Bybit account binding / bot, BT
 
 Future visibility is split between **Telegram outbound alerts** and a **local read-only Streamlit dashboard**. Neither may place/cancel orders, rearm runtime/risk, edit configuration, force liquidation or start Live trading. Alerts must describe durable reconciled ownership, not signals, proposals, ALLOW or ACK alone. Telegram failure cannot change trading truth; errors remain visible locally, and no SQLite transaction spans notification I/O. Dashboard views are Overview, Position / Orders, Risk, Trades, Runtime Health and Event / Error History. They show durable/derived owned executions, exact risk facts and health; wallet totals are not bot equity and no PnL is invented.
 
-The Stage 12 roadmap is fixed below: 12.0 and 12.1a–c, including the identity correction at `82ce7c58`, are FROZEN; 12.1d baseline is FROZEN at `fcae9455`, with the performance/light-theme correction COMPLETE / owner review pending. **12.1 remains INCOMPLETE; 12.1e and all 12.2–12.4 milestones remain NOT STARTED.** Full phase gates and safety details are in [Decision 022](decisions/022_trading_lab_v1_production_live_readiness.md#stage-12-roadmap-and-phase-gates); Decision 023 governs observability.
+The Stage 12 roadmap is fixed below: 12.0 and 12.1a–c, including the identity correction at `82ce7c58`, are FROZEN; 12.1d including its light performance correction is FROZEN at `0c3b6a82`; 12.1e AUDIT EXECUTED / acceptance BLOCKED because automatic runtime observability wiring is missing. **12.1 remains INCOMPLETE / BLOCKED; all 12.2–12.4 milestones remain NOT STARTED.** Full phase gates and safety details are in [Decision 022](decisions/022_trading_lab_v1_production_live_readiness.md#stage-12-roadmap-and-phase-gates); Decision 023 governs observability.
 
 | Phase | Milestones |
 | --- | --- |
-| 12.1 — Observability & Operator Visibility | **12.1a** Observability Event / Logging Contract — FROZEN; **12.1b** Structured Logs + Health Snapshot — FROZEN + identity correction FROZEN at 82ce7c58; **12.1c** Telegram Outbound Alerts — FROZEN at 557774a; **12.1d** Generic Streamlit Runtime Dashboard — baseline FROZEN at fcae9455; performance/light-theme correction COMPLETE / owner review pending; **12.1e** Observability Offline Regression + Audit — NOT STARTED. |
+| 12.1 — Observability & Operator Visibility | **12.1a** Observability Event / Logging Contract — FROZEN; **12.1b** Structured Logs + Health Snapshot — FROZEN + identity correction FROZEN at 82ce7c58; **12.1c** Telegram Outbound Alerts — FROZEN at 557774a; **12.1d** Generic Streamlit Runtime Dashboard including performance/light-theme correction — FROZEN at 0c3b6a82; **12.1e** Observability Offline Regression + Final Audit — AUDIT EXECUTED / acceptance BLOCKED; automatic runtime integration missing. |
 | 12.2 — Long-Running Bybit Demo Validation | **12.2a** Demo Activation / Runbook Contract; **12.2b** Controlled 24h → 72h Demo Run; **12.2c** Restart / Network / Failure Validation; **12.2d** 7-day Demo Soak + Report. |
 | 12.3 — Local V1 Hardening | **12.3a** Local Operator CLI; **12.3b** Configuration + Secret Hardening; **12.3c** Local Process Supervision / Startup; **12.3d** Backup + Log Rotation + Recovery; **12.3e** Local Deployment Audit. |
 | 12.4 — Controlled Live Validation | **12.4a** Live Exchange / Safety Contract; **12.4b** Live Read-Only Validation; **12.4c** Exact Live Dry-Run / Preflight; **12.4d** First Explicit Tiny Live Order; **12.4e** Tiny-Capital Live Runtime Validation; **12.4f** Final Stage 12 / V1 Audit + Release. |
@@ -553,7 +573,7 @@ Canonical BTC diagnostics retain **6,132 IS / 2,628 OOS**, boundary **2026-06-13
 
 The final audit accepts chronological cold-start OOS evaluation, deterministic sensitivity, descriptive local stability, fixed-configuration expanding walk-forward, consistent downstream diagnostics, and Notebook 06's visual research report. Stage 8 adds **235 tests** to the unchanged 747-test baseline: **982 total**, zero failures, errors, or skips. Frozen Stage 5–7 references, Decisions 010–012, notebook bytes, and BTC SHA256 are preserved. No optimizer, selected best EMA, robustness score, or stitched OOS portfolio exists. Already-seen single-asset/hourly/EMA research does not prove future profitability or provide demo/live trading evidence.
 
-Current focus: owner review/freeze of the **Stage 12.1d performance/light-theme correction**, COMPLETE / owner review pending; original dashboard baseline FROZEN at `fcae9455`. Stages 12.1a–c and the identity correction at `82ce7c58` remain FROZEN. The v1 execution runtime remains EMA-only. Stages 12 and 12.1 INCOMPLETE; 12.1e and 12.2–12.4 NOT STARTED; v1.0.0 NOT RELEASED. Do not start 12.1e automatically. No real runtime monitoring session or authenticated broker/Telegram operation occurred. Earlier completion records retain their original scope/results.
+Current focus: owner review of the **Stage 12.1e audit and automatic runtime-observability integration blocker**. Stages 12.1a–d and corrections remain FROZEN at `0c3b6a82`. Offline components PASS; Stage 12.1 overall INCOMPLETE / BLOCKED. The v1 execution runtime remains EMA-only. Stage 12 INCOMPLETE; 12.2–12.4 NOT STARTED; v1.0.0 NOT RELEASED. Do not add integration or start 12.2 automatically. No real runtime monitoring session or authenticated broker/Telegram operation occurred. Earlier completion records retain their original scope/results.
 
 - Stage 1 completed: reusable historical data collection and a validated BTCUSDT hourly snapshot.
 - Stage 2 completed: statistical market analysis of returns, volatility, volume, extreme movements, and BTC buy-and-hold drawdown in `notebooks/01_data_exploration.ipynb`.

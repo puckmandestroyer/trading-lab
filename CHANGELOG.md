@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-17 — Stage 12.1e Offline Observability Regression + Final Audit
+
+- Added one 24-test combined regression module over public temporary journal facts, real projection/storage/health, fake Telegram HTTP/receipts and the same dashboard artifacts. Covers restart/IDs, partial/unknown/ACK semantics, independent latches/rearm, exact values, atomic/stale health, corruption/bounds, failure/secret isolation and whole-derived-tree deletion with frozen golden preservation (54/2/2/0/1, exact IDs/economics).
+- Production audit finds no automatic runtime start/cycle/post-commit projection, health write or Telegram dispatch. Offline components PASS does not establish runtime wiring: **12.1e AUDIT EXECUTED / acceptance BLOCKED; Stage 12.1 overall INCOMPLETE / BLOCKED** pending separately owner-approved integration. No frozen production hook/fix is added to hide the blocker.
+- Local validation: **24 new audit / 3,297 full-suite tests passed (3,273 + 24)**, failures/errors/skips **0/0/0**; frozen observability 142 / Telegram 73 / dashboard 115, Stage 10/11 crash/restart/risk/integration, EMA and golden passed. Pip and both diff checks passed. Production/old tests/Decisions/schema/dependencies/notebooks/data unchanged; source hashes preserved. No real credentials, broker/Telegram operation, runtime monitoring or real user DB operation.
+- 12.1a–d and corrections independently FROZEN at `0c3b6a82`; overall 12.1 is not frozen. Stage 12.2 NOT STARTED, v1.0.0 NOT RELEASED. Do not add integration or start Demo validation automatically.
+
 ## 2026-10-17 — Narrow Stage 12.1d performance / light-theme correction
 
 - Redesigned Overview around main-page strategy selection, left Net P&L/Return/equity/drawdown/daily P&L/position, right Strategy Performance %, secondary operational status and a five-cycle confirmed-trades preview. Preserved all six technical views and canonical identity details; added project-local light theme using native Streamlit only.
