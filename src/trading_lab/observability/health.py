@@ -13,7 +13,7 @@ from ..runtime.cycle import SingleCycleResult, CycleOutcome
 from ..risk.runtime_risk import RiskReason
 from .model import (OBSERVABILITY_CONTRACT_VERSION, ObservabilityValidationError,
                     ObservabilityHealthLevel, EvidenceFreshness, validate_run_id, integer,
-                    safe_text, digest, require, validate_value, encode_value, decode_value,
+                    safe_text, validate_strategy_id, digest, require, validate_value, encode_value, decode_value,
                     canonical_bytes, parse_object)
 from .projection import projection_errors, exact
 
@@ -180,7 +180,8 @@ class HealthSnapshot:
         validate_run_id(self.run_id)
         for name in ("broker_id", "account_binding", "bot_id", "strategy_id", "symbol", "timeframe"):
             safe_text(getattr(self, name))
-        require(self.broker_id == "bybit-demo" and self.strategy_id == "ema_trend" and self.timeframe == "60")
+        require(self.broker_id == "bybit-demo" and self.timeframe == "60")
+        validate_strategy_id(self.strategy_id)
         require(re.fullmatch(r"[a-z0-9]{1,12}", self.bot_id) is not None and self.symbol.isupper())
         require(type(self.observability_status) is str and self.observability_status in {"OK", "DEGRADED", "CRITICAL"})
         for name, enum in _ENUMS.items():

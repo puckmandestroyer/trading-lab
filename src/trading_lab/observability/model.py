@@ -115,6 +115,11 @@ def safe_text(value, limit=MAX_SAFE_CHARS):
     require(type(value) is str and re.fullmatch(r"[A-Za-z0-9_-]{1," + str(limit) + "}", value) is not None)
 
 
+def validate_strategy_id(value):
+    """Derived identity only; this does not authorize a runtime strategy."""
+    require(type(value) is str and re.fullmatch(r"[a-z][a-z0-9_]{0,31}", value) is not None)
+
+
 def digest(value):
     require(type(value) is str and re.fullmatch(r"[0-9a-f]{64}", value) is not None)
 
@@ -458,7 +463,8 @@ class ObservabilityEvent:
                 require(getattr(self, name) is not None)
             if getattr(self, name) is not None:
                 safe_text(getattr(self, name))
-        require(self.broker_id == "bybit-demo" and self.strategy_id == "ema_trend" and self.timeframe == "60")
+        require(self.broker_id == "bybit-demo" and self.timeframe == "60")
+        validate_strategy_id(self.strategy_id)
         require(self.symbol.isupper() and re.fullmatch(r"[a-z0-9]{1,12}", self.bot_id) is not None)
         for name in ("occurred_at_ms", "checkpoint_sequence", "risk_epoch_sequence", "candle_open_ms"):
             if getattr(self, name) is not None:

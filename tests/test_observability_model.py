@@ -101,6 +101,96 @@ class EventModelTests(unittest.TestCase):
                 self.assertEqual(event_from_json(event.to_json()), event)
                 self.assertEqual(set(event.to_dict()) - set(m.ENVELOPE_FIELDS), {name for name, _ in event.details})
 
+    def test_generic_strategy_ids_roundtrip_process_and_durable_records(self):
+        for strategy in ("ema_trend", "donchian", "donchian_breakout", "mean_reversion", "momentum_v2", "a", "x"*32):
+            for kind in (T.PROCESS_STARTED, T.POSITION_OPEN_CONFIRMED):
+                original = sample(kind)
+                with self.subTest(strategy=strategy, kind=kind):
+                    event = replace(original, strategy_id=strategy)
+                    parsed = event_from_json(m.canonical_bytes({**original.to_dict(), "strategy_id": strategy}))
+                    self.assertEqual(parsed, event)
+                    self.assertEqual(parsed.strategy_id, strategy)
+                    self.assertEqual(parsed.to_json(), event.to_json())
+                    self.assertEqual(parsed.event_id, original.event_id)
+
+    def test_unsafe_strategy_ids_rejected_by_record_and_parser(self):
+        original = sample()
+        for strategy in ("", "EMA Trend", "EMA", "../ema", "ema/trend", " strategy ", "x"*33,
+                         "x"*10000, "1strategy", "_strategy", "mean-reversion", "mean.reversion",
+                         "ema_trend\n", "ema\x00trend", "\u0435ma_trend", "\uff45ma_trend", None, True, 1, 1.0, [], {}):
+            with self.subTest(strategy=strategy):
+                with self.assertRaises(ObservabilityValidationError):
+                    replace(original, strategy_id=strategy)
+                with self.assertRaises(ObservabilityValidationError):
+                    event_from_json(m.canonical_bytes({**original.to_dict(), "strategy_id": strategy}))
+
+    def test_generic_strategy_does_not_broaden_broker_or_timeframe(self):
+        original = sample()
+        for field, value in (("broker_id", "bybit-live"), ("broker_id", "other-demo"),
+                             ("timeframe", "5"), ("timeframe", "240")):
+            changes = {"strategy_id": "donchian", field: value}
+            with self.subTest(field=field, value=value):
+                with self.assertRaises(ObservabilityValidationError):
+                    replace(original, **changes)
+                with self.assertRaises(ObservabilityValidationError):
+                    event_from_json(m.canonical_bytes({**original.to_dict(), **changes}))
+
+    def test_future_identity_uses_same_event_schema_without_future_runtime(self):
+        # A parser fixture is not a new executable strategy or runtime configuration.
+        current = sample()
+        identity = dict(bot_id="bot2", symbol="ETHUSDT", base_currency="ETH")
+        current_second = make_event(replace(fixtures.configuration(), **identity), T.PROCESS_STARTED,
+            run_id=RUN, observed_at_ms=100, occurrence_reference="sample", details=(("process_started_at_ms", 0),))
+        encoded = m.canonical_bytes({**current_second.to_dict(), "strategy_id": "donchian"})
+        future = event_from_json(encoded)
+        self.assertEqual((current.strategy_id, current.symbol, current.bot_id), ("ema_trend", "BTCUSDT", "bot1"))
+        self.assertEqual((future.strategy_id, future.symbol, future.bot_id), ("donchian", "ETHUSDT", "bot2"))
+        self.assertEqual(type(current), type(future))
+        self.assertEqual(set(current.to_dict()), set(future.to_dict()))
+        self.assertEqual(future.to_json(), encoded)
+
+    def test_runtime_configuration_still_rejects_future_strategy(self):
+        configuration = fixtures.configuration()
+        self.assertEqual(configuration.strategy_id, "ema_trend")
+        with self.assertRaisesRegex(m.RuntimeStoreError, "Initial runtime strategy must be ema_trend"):
+            replace(configuration, strategy_id="donchian")
+
+    def test_pre_correction_ema_event_ids_and_serialization_vectors(self):
+        # Captured from frozen 557774a before changing validation, in enum order.
+        events = tuple(sample(kind) for kind in T)
+        self.assertEqual(tuple(event.event_id for event in events), (
+            "24bafafacc84ce52d41f8584edad9f84d2bfdff17566b43ee5f73fdc7d51c922",
+            "2b20b8412717ac17943895e7fa181949854c5afd86db15ee1767347661b12503",
+            "8b3dcd4defe27457e0b56a0cbc631d93ac54a060768c3405a237824d53cb8be8",
+            "9762e3bd0a05ce240111315be43b18a8ae07a5edca09f11c64cdbb376bc76bfd",
+            "da20466b91d06c4b7af189b47db426fd707327d88d4a7bc4b7d44ec0df208bcd",
+            "758b513b846047470874d2689554977125540d894696f67b716c34a0dcbf552a",
+            "8cb1ff5704fe4702d82e3e97440b0fd4fb388fc929db15225e0453e6ad8add7d",
+            "f3281001d28f62527acb9432a003833b1d9bd42d4db695fc95518788253af3b3",
+            "cbf78faec31246124285731f54c617b4078a6ad7cc2fa98269c8eef3c1b7ea26",
+            "5a44c73c9b6918e86f3bf5deba0c44d29943fc11b306b88a74fc63e04832a1e4",
+            "5ccf6d603bae0b4ba174294b48cbe2a9e4570163d9d29f08b56511b032f3cf67",
+            "c441b4663d52a953ade344f25b13b676bf76c85ace2ef24ba7543e43b8f73b3e",
+            "8a3540d57b8b9058f8aa8bfae61643fa7e4788e74f0950221f2e81ffda95a219",
+            "aef9680d268d8905ab6dc690315da94561f65bef607bb0b7b6c29f7bff53b48d",
+            "11ada375f1f1a89144d36e8a7975d9f33715d4269a58ef4ed3d01b4883537e8e",
+            "10a23055e94c70d764dbceb725fd7e0a00ac5e002a95cf971d5ae76b28a42e50",
+            "c6f682df27d3e7d7cf536535f234edcd4c90823d4f2d0eb2bca184ad51fd048c",
+            "b5bf305dcbbea5ba240a3847d269c1408ab7715615edbeb7bde25396a8a85d8d",
+            "49d08474d3bc1856191418f3b03a02b07309c8f125fe0926ab5f3c1c0c36b749",
+            "028868f9253bf8eeae73ee8e00874544781c3ba43c1f52375f9fccbf106f1807",
+            "fdbad66aca14f48702dc85460a25d4c6363d61f128e11b9b7f91de59300c9f4f",
+            "fd811b9422fc178253b21270561ae5dafb223e468877bea0bd3c4f0220bd52d2",
+            "a625eaa4b2e4144de9290341da529e4dbbb14df4e93f8ffad4352b939e2e254c",
+            "a202437491336710c03399ebf8422ea0c7a1ce995a5f6624aaae0e75117e4702",
+            "48b379a1332069016c0a28f1ca0bc141bb0dda8e2c1e04557db7ce4d5239ebfa",
+            "ca29f1e4918dd17e6f553be97fdbfb790590c49bae4d43637374663c83f0573f",
+            "438cad3a5c759956b49909490d7650ab6b559e13064bfc5aa210e13e79b1dbe8",
+            "55d08542e79b42b62325d3e5a60c35bd1a55e61560d169c38ff29abff2c5ffb4",
+        ))
+        self.assertEqual(hashlib.sha256(b"\n".join(event.to_json() for event in events)).hexdigest(),
+                         "3bcf034a4417cd0bb9a432bc2fb91e3997dbecee776498669c03fb80bc8a07bb")
+
     def test_enums_have_frozen_values(self):
         self.assertEqual([x.value for x in ObservabilitySeverity], ["INFO", "WARNING", "ERROR", "CRITICAL"])
         self.assertEqual([x.value for x in ObservabilityHealthLevel], ["OK", "ATTENTION", "CRITICAL"])

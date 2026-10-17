@@ -2,6 +2,7 @@
 
 from dataclasses import FrozenInstanceError, replace
 from decimal import Decimal as D
+import hashlib
 import unittest
 from unittest.mock import patch
 
@@ -107,6 +108,62 @@ class HealthTests(fixtures.RiskPersistenceCase):
         self.assertFalse(hasattr(result, "__dict__"))
         with self.assertRaises(FrozenInstanceError):
             result.risk_active = False
+
+    def test_generic_strategy_ids_roundtrip_active_health(self):
+        self.fresh()
+        original = health(self.store)
+        for strategy in ("ema_trend", "donchian", "donchian_breakout", "mean_reversion", "momentum_v2", "a", "x"*32):
+            with self.subTest(strategy=strategy):
+                record = replace(original, strategy_id=strategy)
+                encoded = h.canonical_bytes({**original.to_dict(), "strategy_id": strategy})
+                parsed = health_from_json(encoded)
+                self.assertEqual(parsed, record)
+                self.assertEqual(parsed.strategy_id, strategy)
+                self.assertEqual(parsed.to_json(), encoded)
+
+    def test_unsafe_strategy_ids_rejected_by_health_record_and_parser(self):
+        original = health(self.store)
+        for strategy in ("", "EMA Trend", "EMA", "../ema", "ema/trend", " strategy ", "x"*33,
+                         "x"*10000, "1strategy", "_strategy", "mean-reversion", "mean.reversion",
+                         "ema_trend\n", "ema\x00trend", "\u0435ma_trend", "\uff45ma_trend", None, True, 1, 1.0, [], {}):
+            with self.subTest(strategy=strategy):
+                with self.assertRaises(ObservabilityValidationError):
+                    replace(original, strategy_id=strategy)
+                with self.assertRaises(ObservabilityValidationError):
+                    health_from_json(h.canonical_bytes({**original.to_dict(), "strategy_id": strategy}))
+
+    def test_generic_strategy_does_not_broaden_health_broker_or_timeframe(self):
+        original = health(self.store)
+        for field, value in (("broker_id", "bybit-live"), ("broker_id", "other-demo"),
+                             ("timeframe", "5"), ("timeframe", "240")):
+            changes = {"strategy_id": "donchian", field: value}
+            with self.subTest(field=field, value=value):
+                with self.assertRaises(ObservabilityValidationError):
+                    replace(original, **changes)
+                with self.assertRaises(ObservabilityValidationError):
+                    health_from_json(h.canonical_bytes({**original.to_dict(), **changes}))
+
+    def test_future_identity_uses_same_health_schema_without_future_runtime(self):
+        # Only the read-model identity changes; no Donchian execution is implemented.
+        current = health(self.store)
+        encoded = h.canonical_bytes({**current.to_dict(), "strategy_id": "donchian",
+                                     "symbol": "ETHUSDT", "bot_id": "bot2"})
+        future = health_from_json(encoded)
+        self.assertEqual((current.strategy_id, current.symbol, current.bot_id), ("ema_trend", "BTCUSDT", "bot1"))
+        self.assertEqual((future.strategy_id, future.symbol, future.bot_id), ("donchian", "ETHUSDT", "bot2"))
+        self.assertEqual(type(current), type(future))
+        self.assertEqual(set(current.to_dict()), set(future.to_dict()))
+        self.assertEqual((future.broker_id, future.timeframe), ("bybit-demo", "60"))
+        self.assertEqual(future.to_json(), encoded)
+        self.assertEqual(health(self.store).strategy_id, "ema_trend")
+
+    def test_pre_correction_ema_health_serialization_vectors(self):
+        # Captured from frozen 557774a: inactive then fresh active risk snapshot.
+        self.assertEqual(hashlib.sha256(health(self.store).to_json()).hexdigest(),
+                         "345a8bebadd0f26d3b9daa730afb8a420cf2ee35af1fee5cebb982343c246ceb")
+        self.fresh()
+        self.assertEqual(hashlib.sha256(health(self.store).to_json()).hexdigest(),
+                         "83d1011f8a03e5b722793a3e1360a7fc396687c6b33f93eb998d4f40c5e37276")
 
     def test_complete_snapshot_rejects_missing_unknown_wrong_type(self):
         self.fresh()

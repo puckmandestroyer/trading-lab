@@ -6,7 +6,7 @@ The long-term goal is to support historical market data, multiple independent st
 
 ## Current stage
 
-**Stage 12.1c — Telegram Outbound Alerts is COMPLETE / owner review pending** under frozen Decisions 022–023. Stage 12.1b is independently owner-reviewed / FROZEN at `265bf33e68f714988f763fa264ec231504a3a01a`; Stage 12.1a remains FROZEN at `cc293372d3c89bb05c8eb2280f17f3c8a764f5b1`. Stages 12 and 12.1 remain STARTED / INCOMPLETE; 12.1d–e and 12.2–12.4 NOT STARTED. **12.1d — Streamlit Dashboard is next; do not start automatically.** The repository remains **pre-v1; v1.0.0 NOT RELEASED**.
+**Stage 12.1b remains FROZEN with a narrow owner-approved generic-strategy observability correction COMPLETE / owner review pending.** Stage 12.1c is independently owner-reviewed / FROZEN at `557774a7f3833d8ac339a5ffa609908f5356c6ff`; Stage 12.1a remains FROZEN at `cc293372d3c89bb05c8eb2280f17f3c8a764f5b1`. Stages 12 and 12.1 remain STARTED / INCOMPLETE. **12.1d — Streamlit Dashboard remains BLOCKED / NOT STARTED until this correction is owner-reviewed/frozen.** 12.1e and 12.2–12.4 NOT STARTED; **v1.0.0 NOT RELEASED**. Do not start Streamlit automatically.
 
 **Stage 12.0 / Decision 022 is independently owner-reviewed, COMPLETE / FROZEN at `0b275c91abe53068dc4b0b05ade7be710d13cef6` (`Define Trading Lab v1 readiness contract`).** Its v1 boundary/release gate remains unchanged.
 
@@ -18,7 +18,17 @@ The integrated risk boundary is **Strategy → Planner → Risk Gate → Durable
 
 **Current limits:** Demo only; one account/bot/EMA strategy/symbol; hourly `60`; LONG/FLAT Spot MARKET. No short/leverage/borrowing, automatic liquidation, risk-generated stop loss/take profit/trailing stop, manual risk kill/pause, configuration editing or operational controls UI. No long-running Demo validation or live trading has occurred.
 
-### Telegram outbound alerts — Stage 12.1c
+### Generic observability strategy identity — narrow Stage 12.1b correction
+
+The v1 execution runtime remains **ema_trend-only**. This owner-approved correction generalizes only the derived `ObservabilityEvent` / `HealthSnapshot` strategy-identity validators for future read-only consumers. Both use the same strict ASCII rule `[a-z][a-z0-9_]{0,31}`: 1–32 characters, starting with a lowercase letter. Demo broker `bybit-demo` and timeframe `60` remain required. No additional runtime strategy is authorized or implemented.
+
+The same record schema/parser accepts `ema_trend / BTCUSDT / bot1` and synthetic `donchian / ETHUSDT / bot2`. A runtime configuration with `strategy_id="donchian"` remains invalid; current `make_event`, projection and health-builder APIs still consume the unchanged EMA-only runtime configuration. Existing EMA event IDs and canonical event/health bytes are preserved by fixed pre-correction regression vectors. No financial, health, storage, Telegram, runtime, schema, dependency or Decision semantics change.
+
+Local validation: **34 model / 33 health tests passed**, including **11 new regressions**; all **142 Stage 12.1b tests**, **73 unchanged Telegram tests** and **3,158 full-suite tests passed**, failures/errors/skips **0/0/0**. Frozen Stage 11/runtime and 16 EMA regressions passed; golden remains 54/2/2/0/1. `pip check` and both Git diff checks passed. This is a separate correction, not Stage 12.1d; dashboard work remains NOT STARTED pending owner review/freeze.
+
+### Telegram outbound alerts — Stage 12.1c (frozen completion record)
+
+Independently owner-reviewed / FROZEN at `557774a7f3833d8ac339a5ffa609908f5356c6ff`. The completion-time scope/results below are retained; the separately approved identity correction is recorded above.
 
 **Telegram outbound component implemented offline.** It consumes validated `ObservabilityEvent` records only. It has no trading, broker, risk, reconciliation or rearm authority, and it never alters `health.json`. No automatic runtime emission/delivery, poller, background worker, Telegram command receiver, controls or real runtime session is wired. The intended v1 experience is **Telegram for concise important alerts; Streamlit for full statistics/dashboard**. Streamlit remains future work.
 
@@ -36,7 +46,7 @@ Receipts are separate non-authoritative files: `<observability-instance>/telegra
 
 Ordering is receipt lookup → HTTP → confirmed success → local receipt. A failed receipt write returns DELIVERED_UNRECORDED, makes one sanitized local stderr indication and does not resend. Batches accept at most 256 supplied events, preserve order and stop on unresolved failure. **Telegram exactly-once delivery is NOT guaranteed.** Remote success followed by a crash before receipt, receipt deletion or concurrent callers can duplicate a later notification. A malformed partial receipt instead surfaces a state error; it is never silently accepted or treated as absent. These conditions cannot duplicate trading actions or change trading truth.
 
-Local validation: **73 new Telegram tests passed; 3,147 full-suite tests passed**, with zero failures/errors/skips. Frozen Stage 11, golden 54/2/2/0/1 and 16 EMA regressions passed; `pip check` and both Git diff checks passed. Real token/chat ID **NOT USED**, real message **NOT SENT**, external Telegram API request **NOT RUN**. No authenticated Bybit operation, real DB migration/activation/rearm or real runtime observability session occurred. Stage 12.1c awaits owner review/freeze; 12.1d must not start automatically.
+Local validation: **73 new Telegram tests passed; 3,147 full-suite tests passed**, with zero failures/errors/skips. Frozen Stage 11, golden 54/2/2/0/1 and 16 EMA regressions passed; `pip check` and both Git diff checks passed. Real token/chat ID **NOT USED**, real message **NOT SENT**, external Telegram API request **NOT RUN**. No authenticated Bybit operation, real DB migration/activation/rearm or real runtime observability session occurred. Stage 12.1c is now FROZEN at `557774a`; 12.1d remains BLOCKED / NOT STARTED pending review/freeze of the separate identity correction.
 
 ### Structured logs + health snapshot — Stage 12.1b (frozen completion record)
 
@@ -74,11 +84,11 @@ V1 targets **local macOS, one runtime instance / Bybit account binding / bot, BT
 
 Future visibility is split between **Telegram outbound alerts** and a **local read-only Streamlit dashboard**. Neither may place/cancel orders, rearm runtime/risk, edit configuration, force liquidation or start Live trading. Alerts must describe durable reconciled ownership, not signals, proposals, ALLOW or ACK alone. Telegram failure cannot change trading truth; errors remain visible locally, and no SQLite transaction spans notification I/O. Dashboard views are Overview, Position / Orders, Risk, Trades, Runtime Health and Event / Error History. They show durable/derived owned executions, exact risk facts and health; wallet totals are not bot equity and no PnL is invented.
 
-The Stage 12 roadmap is fixed below: 12.0, 12.1a and 12.1b are FROZEN; 12.1c is COMPLETE / owner review pending. **12.1 remains INCOMPLETE; 12.1d–e and all 12.2–12.4 milestones remain NOT STARTED.** Full phase gates and safety details are in [Decision 022](decisions/022_trading_lab_v1_production_live_readiness.md#stage-12-roadmap-and-phase-gates); Decision 023 governs observability.
+The Stage 12 roadmap is fixed below: 12.0 and 12.1a–c are FROZEN, with only the narrow 12.1b identity correction awaiting owner review/freeze. Stage 12.1d is BLOCKED / NOT STARTED pending that review. **12.1 remains INCOMPLETE; 12.1d–e and all 12.2–12.4 milestones remain NOT STARTED.** Full phase gates and safety details are in [Decision 022](decisions/022_trading_lab_v1_production_live_readiness.md#stage-12-roadmap-and-phase-gates); Decision 023 governs observability.
 
 | Phase | Milestones |
 | --- | --- |
-| 12.1 — Observability & Operator Visibility | **12.1a** Observability Event / Logging Contract — FROZEN; **12.1b** Structured Logs + Health Snapshot — FROZEN; **12.1c** Telegram Outbound Alerts — COMPLETE / owner review pending; **12.1d** Streamlit Dashboard — NOT STARTED; **12.1e** Observability Offline Regression + Audit — NOT STARTED. |
+| 12.1 — Observability & Operator Visibility | **12.1a** Observability Event / Logging Contract — FROZEN; **12.1b** Structured Logs + Health Snapshot — FROZEN + narrow identity correction / owner review pending; **12.1c** Telegram Outbound Alerts — FROZEN at 557774a; **12.1d** Streamlit Dashboard — BLOCKED / NOT STARTED pending correction review; **12.1e** Observability Offline Regression + Audit — NOT STARTED. |
 | 12.2 — Long-Running Bybit Demo Validation | **12.2a** Demo Activation / Runbook Contract; **12.2b** Controlled 24h → 72h Demo Run; **12.2c** Restart / Network / Failure Validation; **12.2d** 7-day Demo Soak + Report. |
 | 12.3 — Local V1 Hardening | **12.3a** Local Operator CLI; **12.3b** Configuration + Secret Hardening; **12.3c** Local Process Supervision / Startup; **12.3d** Backup + Log Rotation + Recovery; **12.3e** Local Deployment Audit. |
 | 12.4 — Controlled Live Validation | **12.4a** Live Exchange / Safety Contract; **12.4b** Live Read-Only Validation; **12.4c** Exact Live Dry-Run / Preflight; **12.4d** First Explicit Tiny Live Order; **12.4e** Tiny-Capital Live Runtime Validation; **12.4f** Final Stage 12 / V1 Audit + Release. |
@@ -105,7 +115,7 @@ Local execution: **2,943 tests passed**, failures/errors/skips **0/0/0**; all re
 
 Offline regression does not establish profitability, real-exchange reliability, long-running Demo reliability, monitoring/alerting, deployment hardening, production readiness or live-money readiness. Real user migration/activation/rearm, real Runtime HALT rearm and authenticated Demo read/order/cancellation: **NOT RUN**. The owner has since reviewed/frozen Stage 11.8 and Stage 11 at `b79d511`; the separately authorized Stage 12.0 contract above implements none of those future capabilities.
 
-The milestone records below retain their original scope, completion-time status and test totals; the Current stage and Stage 12.1c sections are current authority.
+The milestone records below retain their original scope, completion-time status and test totals; the Current stage and narrow Stage 12.1b correction sections are current authority.
 
 The [Stage 11 roadmap](PROJECT_STATE.md#stage-11-roadmap) records the frozen policy, journal, gate, breaker, rearm and audit milestones. The canonical top-level roadmap has **12 stages**; Decision 022 now defines Stage 12 as the final v1 release gate with the exact subphases above. Earlier top-level Stages 13–15 naming is superseded only for future planning; historical records and earlier Decisions are unchanged.
 
@@ -519,7 +529,7 @@ Canonical BTC diagnostics retain **6,132 IS / 2,628 OOS**, boundary **2026-06-13
 
 The final audit accepts chronological cold-start OOS evaluation, deterministic sensitivity, descriptive local stability, fixed-configuration expanding walk-forward, consistent downstream diagnostics, and Notebook 06's visual research report. Stage 8 adds **235 tests** to the unchanged 747-test baseline: **982 total**, zero failures, errors, or skips. Frozen Stage 5–7 references, Decisions 010–012, notebook bytes, and BTC SHA256 are preserved. No optimizer, selected best EMA, robustness score, or stitched OOS portfolio exists. Already-seen single-asset/hourly/EMA research does not prove future profitability or provide demo/live trading evidence.
 
-Current focus: owner review/freeze of **Stage 12.1c — Telegram Outbound Alerts**, COMPLETE / owner review pending. Stage 12.1b is FROZEN at `265bf33`, Stage 12.1a at `cc29337`, Stage 12.0 at `0b275c9` and Stage 11 at `b79d511`. Stages 12 and 12.1 remain INCOMPLETE; 12.1d–e and 12.2–12.4 NOT STARTED; v1.0.0 NOT RELEASED. **12.1d — Streamlit Dashboard is next; do not start automatically.** The offline Telegram component exists; no automatic runtime wiring, real credentials, message, external Telegram/Bybit operation or real observability session occurred. Earlier completion records retain their original totals.
+Current focus: owner review/freeze of the **narrow Stage 12.1b generic observability strategy-identity correction**, COMPLETE / owner review pending. Stage 12.1c is FROZEN at `557774a`; existing runtime remains EMA-only. Stages 12 and 12.1 remain INCOMPLETE; 12.1d BLOCKED / NOT STARTED until correction review/freeze; 12.1e and 12.2–12.4 NOT STARTED; v1.0.0 NOT RELEASED. No Streamlit implementation or automatic continuation. Earlier completion records retain their original scope/results.
 
 - Stage 1 completed: reusable historical data collection and a validated BTCUSDT hourly snapshot.
 - Stage 2 completed: statistical market analysis of returns, volatility, volume, extreme movements, and BTC buy-and-hold drawdown in `notebooks/01_data_exploration.ipynb`.

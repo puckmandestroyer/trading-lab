@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-17 — Narrow Stage 12.1b generic observability strategy identity correction
+
+- Removed the unintended EMA-only restriction from derived event/health records using shared bounded ASCII `[a-z][a-z0-9_]{0,31}` validation. Demo broker/hourly bounds remain unchanged. Synthetic Donchian identity is parser evidence only: the v1 execution runtime and RuntimeConfiguration remain strictly ema_trend-only; no new strategy is implemented or authorized.
+- Added 11 focused regressions for valid/invalid strategy IDs, unchanged broker/timeframe limits, same-schema future identities, runtime rejection and fixed pre-correction EMA event-ID/canonical event/health vectors. Local validation: **34 model / 33 health**, **142 Stage 12.1b**, **73 unchanged Telegram** and **3,158 full-suite tests passed**, failures/errors/skips **0/0/0**. Frozen Stage 11/runtime/EMA and golden 54/2/2/0/1 passed; pip and both diff checks passed. Only two observability production files, two existing test files and three current documents change; no trading/Telegram/storage/projection/schema/dependency/Decision change.
+- Stage 12.1b remains FROZEN plus this narrow correction COMPLETE / owner review pending; Stage 12.1c independently owner-reviewed / FROZEN at `557774a`. Stage 12.1d remains BLOCKED / NOT STARTED until correction review/freeze; 12.1e and 12.2–12.4 NOT STARTED; v1.0.0 NOT RELEASED. No Streamlit implementation or actual monitoring/notification/broker/real-DB operation.
+
 ## 2026-10-17 — Stage 12.1c Telegram Outbound Alerts
 
 - Added outbound-only Telegram consumption of validated events, with exactly ten default important-alert types and deterministic plain-text/exact Decimal rendering. No normal cycle/ACK/fill/BLOCK spam, commands, control buttons, poller, background worker, Streamlit or runtime wiring.
