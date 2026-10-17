@@ -6,7 +6,7 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 ## Current stage
 
-Stage 12.1d — Generic Streamlit Runtime Dashboard is COMPLETE / owner review pending against frozen `82ce7c585e0d0a98a203f9bfd353d6dc15ca0e44`. Stage 12.1b and its generic-strategy identity correction are independently owner-reviewed / FROZEN at `265bf33` / `82ce7c58`; Stage 12.1c remains FROZEN at `557774a`, 12.1a at `cc29337`. Stages 12 and 12.1 remain STARTED / INCOMPLETE. **12.1e — Observability Offline Regression + Audit is next / NOT STARTED; do not begin automatically.** 12.2–12.4 NOT STARTED; **v1.0.0 NOT RELEASED**.
+Stage 12.1d baseline is independently owner-reviewed / FROZEN at `fcae94557e536181f3db9e577817dada1c33665f`; its narrow performance/light-theme correction is COMPLETE / owner review pending. Stage 12.1b and its generic-strategy identity correction are independently owner-reviewed / FROZEN at `265bf33` / `82ce7c58`; Stage 12.1c remains FROZEN at `557774a`, 12.1a at `cc29337`. Stages 12 and 12.1 remain STARTED / INCOMPLETE. **12.1e — Observability Offline Regression + Audit is next / NOT STARTED; do not begin automatically.** 12.2–12.4 NOT STARTED; **v1.0.0 NOT RELEASED**.
 
 Stage 12.0 — Trading Lab V1 Production & Live Readiness Contract / [Decision 022](decisions/022_trading_lab_v1_production_live_readiness.md) is independently owner-reviewed, COMPLETE / FROZEN at `0b275c91abe53068dc4b0b05ade7be710d13cef6` (`Define Trading Lab v1 readiness contract`). Decision 022 is unchanged.
 
@@ -104,9 +104,19 @@ Stage 6 — Generic Backtesting Engine remains COMPLETE at `df72973de837ecbd4ee8
 
 Stage 5 — Analytics remains COMPLETE and frozen at `a3fde091be234fd78d216f6338752a810fa117f0` (`Complete Stage 5 analytics report`).
 
-## Generic Streamlit runtime dashboard — Stage 12.1d
+## Stage 12.1d performance / light-theme correction
 
-COMPLETE / owner review pending. Adds framework-independent `src/trading_lab/dashboard/{__init__,model,loader,analytics,formatting}.py`, thin `dashboard/app.py` and four focused test files; updates dashboard README, three current documents and only the direct requirement `streamlit==1.66.0`. No frozen observability/Telegram/runtime/risk/exchange/strategy/backtest source, schema, Decision, existing test, notebook/data/result change. No existing package was upgraded; Streamlit and its required new framework dependencies were installed for local offline tests.
+The primary workflow is **select strategy/model → current Net P&L / Return / Risk Equity / Drawdown / Daily P&L / Position → historical Strategy Performance % → technical monitoring**. The main header selector displays `60` as `1H`; canonical identity stays in Runtime Health. Native Streamlit light cards place the performance summary on the left and percentage chart on the right, with secondary operational status and at most five confirmed closed cycles below. All six views, manual refresh, exact details and existing conservative trade/history handling remain available. Project-local `.streamlit/config.toml` supplies the light theme without global settings, CSS/JavaScript injection or dependencies.
+
+`DashboardPerformance` is immutable. Decimal-only formulas are `net_pnl_quote = risk_equity - risk_capital_quote` and `return_percent = (risk_equity - risk_capital_quote) / risk_capital_quote * 100`. Performance % is bot risk equity relative to authorized risk capital, not wallet/whole-account, realized-only trade or deposit-adjusted account performance. Currency comes from validated health; positive values have `+`, losses `-`, zero stays zero and inactive/missing evidence stays Unavailable. Summary percentages round to six places; exact current amounts/derived Decimal percentage and historical percentage details remain accessible. Recurring ratios use Decimal context rounding; float is confined to guarded final chart conversion.
+
+`performance_series(model)` uses only retained RISK_BLOCKED / RISK_TRIPPED equity observations with valuation time and configuration digest matching current health. Missing/incompatible bases are excluded and history is explicitly incomplete. Same-configuration child rearm does not reset accounting. The dashboard never invents historical performance observations: fewer than two compatible retained observations shows **Insufficient performance history.** and current Return, never a snapshot-derived point, fake zero-to-current line, hourly grid or interpolation. A labeled zero reference uses existing observation times only. No event type/producer or observability contract changes.
+
+Local validation: **34 new correction tests**, **115 dashboard tests** (22 model / 38 analytics / 31 unchanged loader / 24 app), **3,273 full-suite tests (3,239 + 34)**; failures/errors/skips **0/0/0**. Frozen observability 142, Telegram 73, runtime integration 64, Stage 11 risk E2E 11 / rearm 82 / breakers 30 / gate 67 / pure risk 123, RuntimeStore 350 and EMA 16 passed. Golden remains **54 decisions / 2 placements / 2 fills / 0 cancellations / 1 risk epoch**, exact IDs/links/economics unchanged. `pip check` and both Git diff checks passed. AppTest uses synthetic records without browser/server or external requests. Runtime/risk/exchange/strategy/backtest/observability/Telegram/schema/Decisions/dependencies, loader, notebooks and data remain unchanged. Stages 12.1a–c remain FROZEN; 12.1d baseline FROZEN at `fcae9455`, correction COMPLETE / owner review pending; 12.1e NOT STARTED, Stage 12.1 INCOMPLETE, v1.0.0 NOT RELEASED. The separate POST-v1 Research Dashboard remains future work.
+
+## Generic Streamlit runtime dashboard — Stage 12.1d (frozen baseline completion record)
+
+Independently owner-reviewed / FROZEN at `fcae94557e536181f3db9e577817dada1c33665f`. Baseline completion record: Adds framework-independent `src/trading_lab/dashboard/{__init__,model,loader,analytics,formatting}.py`, thin `dashboard/app.py` and four focused test files; updates dashboard README, three current documents and only the direct requirement `streamlit==1.66.0`. No frozen observability/Telegram/runtime/risk/exchange/strategy/backtest source, schema, Decision, existing test, notebook/data/result change. No existing package was upgraded; Streamlit and its required new framework dependencies were installed for local offline tests.
 
 The generic immutable read model explicitly carries broker/account/bot/strategy/symbol/timeframe identity, validated health/events, viewer freshness/age, exact display drawdown and conservative confirmed closed cycles/execution references. Public APIs: DashboardInstance/Discovery/Overview/Execution/Trade/Model, DASHBOARD_VIEWS, discover_instances, load_dashboard, build_dashboard_model, recent_events, filter_events, history_series, display_percentage and formatting helpers. No singleton instance or strategy renderer registry is required.
 
@@ -207,7 +217,7 @@ Streamlit's required views are Overview, Position / Orders, Risk, Trades, Runtim
 | 12.1 — Observability & Operator Visibility (STARTED / INCOMPLETE) | 12.1a | Observability Event / Logging Contract | COMPLETE / FROZEN at cc29337 |
 | 12.1 | 12.1b | Structured Logs + Health Snapshot | FROZEN at 265bf33 + identity correction FROZEN at 82ce7c58 |
 | 12.1 | 12.1c | Telegram Outbound Alerts | COMPLETE / FROZEN at 557774a |
-| 12.1 | 12.1d | Generic Streamlit Runtime Dashboard | COMPLETE / owner review pending |
+| 12.1 | 12.1d | Generic Streamlit Runtime Dashboard | Baseline FROZEN at fcae9455; performance/light-theme correction COMPLETE / owner review pending |
 | 12.1 | 12.1e | Observability Offline Regression + Audit | NOT STARTED |
 | 12.2 — Long-Running Bybit Demo Validation | 12.2a | Demo Activation / Runbook Contract | NOT STARTED |
 | 12.2 | 12.2b | Controlled 24h → 72h Demo Run | NOT STARTED |
@@ -536,7 +546,7 @@ Stage 11.3 internal subphases are COMPLETE / FROZEN: **11.3a contract at `9807ed
 
 ### Canonical 12-stage roadmap
 
-Stages 1–11 retain their accepted scope/history. Stage 12 — Production & Live Readiness is the final top-level stage and v1 release gate under frozen Decision 022 at `0b275c9`. Stage 12.1 — Observability & Operator Visibility is STARTED / INCOMPLETE: 12.1a FROZEN at `cc29337`, 12.1b FROZEN at `265bf33` plus identity correction FROZEN at `82ce7c58`; 12.1c FROZEN at `557774a`; 12.1d COMPLETE / owner review pending; 12.1e NOT STARTED. 12.2 Long-Running Bybit Demo Validation, 12.3 Local V1 Hardening and 12.4 Controlled Live Validation remain NOT STARTED. The exact milestone roadmap is recorded above. Prior top-level Stages 13–15 naming is superseded only for future planning; historical records and previous Decisions are unchanged. Architecture contracts authorize no Demo activation or Live operation.
+Stages 1–11 retain their accepted scope/history. Stage 12 — Production & Live Readiness is the final top-level stage and v1 release gate under frozen Decision 022 at `0b275c9`. Stage 12.1 — Observability & Operator Visibility is STARTED / INCOMPLETE: 12.1a FROZEN at `cc29337`, 12.1b FROZEN at `265bf33` plus identity correction FROZEN at `82ce7c58`; 12.1c FROZEN at `557774a`; 12.1d baseline FROZEN at `fcae9455`, performance/light-theme correction COMPLETE / owner review pending; 12.1e NOT STARTED. 12.2 Long-Running Bybit Demo Validation, 12.3 Local V1 Hardening and 12.4 Controlled Live Validation remain NOT STARTED. The exact milestone roadmap is recorded above. Prior top-level Stages 13–15 naming is superseded only for future planning; historical records and previous Decisions are unchanged. Architecture contracts authorize no Demo activation or Live operation.
 
 ## Completed
 
@@ -2425,9 +2435,9 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Owner review/freeze of Stage 12.1d — Generic Streamlit Runtime Dashboard, COMPLETE / owner review pending. Stages 12.1a–c and the generic identity correction at `82ce7c58` remain FROZEN. Stages 12 and 12.1 INCOMPLETE; 12.1e and 12.2–12.4 NOT STARTED; v1.0.0 NOT RELEASED.
+Owner review/freeze of the Stage 12.1d performance/light-theme correction, COMPLETE / owner review pending; original dashboard baseline FROZEN at `fcae9455`. Stages 12.1a–c and the generic identity correction at `82ce7c58` remain FROZEN. Stages 12 and 12.1 INCOMPLETE; 12.1e and 12.2–12.4 NOT STARTED; v1.0.0 NOT RELEASED.
 
-The dashboard adds only its generic read-model/loader/analytics/formatting package, thin Streamlit app, focused tests and documentation, with Streamlit as the sole new direct dependency. Frozen observability/Telegram/trading/schema/Decisions are preserved. No new strategy, control UI, automatic runtime emission, authenticated broker/Telegram operation, credential use, real user migration/activation/rearm or real monitoring session occurred.
+This correction changes only dashboard presentation/pure analytics/model/formatting, focused tests, docs and a project-local light theme. The loader and requirements remain unchanged; no dependency was added. Frozen observability/Telegram/trading/schema/Decisions are preserved. No new strategy, control UI, automatic runtime emission, authenticated broker/Telegram operation, credential use, real user migration/activation/rearm or real monitoring session occurred.
 
 ## Not implemented yet
 
@@ -2446,7 +2456,7 @@ The dashboard adds only its generic read-model/loader/analytics/formatting packa
 
 ## Next milestone
 
-Stage 12.1e — Observability Offline Regression + Audit is next / NOT STARTED, requiring separate authorization after Stage 12.1d review/freeze. Stages 12.1a–c and the identity correction remain FROZEN; 12.1d COMPLETE / owner review pending. 12.2–12.4 NOT STARTED. Do not begin automatically. Stages 12 and 12.1 INCOMPLETE; v1.0.0 NOT RELEASED.
+Stage 12.1e — Observability Offline Regression + Audit is next / NOT STARTED, requiring separate authorization after review/freeze of this correction. Stages 12.1a–c and the identity correction remain FROZEN; 12.1d baseline FROZEN at `fcae9455`, performance/light-theme correction COMPLETE / owner review pending. 12.2–12.4 NOT STARTED. Do not begin automatically. Stages 12 and 12.1 INCOMPLETE; v1.0.0 NOT RELEASED.
 
 Real user runtime DB migration/risk activation and authenticated Demo read/order/cancellation remain NOT RUN. No approval to perform those operations follows from offline implementation or tests.
 

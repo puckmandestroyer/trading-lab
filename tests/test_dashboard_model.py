@@ -1,7 +1,7 @@
 """Synthetic parser records, never a future executable runtime configuration."""
 
 from dataclasses import FrozenInstanceError, replace
-from decimal import Decimal as D
+from decimal import Decimal as D, localcontext
 import hashlib
 from pathlib import Path
 import unittest
@@ -104,6 +104,72 @@ def write_instance(root, health=None, events=()):
         path.write_bytes(b"".join(lines))
         path.chmod(0o600)
     return directory
+
+
+def performance_health(equity="1125.25", capital="1000", *, quote_currency=None, **changes):
+    """Coherent synthetic exact risk accounting, with its bound config digest."""
+    values = health_fixture(**changes).to_dict()
+    if quote_currency is not None:
+        values.update(quote_currency=quote_currency, symbol=values["base_currency"]+quote_currency)
+    with localcontext() as context:
+        context.prec = 10_000
+        peak = max(D(capital), D(equity))
+        values.update(risk_capital_quote=capital, risk_equity=equity, peak_risk_equity=format_value(peak),
+            utc_day_start_risk_equity=capital, daily_pnl=format_value(D(equity)-D(capital)),
+            drawdown_numerator=format_value(peak-D(equity)), drawdown_denominator=format_value(peak))
+    config = {key: values[key] for key in ("risk_capital_quote", "buy_quote_budget", "max_entry_notional_quote",
+        "max_position_notional_quote", "max_daily_loss_fraction", "max_drawdown_fraction", "max_entries_per_utc_day",
+        "base_currency", "quote_currency")}
+    config["risk_contract_version"] = 1
+    values["risk_configuration_digest"] = hashlib.sha256(m.canonical_bytes(config)).hexdigest()
+    return h.health_from_json(m.canonical_bytes(values))
+
+
+def risk_observation(equity, index=0, *, digest=None, kind=T.RISK_BLOCKED, **changes):
+    timestamp = (index+1)*3_600_000
+    details = {"valued_at_ms": timestamp, "risk_equity": D(equity), "candle_open_ms": index*3_600_000}
+    if digest is not None:
+        details["risk_configuration_digest"] = digest
+    if kind is T.RISK_TRIPPED:
+        details["tripped_at_ms"] = timestamp
+    return event_fixture(kind, observed=timestamp+1000, occurred=timestamp, details=details, **changes)
+
+
+class DashboardPerformanceModelTests(unittest.TestCase):
+    def test_performance_is_immutable_and_slotted(self):
+        performance = build_dashboard_model(performance_health(), now_ms=AT).performance
+        self.assertIs(type(performance), DashboardPerformance)
+        with self.assertRaises(FrozenInstanceError):
+            performance.net_pnl_quote = D(0)
+        self.assertFalse(hasattr(performance, "__dict__"))
+
+    def test_inactive_risk_performance_unavailable_not_zero(self):
+        performance = build_dashboard_model(health_fixture(active=False), now_ms=AT).performance
+        for field in ("net_pnl_quote", "return_percent", "risk_equity", "risk_capital_quote", "daily_pnl", "drawdown_percent"):
+            self.assertIsNone(getattr(performance, field))
+
+    def test_performance_preserves_all_operational_position_states(self):
+        for state in ("FLAT", "LONG", "ORDER_PENDING", "UNCERTAIN", "HALTED"):
+            model = build_dashboard_model(health_fixture(state=state), now_ms=AT)
+            self.assertEqual(model.performance.position_state, state)
+
+    def test_signed_exact_amount_formatting_and_zero(self):
+        for value, expected in ((D("125.25"), "+125.25"), (D("-38.10"), "-38.1"),
+                                (D("-0.0"), "0"), (None, "Unavailable")):
+            self.assertEqual(format_signed(value), expected)
+
+    def test_percentage_summary_and_exact_detail_are_separate(self):
+        value = D("12.52512345678901234567890123456789")
+        self.assertEqual(format_percent(value), "+12.525123%")
+        self.assertEqual(format_percent(value, detailed=True), "+12.52512345678901234567890123456789%")
+        self.assertEqual(format_percent(D(0)), "0%")
+        self.assertEqual(format_percent(None), "Unavailable")
+
+    def test_friendly_timeframe_does_not_change_canonical_identity(self):
+        identity = build_dashboard_model(health_fixture(), now_ms=AT).identity
+        self.assertIn("1H", format_instance_label(identity))
+        self.assertEqual(identity.timeframe, "60")
+        self.assertIn("60", identity.label)
 
 
 class DashboardModelTests(unittest.TestCase):

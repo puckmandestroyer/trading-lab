@@ -7,7 +7,8 @@ import time
 import streamlit as st
 
 from trading_lab.dashboard import (DashboardError, DashboardNotice, discover_instances, load_dashboard,
-    format_value, format_timestamp, event_rows, chart_rows, filter_events, history_series)
+    format_value, format_timestamp, event_rows, chart_rows, filter_events, history_series,
+    performance_series, format_signed, format_percent, format_instance_label)
 from trading_lab.dashboard.formatting import field_rows
 
 _NOTICES = {
@@ -41,22 +42,90 @@ def _chart(ui, model, field, label):
     ui.line_chart(rows, x="Time UTC", y="Value", x_label="Recorded evidence time UTC", y_label=label)
 
 
+def _performance_chart(ui, model):
+    ui.subheader("Strategy Performance %")
+    points = performance_series(model)
+    if model.performance.history_incomplete:
+        ui.caption("Performance history incomplete: only retained observations with a compatible risk configuration are shown.")
+    if len(points) < 2:
+        ui.info("Insufficient performance history.")
+        ui.text("Current Return: " + format_percent(model.performance.return_percent))
+        return
+    try:
+        rows = chart_rows(points)
+    except DashboardError:
+        ui.info("Performance values cannot be plotted safely; exact observations remain below.")
+    else:
+        # The zero reference uses only existing evidence times, never new points.
+        rows = [{"Time UTC": row["Time UTC"], "Return %": row["Value"], "Zero reference %": 0}
+                for row in rows]
+        ui.line_chart(rows, x="Time UTC", y=("Return %", "Zero reference %"),
+            y_label="Return vs Risk Capital (%)", x_label="Recorded evidence time UTC",
+            color=("#2563EB", "#94A3B8"), height=360)
+    ui.caption("Retained observations only; chart floats are approximate. No hourly interpolation or snapshot-derived points.")
+    with ui.expander("Exact performance observations"):
+        _table(ui, [{"Time UTC": format_timestamp(time), "Return % (Decimal)": format_percent(value, detailed=True)}
+                    for time, value in points])
+
+
+def _performance_card(ui, model):
+    performance, health = model.performance, model.health
+    currency = " " + health.quote_currency if health.quote_currency is not None else ""
+
+    def amount(value, signed=False):
+        if value is None:
+            return format_value(None)
+        return (format_signed(value) if signed else format_value(value)) + currency
+
+    ui.metric("Net P&L", amount(performance.net_pnl_quote, signed=True),
+        delta=format_percent(performance.return_percent) if performance.return_percent is not None else None,
+        delta_color="off" if performance.return_percent in (None, 0) else "normal",
+        help="Bot risk equity minus authorized risk capital; not wallet or realized-only trade P&L.")
+    ui.metric("Return vs Risk Capital", format_percent(performance.return_percent))
+    left, right = ui.columns(2)
+    left.metric("Risk Equity", amount(performance.risk_equity))
+    drawdown = performance.drawdown_percent
+    right.metric("Drawdown", format_percent(drawdown.copy_negate() if drawdown is not None else None))
+    left, right = ui.columns(2)
+    left.metric("Daily P&L", amount(performance.daily_pnl, signed=True))
+    right.metric("Position", performance.position_state.replace("_", " "))
+    ui.caption("Performance relative to authorized bot risk capital. Snapshot: " + format_timestamp(health.generated_at_ms))
+    with ui.expander("Exact current performance / capital basis"):
+        _table(ui, [{"Field": name, "Value": format_value(getattr(performance, name))}
+            for name in ("net_pnl_quote", "return_percent", "risk_equity", "risk_capital_quote",
+                         "drawdown_percent", "daily_pnl", "position_state")])
+        ui.caption("Return is Decimal-only; recurring ratios use Decimal context rounding. Summary percentages round to six decimal places.")
+
+
 def render_dashboard(model, ui=st):
     """The same six-view template renders every validated instance identity."""
     identity, health, overview = model.identity, model.health, model.overview
-    ui.title("Trading Lab — Runtime Monitor")
-    for column, field in zip(ui.columns(4), ("strategy_id", "symbol", "timeframe", "bot_id")):
-        column.metric(field.replace("_id", "").title(), getattr(identity, field))
-    ui.text(f"Broker: {identity.broker_id} | Account binding: {identity.account_binding}")
     ui.caption("Read-only local observations. Snapshot and event history are separate observation boundaries.")
-    level = overview.display_health.value
-    getattr(ui, {"OK": "success", "ATTENTION": "warning", "CRITICAL": "error"}[level])(
-        f"{level} · Snapshot {overview.snapshot_freshness.value} · Runtime {health.runtime_state.value}")
-    for notice in model.notices:
-        ui.warning(_NOTICES[notice])
     tabs = ui.tabs(model.views)
     with tabs[0]:
+        ui.subheader("Model Performance")
+        left, right = ui.columns((1, 2), gap="large")
+        with left.container(border=True):
+            _performance_card(ui, model)
+        with right.container(border=True):
+            _performance_chart(ui, model)
+        level = overview.display_health.value
+        getattr(ui, {"OK": "success", "ATTENTION": "warning", "CRITICAL": "error"}[level])(
+            f"{level} · Snapshot {overview.snapshot_freshness.value} · Runtime {health.runtime_state.value}")
+        for notice in model.notices:
+            ui.warning(_NOTICES[notice])
         risk_state = "TRIPPED" if health.risk_trip_reason is not None else "ACTIVE" if health.risk_active else "NOT READY"
+        for column, (label, value) in zip(ui.columns(4), (
+            ("Runtime", health.runtime_state), ("Risk", risk_state), ("Market freshness", health.market_freshness),
+            ("Last reconciliation", format_timestamp(health.last_reconciled_at_ms)))):
+            column.metric(label, format_value(value))
+        ui.subheader("Recent confirmed cycles")
+        _table(ui, [{"Entry UTC": format_timestamp(trade.entry_time_ms), "Exit UTC": format_timestamp(trade.exit_time_ms),
+            "Realized PnL (quote)": format_value(trade.realized_pnl_quote), "Close reference": trade.close_event_id[:12]}
+            for trade in reversed(model.trades[-5:])])
+        if model.trade_history_incomplete:
+            ui.caption("Trade history incomplete / unavailable; no cycles or PnL are inferred.")
+        ui.subheader("Operational details")
         metrics = (
             ("Runtime state", health.runtime_state), ("Overall health (display)", overview.display_health),
             ("Risk state", risk_state), ("Owned base quantity", health.owned_base_quantity),
@@ -112,6 +181,7 @@ def render_dashboard(model, ui=st):
                 if not trade.executions or len(trade.executions) < len(set(trade.entry_execution_ids + trade.exit_execution_ids)):
                     ui.info("Execution/fee history unavailable or incomplete; no fee totals are inferred.")
     with tabs[4]:
+        _table(ui, field_rows(identity, ("broker_id", "account_binding", "bot_id", "strategy_id", "symbol", "timeframe")))
         _table(ui, field_rows(health, ("generated_at_ms", "process_started_at_ms", "last_scheduler_activity_ms",
             "last_cycle_activity_ms", "last_cycle_outcome", "runtime_state", "runtime_reason", "checkpoint_sequence",
             "overall_health", "reason_codes", "generated_freshness", "market_freshness", "reconciliation_freshness",
@@ -145,6 +215,7 @@ class _Arguments(argparse.ArgumentParser):
 
 def main(argv=None):
     st.set_page_config(page_title="Trading Lab — Runtime Monitor", layout="wide")
+    st.title("Trading Lab")
     parser = _Arguments(add_help=False)
     parser.add_argument("--observability-root", required=True)
     try:
@@ -153,14 +224,15 @@ def main(argv=None):
     except DashboardError:
         st.error("Observability root unavailable or invalid. Supply --observability-root with an absolute private local directory.")
         return
-    st.sidebar.button("Refresh local files")  # A click reruns this read-only script.
+    selector, refresh = st.columns((5, 1), vertical_alignment="bottom")
+    refresh.button("Refresh local files")  # A click reruns this read-only script.
     for notice in discovery.notices:
         st.warning(_NOTICES[notice])
     if not discovery.instances:
         st.info("No valid Trading Lab observability instance found.")
         return
     choices = {instance.instance_name: instance for instance in discovery.instances}
-    name = st.sidebar.selectbox("Observability instance", tuple(choices), format_func=lambda key: choices[key].label)
+    name = selector.selectbox("◈ Strategy Model", tuple(choices), format_func=lambda key: format_instance_label(choices[key]))
     try:
         model = load_dashboard(args.observability_root, name, now_ms=time.time_ns() // 1_000_000)
     except DashboardError:

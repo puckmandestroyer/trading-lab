@@ -7,7 +7,7 @@ from ..observability.health import HealthSnapshot, health_from_json
 from ..observability.model import (ObservabilityEvent, ObservabilityEventType as T,
     ObservabilityError, EvidenceFreshness, ObservabilityHealthLevel, canonical_bytes, event_from_json)
 from .model import (DashboardError, DashboardNotice, DashboardInstance, DashboardOverview,
-    DashboardExecution, DashboardTrade, DashboardModel, DEFAULT_HISTORY_LIMIT, MAX_HISTORY_LIMIT,
+    DashboardExecution, DashboardTrade, DashboardModel, DashboardPerformance, DEFAULT_HISTORY_LIMIT, MAX_HISTORY_LIMIT,
     SNAPSHOT_MAX_AGE_MS)
 
 MAX_INPUT_RECORDS = 10_000
@@ -122,6 +122,52 @@ def reconstruct_trades(events):
     return tuple(trades), incomplete, quantity if active is not None else None
 
 
+def _performance_amounts(equity, capital):
+    """Decimal-only, independent of the caller's precision.
+
+    Keep subtraction exact and ample digits for finite decimal quotients.
+    Recurring ratios necessarily use Decimal context rounding, never float.
+    Inputs have already passed the frozen bounded observability parser.
+    """
+    with localcontext() as context:
+        span = max(equity.adjusted(), capital.adjusted()) - min(
+            equity.as_tuple().exponent, capital.as_tuple().exponent)
+        context.prec = max(80, span + 4,
+            4 * (len(equity.as_tuple().digits) + len(capital.as_tuple().digits))
+            + abs(equity.adjusted() - capital.adjusted()) + 100)
+        net = equity - capital
+        return net, net * 100 / capital
+
+
+def _performance_history(health, events):
+    """Only retained risk observations on the current exact capital basis.
+
+    Epoch identity deliberately does not partition history: same-config rearm
+    preserves accounting. Missing/incompatible digests never become points.
+    """
+    if not health.risk_active or health.risk_capital_quote is None:
+        return (), True
+    points, incomplete = {}, False
+    for event in events:
+        if event.event_type not in (T.RISK_BLOCKED, T.RISK_TRIPPED):
+            continue
+        values = dict(event.details)
+        equity, timestamp = values.get("risk_equity"), values.get("valued_at_ms")
+        if equity is None:
+            continue
+        if (type(equity) is not Decimal or timestamp is None
+                or values.get("risk_configuration_digest") != health.risk_configuration_digest):
+            incomplete = True
+            continue
+        points[(timestamp, event.event_id)] = _performance_amounts(equity, health.risk_capital_quote)[1]
+    return tuple((time, value) for (time, _), value in sorted(points.items())), incomplete
+
+
+def performance_series(model):
+    """Exact retained (UTC milliseconds, Decimal return %) observations only."""
+    return _performance_history(model.health, model.events)[0]
+
+
 def build_dashboard_model(health, events=(), *, now_ms, limit=DEFAULT_HISTORY_LIMIT,
                           snapshot_max_age_ms=SNAPSHOT_MAX_AGE_MS, notices=()):
     _limit(snapshot_max_age_ms, 86_400_000)
@@ -158,8 +204,15 @@ def build_dashboard_model(health, events=(), *, now_ms, limit=DEFAULT_HISTORY_LI
     incomplete |= bool(notices) or not has_transitions or (health.owned_base_quantity is not None
         and health.owned_base_quantity > 0 and retained_quantity != health.owned_base_quantity)
     incomplete |= health.owned_base_quantity == 0 and retained_quantity is not None
+    available = health.risk_active and health.risk_equity is not None and health.risk_capital_quote is not None
+    net, percent = _performance_amounts(health.risk_equity, health.risk_capital_quote) if available else (None, None)
+    points, incompatible = _performance_history(health, selected)
+    performance = DashboardPerformance(net, percent, health.risk_equity if available else None,
+        health.risk_capital_quote if available else None, overview.drawdown_percentage if available else None,
+        health.daily_pnl if available else None, health.runtime_state.value,
+        bool(notices) or incompatible or len(points) < 2)
     return DashboardModel(DashboardInstance(instance_name(health), *identity), health, selected,
-                          overview, trades, incomplete, notices)
+                          overview, trades, incomplete, notices, performance)
 
 
 def filter_events(model, *, severities=(), event_types=()):

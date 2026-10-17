@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-17 — Narrow Stage 12.1d performance / light-theme correction
+
+- Redesigned Overview around main-page strategy selection, left Net P&L/Return/equity/drawdown/daily P&L/position, right Strategy Performance %, secondary operational status and a five-cycle confirmed-trades preview. Preserved all six technical views and canonical identity details; added project-local light theme using native Streamlit only.
+- Added immutable DashboardPerformance, Decimal-only equity-minus-authorized-capital P&L/return, signed currency-aware formatting and compatible retained RISK_BLOCKED/RISK_TRIPPED performance history. Missing/incompatible bases stay incomplete; same-config rearm preserves history. Fewer than two observations shows current Return plus insufficient history, never fabricated snapshot/hourly points. Wallet/realized-only trade P&L is not the performance basis.
+- Local validation: **34 new correction / 115 dashboard / 3,273 full-suite tests passed**, failures/errors/skips **0/0/0**; frozen observability 142 / Telegram 73 / runtime integration / Stage 11 / EMA and golden 54/2/2/0/1 passed. Pip and both diff checks passed. Frozen production/contracts/schema/Decisions/dependencies/loader/notebooks/data unchanged. No real monitoring, credentials, broker, Telegram or user-DB operation.
+- Stage 12.1d baseline independently owner-reviewed / FROZEN at `fcae94557e536181f3db9e577817dada1c33665f`; this correction COMPLETE / owner review pending. 12.1a–c remain FROZEN; 12.1 INCOMPLETE, 12.1e NOT STARTED, v1.0.0 NOT RELEASED. Future POST-v1 research dashboard remains separate; do not begin the next milestone automatically.
+
 ## 2026-10-17 — Stage 12.1d Generic Streamlit Runtime Dashboard
 
 - Added a framework-independent generic dashboard read model, bounded secure read-only health/JSONL loader, deterministic deduped history, exact formatting/display ratios, conservative confirmed closed-cycle/execution-reference views and sparse recorded-observation charts. Missing/stale/corrupt/incomplete data remains explicit; no ACK-as-fill, synthetic PnL or trade from current LONG.

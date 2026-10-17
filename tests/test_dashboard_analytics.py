@@ -17,6 +17,120 @@ def cycle(*, pnl=None):
     return opening, closing
 
 
+class DashboardPerformanceAnalyticsTests(unittest.TestCase):
+    def model(self, equity="1125.25", events=(), capital="1000", **changes):
+        return build_dashboard_model(f.performance_health(equity, capital, **changes), events, now_ms=AT)
+
+    def test_positive_current_performance_exact_decimal(self):
+        performance = self.model().performance
+        self.assertEqual(performance.net_pnl_quote, D("125.25"))
+        self.assertEqual(performance.return_percent, D("12.525"))
+        self.assertIs(type(performance.return_percent), D)
+
+    def test_negative_current_performance_exact_decimal(self):
+        performance = self.model("900").performance
+        self.assertEqual(performance.net_pnl_quote, D("-100"))
+        self.assertEqual(performance.return_percent, D("-10"))
+
+    def test_genuine_zero_performance_is_not_unavailable(self):
+        performance = self.model("1000").performance
+        self.assertEqual(performance.net_pnl_quote, D(0))
+        self.assertEqual(performance.return_percent, D(0))
+
+    def test_high_precision_capital_equity_history_and_text_without_float_loss(self):
+        capital = "1000000000000000000000000000000"
+        equity = "1125250000000000000000000000000.1234567890123456789"
+        health = f.performance_health(equity, capital)
+        event = f.risk_observation(equity, digest=health.risk_configuration_digest)
+        with localcontext() as context:
+            context.prec = 200
+            expected_pnl = D(equity)-D(capital)
+            expected_return = expected_pnl*100/D(capital)
+        with localcontext() as context:
+            context.prec = 3
+            model = build_dashboard_model(health, (event,), now_ms=AT)
+            self.assertEqual(model.performance.net_pnl_quote, expected_pnl)
+            self.assertEqual(model.performance.return_percent, expected_return)
+            self.assertEqual(performance_series(model), ((3_600_000, expected_return),))
+            self.assertEqual(context.prec, 3)
+        self.assertEqual(format_value(model.performance.net_pnl_quote),
+            "125250000000000000000000000000.1234567890123456789")
+        self.assertEqual(format_percent(expected_return, detailed=True),
+            "+12.52500000000000000000000000001234567890123456789%")
+
+    def test_known_retained_returns_exact_without_interpolation(self):
+        digest = f.health_fixture().risk_configuration_digest
+        events = tuple(f.risk_observation(value, n, digest=digest) for n, value in enumerate(("1000", "1025", "980", "1100")))
+        model = self.model(events=tuple(reversed(events)))
+        self.assertEqual(performance_series(model), tuple((3_600_000*(n+1), D(value))
+            for n, value in enumerate(("0", "2.5", "-2", "10"))))
+        self.assertFalse(model.performance.history_incomplete)
+
+    def test_incompatible_digest_excluded_and_history_explicitly_incomplete(self):
+        digest = f.health_fixture().risk_configuration_digest
+        events = (f.risk_observation("1000", 0, digest=digest),
+                  f.risk_observation("1500", 1, digest="e"*64), f.risk_observation("1025", 2, digest=digest))
+        model = self.model(events=events)
+        self.assertEqual(performance_series(model), ((3_600_000, D(0)), (10_800_000, D("2.5"))))
+        self.assertTrue(model.performance.history_incomplete)
+
+    def test_missing_digest_excluded_not_assumed_compatible(self):
+        model = self.model(events=(f.risk_observation("1100"),))
+        self.assertEqual(performance_series(model), ())
+        self.assertTrue(model.performance.history_incomplete)
+
+    def test_snapshot_twenty_percent_never_becomes_history(self):
+        model = self.model("1200")
+        self.assertEqual(model.performance.return_percent, D(20))
+        self.assertEqual(performance_series(model), ())
+        self.assertTrue(model.performance.history_incomplete)
+
+    def test_single_retained_observation_stays_single(self):
+        event = f.risk_observation("1025", digest=f.health_fixture().risk_configuration_digest)
+        model = self.model("1200", events=(event,))
+        self.assertEqual(performance_series(model), ((3_600_000, D("2.5")),))
+        self.assertTrue(model.performance.history_incomplete)
+
+    def test_tripped_observation_is_retained_and_duplicate_is_not_a_second_point(self):
+        event = f.risk_observation("900", kind=T.RISK_TRIPPED, digest=f.health_fixture().risk_configuration_digest)
+        model = self.model(events=(event, event))
+        self.assertEqual(performance_series(model), ((3_600_000, D(-10)),))
+
+    def test_same_configuration_child_epoch_rearm_does_not_reset_history(self):
+        digest = f.health_fixture().risk_configuration_digest
+        events = (f.risk_observation("1000", 0, digest=digest),
+            f.event_fixture(T.RISK_REARMED), f.risk_observation("1100", 2, digest=digest,
+                risk_epoch_id="b"*64, risk_epoch_sequence=2))
+        model = self.model(events=events, risk_epoch_id="b"*64, risk_epoch_sequence=2)
+        self.assertEqual(performance_series(model), ((3_600_000, D(0)), (10_800_000, D(10))))
+        self.assertFalse(model.performance.history_incomplete)
+
+    def test_inactive_risk_does_not_normalize_old_events(self):
+        event = f.risk_observation("1100", digest=f.health_fixture().risk_configuration_digest)
+        model = build_dashboard_model(f.health_fixture(active=False), (event,), now_ms=AT)
+        self.assertEqual(performance_series(model), ())
+
+    def test_history_still_uses_bounded_deduped_events(self):
+        digest = f.health_fixture().risk_configuration_digest
+        events = tuple(f.risk_observation("1100", n, digest=digest) for n in range(3))
+        model = build_dashboard_model(f.performance_health(), events, now_ms=AT, limit=2)
+        self.assertEqual(tuple(time for time, _ in performance_series(model)), (7_200_000, 10_800_000))
+        self.assertTrue(model.performance.history_incomplete)
+
+    def test_current_performance_does_not_sum_realized_trade_pnl(self):
+        model = self.model(events=cycle(pnl=D("999")))
+        self.assertEqual(model.performance.net_pnl_quote, D("125.25"))
+        self.assertEqual(model.trades[0].realized_pnl_quote, D("999"))
+
+    def test_performance_does_not_modify_input_records(self):
+        health = f.performance_health()
+        event = f.risk_observation("1100", digest=health.risk_configuration_digest)
+        before = health.to_json(), event.to_json()
+        model = build_dashboard_model(health, (event,), now_ms=AT)
+        performance_series(model)
+        self.assertEqual((health.to_json(), event.to_json()), before)
+
+
 class DashboardAnalyticsTests(unittest.TestCase):
     def model(self, events=(), **changes):
         return build_dashboard_model(f.health_fixture(), events, now_ms=AT, **changes)

@@ -4,6 +4,7 @@ import ast
 import importlib.util
 from pathlib import Path
 import socket
+import tomllib
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
@@ -50,7 +51,13 @@ class DashboardAppTests(unittest.TestCase):
         f.write_instance(self.root, events=(f.event_fixture(),))
         app = self.run_app()
         self.assertEqual(tuple(tab.label for tab in app.tabs), DASHBOARD_VIEWS)
-        self.assertEqual([metric.value for metric in app.metric[:4]], ["ema_trend", "BTCUSDT", "60", "bot1"])
+        self.assertIn("ema_trend · BTCUSDT · 1H · bot1", app.selectbox[0].options[0])
+        self.assertEqual([metric.label for metric in app.metric[:6]],
+            ["Net P&L", "Return vs Risk Capital", "Risk Equity", "Drawdown", "Daily P&L", "Position"])
+        identities = [table.value for table in app.dataframe if "Field" in table.value.columns
+                      and "timeframe" in table.value["Field"].tolist()]
+        self.assertEqual(len(identities), 1)
+        self.assertEqual(identities[0]["Value"].tolist(), ["bybit-demo", "research", "bot1", "ema_trend", "BTCUSDT", "60"])
         self.assertEqual([button.label for button in app.button], ["Refresh local files"])
         self.assertEqual(len(app.get("form")), 0)
         self.assertEqual(app.multiselect[0].value, ["INFO", "WARNING", "ERROR", "CRITICAL"])
@@ -60,17 +67,17 @@ class DashboardAppTests(unittest.TestCase):
         second = f.write_instance(self.root, f.health_fixture(strategy="donchian", symbol="ETHUSDT", bot="bot2"),
             (f.event_fixture(strategy="donchian", symbol="ETHUSDT", bot="bot2"),))
         app = self.run_app()
-        self.assertIn("donchian", app.sidebar.selectbox[0].options[0])
-        self.assertEqual([metric.value for metric in app.metric[:4]], ["donchian", "ETHUSDT", "60", "bot2"])
+        self.assertIn("donchian · ETHUSDT · 1H · bot2", app.selectbox[0].options[0])
+        self.assertEqual(app.selectbox[0].value, second.name)
         labels = [metric.label for metric in app.metric]
-        app.sidebar.selectbox[0].select(first.name).run()
+        app.selectbox[0].select(first.name).run()
         self.assertEqual(len(app.exception), 0)
-        self.assertEqual([metric.value for metric in app.metric[:4]], ["ema_trend", "BTCUSDT", "60", "bot1"])
+        self.assertEqual(app.selectbox[0].value, first.name)
         self.assertEqual([metric.label for metric in app.metric], labels)
         self.assertEqual(tuple(tab.label for tab in app.tabs), DASHBOARD_VIEWS)
-        app.sidebar.selectbox[0].select(second.name).run()
+        app.selectbox[0].select(second.name).run()
         self.assertEqual(len(app.exception), 0)
-        self.assertEqual(app.metric[0].value, "donchian")
+        self.assertEqual(app.selectbox[0].value, second.name)
 
     def test_empty_root_sanitized_empty_state_no_invented_instance(self):
         app = self.run_app()
@@ -103,8 +110,109 @@ class DashboardAppTests(unittest.TestCase):
         f.write_instance(self.root, events=analytics_fixtures.cycle())
         app = self.run_app()
         trades = [table.value for table in app.dataframe if "Realized PnL (quote)" in table.value.columns]
-        self.assertEqual(len(trades), 1)
-        self.assertEqual(trades[0]["Realized PnL (quote)"].tolist(), ["Unavailable"])
+        self.assertEqual(len(trades), 2)  # Bounded Overview preview and the full Trades view.
+        for table in trades:
+            self.assertEqual(table["Realized PnL (quote)"].tolist(), ["Unavailable"])
+
+    def test_project_local_light_theme_without_frontend_hacks(self):
+        theme = tomllib.loads((PROJECT / ".streamlit" / "config.toml").read_text())
+        self.assertEqual(set(theme), {"theme"})
+        self.assertEqual(theme["theme"]["base"], "light")
+        self.assertEqual(theme["theme"]["backgroundColor"], "#FFFFFF")
+        self.assertNotIn("unsafe_allow_html", APP.read_text())
+
+    def test_model_selector_on_main_page_not_sidebar(self):
+        f.write_instance(self.root)
+        app = self.run_app()
+        self.assertEqual(app.selectbox[0].label, "◈ Strategy Model")
+        self.assertEqual(len(app.sidebar.selectbox), 0)
+        self.assertEqual(len(app.sidebar.button), 0)
+
+    def test_positive_performance_cards_and_explicit_insufficient_history(self):
+        f.write_instance(self.root, f.performance_health())
+        app = self.run_app()
+        self.assertEqual([metric.value for metric in app.metric[:6]],
+            ["+125.25 USDT", "+12.525%", "1125.25 USDT", "0%", "+125.25 USDT", "FLAT"])
+        self.assertIn("Insufficient performance history.", [item.value for item in app.info])
+        self.assertIn("Current Return: +12.525%", [item.value for item in app.text])
+        self.assertTrue(any(item.value == "Strategy Performance %" for item in app.subheader))
+
+    def test_negative_performance_cards_with_adverse_drawdown(self):
+        f.write_instance(self.root, f.performance_health("900"))
+        app = self.run_app()
+        self.assertEqual([metric.value for metric in app.metric[:6]],
+            ["-100 USDT", "-10%", "900 USDT", "-10%", "-100 USDT", "FLAT"])
+        self.assertEqual(app.metric[0].delta, "-10%")
+
+    def test_genuine_zero_current_performance(self):
+        f.write_instance(self.root, f.performance_health("1000"))
+        app = self.run_app()
+        self.assertEqual([metric.value for metric in app.metric[:2]], ["0 USDT", "0%"])
+
+    def test_currency_comes_from_selected_validated_health(self):
+        f.write_instance(self.root, f.performance_health(quote_currency="USDC"))
+        app = self.run_app()
+        self.assertEqual(app.metric[0].value, "+125.25 USDC")
+        self.assertEqual(app.metric[2].value, "1125.25 USDC")
+        self.assertIn("BTCUSDC", app.selectbox[0].options[0])
+
+    def test_unavailable_current_performance_never_zero(self):
+        f.write_instance(self.root, f.health_fixture(active=False))
+        app = self.run_app()
+        self.assertEqual([metric.value for metric in app.metric[:5]], ["Unavailable"]*5)
+        self.assertIn("Current Return: Unavailable", [item.value for item in app.text])
+
+    def test_snapshot_twenty_percent_does_not_create_chart(self):
+        f.write_instance(self.root, f.performance_health("1200"))
+        app = self.run_app()
+        self.assertEqual(app.metric[1].value, "+20%")
+        self.assertIn("Current Return: +20%", [item.value for item in app.text])
+        self.assertEqual(len(app.get("vega_lite_chart")), 0)
+
+    def test_multiple_retained_compatible_points_render_performance_chart(self):
+        health = f.performance_health()
+        events = tuple(f.risk_observation(value, n, digest=health.risk_configuration_digest)
+                       for n, value in enumerate(("1000", "1025", "980", "1100")))
+        f.write_instance(self.root, health, events)
+        app = self.run_app()
+        self.assertFalse(any(item.value == "Insufficient performance history." for item in app.info))
+        self.assertGreaterEqual(len(app.get("vega_lite_chart")), 1)
+        exact = [table.value for table in app.dataframe if "Return % (Decimal)" in table.value.columns]
+        self.assertEqual(exact[0]["Return % (Decimal)"].tolist(), ["0%", "+2.5%", "-2%", "+10%"])
+
+    def test_one_retained_point_keeps_current_return_without_graph(self):
+        health = f.performance_health()
+        f.write_instance(self.root, health, (f.risk_observation("1000", digest=health.risk_configuration_digest),))
+        app = self.run_app()
+        self.assertIn("Insufficient performance history.", [item.value for item in app.info])
+        self.assertEqual(len(app.get("vega_lite_chart")), 0)
+
+    def test_incompatible_history_is_explicit_and_not_plotted(self):
+        f.write_instance(self.root, f.performance_health(),
+            (f.risk_observation("1500", 0, digest="e"*64), f.risk_observation("1600", 1, digest="e"*64)))
+        app = self.run_app()
+        self.assertTrue(any("Performance history incomplete" in item.value for item in app.caption))
+        self.assertIn("Insufficient performance history.", [item.value for item in app.info])
+
+    def test_overview_preview_bounded_to_five_confirmed_cycles(self):
+        events = tuple(event for n in range(7) for event in (
+            f.event_fixture(f.T.POSITION_OPEN_CONFIRMED, sequence=n*2+1, occurred=f.AT+n*2),
+            f.event_fixture(f.T.POSITION_CLOSE_CONFIRMED, sequence=n*2+2, occurred=f.AT+n*2+1)))
+        f.write_instance(self.root, events=events)
+        app = self.run_app()
+        trades = [table.value for table in app.dataframe if "Realized PnL (quote)" in table.value.columns]
+        self.assertEqual([len(table) for table in trades], [5, 7])
+        self.assertEqual(trades[0]["Close reference"].tolist(), list(reversed(trades[1]["Close reference"].tolist()))[:5])
+
+    def test_future_generic_strategy_has_same_performance_history_component(self):
+        health = f.performance_health(strategy="donchian", symbol="ETHUSDT", bot="bot2")
+        events = tuple(f.risk_observation(value, n, digest=health.risk_configuration_digest,
+            strategy="donchian", symbol="ETHUSDT", bot="bot2") for n, value in enumerate(("1000", "1100")))
+        f.write_instance(self.root, health, events)
+        app = self.run_app()
+        self.assertEqual(app.metric[0].value, "+125.25 USDT")
+        self.assertEqual(tuple(tab.label for tab in app.tabs), DASHBOARD_VIEWS)
+        self.assertGreaterEqual(len(app.get("vega_lite_chart")), 1)
 
     def test_event_severity_and_type_filters_rerender_readonly(self):
         events = (f.event_fixture(), f.event_fixture(f.T.RUNTIME_HALTED), f.event_fixture(f.T.RISK_TRIPPED))

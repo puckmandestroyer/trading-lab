@@ -82,6 +82,20 @@ class DashboardTrade:
 
 
 @dataclass(frozen=True, slots=True)
+class DashboardPerformance:
+    """Bot equity relative to authorized capital, never wallet/trade PnL."""
+
+    net_pnl_quote: Decimal | None
+    return_percent: Decimal | None
+    risk_equity: Decimal | None
+    risk_capital_quote: Decimal | None
+    drawdown_percent: Decimal | None
+    daily_pnl: Decimal | None
+    position_state: str
+    history_incomplete: bool
+
+
+@dataclass(frozen=True, slots=True)
 class DashboardModel:
     identity: DashboardInstance
     health: HealthSnapshot
@@ -90,6 +104,7 @@ class DashboardModel:
     trades: tuple[DashboardTrade, ...]
     trade_history_incomplete: bool
     notices: tuple[DashboardNotice, ...]
+    performance: DashboardPerformance
 
     @property
     def views(self):

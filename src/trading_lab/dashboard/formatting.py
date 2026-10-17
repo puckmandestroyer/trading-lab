@@ -1,13 +1,35 @@
 """Exact detailed text; float conversion exists only at the chart boundary."""
 
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP, localcontext
 from enum import Enum
 import math
 
 from .model import DashboardError
 
 UNAVAILABLE = "Unavailable"
+
+
+def format_signed(value):
+    """Canonical exact amount with a positive sign; missing is never zero."""
+    text = format_value(value)
+    return "+" + text if value is not None and value > 0 else text
+
+
+def format_percent(value, *, detailed=False):
+    if value is None:
+        return UNAVAILABLE
+    if not detailed:
+        with localcontext() as context:
+            context.prec = max(80, len(value.as_tuple().digits) + abs(value.adjusted()) + 10)
+            value = value.quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+    return format_signed(value) + "%"
+
+
+def format_instance_label(instance):
+    """Friendly display only; canonical timeframe remains in identity details."""
+    timeframe = "1H" if instance.timeframe == "60" else instance.timeframe
+    return f"{instance.strategy_id} · {instance.symbol} · {timeframe} · {instance.bot_id} · {instance.account_binding}"
 
 
 def format_value(value):
