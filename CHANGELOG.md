@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-17 — Stage 12.1a Observability Event / Logging Contract
+
+- Added Decision 023: non-authoritative UTF-8 JSONL events, UTC-date append-only segmentation, atomic derived health snapshot, fixed envelope/per-type allowlists, stable durable SHA256 event IDs and process-only run correlation. Four severity levels and separate presentation health/freshness never change trading truth; no schema-v2 change or observability implementation.
+- Defined reconciliation-confirmed OPEN/CLOSED and partial-fill semantics, exact Decimal-string finances/null availability, first-trip/rearm identities, sanitized exceptions/redaction, post-commit I/O and bounded failure isolation. Catch-up projects only retained provable facts; schema v2 does not retain every checkpoint/action transition. Telegram remains outbound-only with bounded best-effort delivery/possible duplicates, no exactly-once claim/commands; Streamlit consumes derived health/events read-only with no trading controls.
+- Stage 12.0 / Decision 022 independently owner-reviewed, COMPLETE / FROZEN at `0b275c91abe53068dc4b0b05ade7be710d13cef6`. Stage 12.1 STARTED / INCOMPLETE; 12.1a COMPLETE / owner review pending; 12.1b–e and 12.2–12.4 NOT STARTED; Stage 12 INCOMPLETE, v1.0.0 NOT RELEASED. No automatic 12.1b continuation.
+- Exactly Decision 023, PROJECT_STATE.md, README.md and CHANGELOG.md change; zero production/test/schema/dependency/previous-Decision changes or new tests. Local execution: unchanged full suite **2,943 passed**, failures/errors/skips **0/0/0**; pip check and both diff checks pass. Frozen Stage 11, EMA/next-OPEN/golden behavior, notebooks/data/results remain unchanged.
+- Demo/Live credentials and Telegram bot token **NOT USED**; real Telegram message **NOT SENT**; authenticated Bybit Demo/Live read/order/cancel and real user DB migration/activation/rearm **NOT RUN**. No logging/Telegram/Streamlit code or real application-network operation.
+
 ## 2026-10-17 — Stage 12.0 Trading Lab V1 Production & Live Readiness Contract
 
 - Added Decision 022 defining Stage 12 as the final v1.0.0 release gate: local macOS, SQLite, one BTCUSDT hourly EMA Spot LONG/FLAT MARKET bot, existing fixed-budget Stage 11 risk, Telegram outbound alerts and read-only Streamlit dashboard. These visibility/operational capabilities are future work, not implemented here.

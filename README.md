@@ -6,7 +6,9 @@ The long-term goal is to support historical market data, multiple independent st
 
 ## Current stage
 
-**Stage 12 — Production & Live Readiness is STARTED / INCOMPLETE. Stage 12.0 — Trading Lab V1 Production & Live Readiness Contract is COMPLETE / owner review pending.** [Decision 022](decisions/022_trading_lab_v1_production_live_readiness.md) defines the final v1 product boundary and release gate. The repository is **pre-v1 / Stage 12 in progress; v1.0.0 NOT RELEASED**. Stage 12.1–12.4 are NOT STARTED; no implementation starts automatically.
+**Stages 12 — Production & Live Readiness and 12.1 — Observability & Operator Visibility are STARTED / INCOMPLETE. Stage 12.1a — Observability Event / Logging Contract is COMPLETE / owner review pending** under [Decision 023](decisions/023_observability_event_logging_contract.md). Stage 12.1b–e and 12.2–12.4 are NOT STARTED; do not begin 12.1b automatically. The repository remains **pre-v1 / Stage 12 in progress; v1.0.0 NOT RELEASED**.
+
+**Stage 12.0 / Decision 022 is independently owner-reviewed, COMPLETE / FROZEN at `0b275c91abe53068dc4b0b05ade7be710d13cef6` (`Define Trading Lab v1 readiness contract`).** Its v1 boundary/release gate remains unchanged.
 
 **Stage 11 — Runtime Risk Management, including its final 11.8 audit, is independently owner-reviewed, COMPLETE / FROZEN at `b79d511b94fa6e5dd07f59d95e7c51f175f3f756` (`Complete Stage 11 final audit`).** Frozen implementation and Decisions 018–021 are unchanged. No real user migration, activation/rearm or authenticated Demo operation was performed.
 
@@ -16,17 +18,29 @@ The integrated risk boundary is **Strategy → Planner → Risk Gate → Durable
 
 **Current limits:** Demo only; one account/bot/EMA strategy/symbol; hourly `60`; LONG/FLAT Spot MARKET. No short/leverage/borrowing, automatic liquidation, risk-generated stop loss/take profit/trailing stop, manual risk kill/pause, configuration editing or operational controls UI. No long-running Demo validation or live trading has occurred.
 
+### Observability event / logging contract — Stage 12.1a
+
+[Decision 023](decisions/023_observability_event_logging_contract.md) specifies future **UTF-8 JSONL events and an atomic health.json snapshot**, not an implemented logging system. RuntimeStore plus broker reconciliation remains authoritative. Deleting logs/snapshots must not change the next trading decision, and no observability sink may authorize, reconcile, rearm or mutate trading state. No SQLite trading transaction spans file or notification I/O; sink failures get bounded sanitized local diagnostics while the original runtime control/exception behavior is preserved.
+
+The contract defines a fixed event envelope, explicit per-type payload allowlists, stable SHA256 durable-fact IDs across restart, and INFO/WARNING/ERROR/CRITICAL severity. Financial values are canonical Decimal strings, timestamps integer UTC milliseconds and unavailable facts null; no raw broker payload, credential/token, environment dump, exception locals or financial float is logged. Per-process run_id is correlation only and never changes action/epoch IDs or strategy output.
+
+Confirmed OPEN/CLOSE events come only from durable reconciled ownership, never signals, planner proposals, ALLOW or ACK alone. A first partial BUY may establish positive exposure/OPEN while its order remains pending; later growth is a quantity change. Partial SELL/dust is not a completed CLOSE. PnL needs complete exact owned executions/prices/signed fees or remains unavailable. Risk TRIP uses original epoch/reason/time, not a new alert each candle; successful runtime rearm means SYNCHRONIZING, not confirmed health. Schema v2 retains current checkpoints/action phases rather than every transition: catch-up may re-project retained facts but must report unavailable history honestly.
+
+Future events use UTC-date segmented append-only files outside notebooks/results; retention/deletion is deferred to 12.3d. The snapshot exposes process/runtime/pending/evidence, market and exact risk/configuration/epoch facts, with explicit fresh/stale/unknown status. Presentation-only OK/ATTENTION/CRITICAL never changes RuntimeState; ORDER_PENDING alone is not unhealthy. **Telegram consumes events outbound-only**, with stable IDs, bounded best-effort delivery and possible duplicate notifications after ambiguous delivery; no exactly-once claim or trading commands. **Streamlit consumes derived health/events read-only**, without a second live RuntimeStore/account-lock owner, broker reads or trading controls.
+
+This milestone changes only Decision 023, this README, PROJECT_STATE.md and CHANGELOG.md. Zero production/test/schema/dependency/previous-Decision changes; no logging, Telegram, Streamlit, hooks or dependencies implemented. Local execution: unchanged full suite **2,943 passed**, failures/errors/skips **0/0/0**; pip check and both diff checks pass. Demo/Live credentials and Telegram token **NOT USED**; real Telegram message **NOT SENT**; authenticated Demo/Live read/order/cancel and real user DB migration/activation/rearm **NOT RUN**. Stage 12.1b — Structured Logs + Health Snapshot is next / NOT STARTED and requires separate authorization.
+
 ### Trading Lab v1 boundary — Stage 12.0
 
 V1 targets **local macOS, one runtime instance / Bybit account binding / bot, BTCUSDT, the existing hourly EMA strategy, Spot LONG/FLAT MARKET and SQLite RuntimeStore**. The existing Stage 11 risk model remains fixed operator-authorized risk_capital_quote and fixed planner buy_quote_budget, with risk vetoes and no resizing. Stage 7 position_fraction remains historical/research only. Cloud, Docker and PostgreSQL are not v1 requirements.
 
 Future visibility is split between **Telegram outbound alerts** and a **local read-only Streamlit dashboard**. Neither may place/cancel orders, rearm runtime/risk, edit configuration, force liquidation or start Live trading. Alerts must describe durable reconciled ownership, not signals, proposals, ALLOW or ACK alone. Telegram failure cannot change trading truth; errors remain visible locally, and no SQLite transaction spans notification I/O. Dashboard views are Overview, Position / Orders, Risk, Trades, Runtime Health and Event / Error History. They show durable/derived owned executions, exact risk facts and health; wallet totals are not bot equity and no PnL is invented.
 
-The Stage 12 roadmap is fixed below; **every listed implementation milestone is NOT STARTED**. Full phase gates and safety details are in [Decision 022](decisions/022_trading_lab_v1_production_live_readiness.md#stage-12-roadmap-and-phase-gates).
+The Stage 12 roadmap is fixed below: 12.0 is FROZEN; 12.1 has STARTED with its 12.1a contract COMPLETE / owner review pending. **12.1b–e and all 12.2–12.4 milestones remain NOT STARTED.** Full phase gates and safety details are in [Decision 022](decisions/022_trading_lab_v1_production_live_readiness.md#stage-12-roadmap-and-phase-gates); Decision 023 defines observability only.
 
 | Phase | Milestones |
 | --- | --- |
-| 12.1 — Observability & Operator Visibility | **12.1a** Observability Event / Logging Contract; **12.1b** Structured Logs + Health Snapshot; **12.1c** Telegram Outbound Alerts; **12.1d** Streamlit Dashboard; **12.1e** Observability Offline Regression + Audit. |
+| 12.1 — Observability & Operator Visibility | **12.1a** Observability Event / Logging Contract — COMPLETE / owner review pending; **12.1b** Structured Logs + Health Snapshot; **12.1c** Telegram Outbound Alerts; **12.1d** Streamlit Dashboard; **12.1e** Observability Offline Regression + Audit. |
 | 12.2 — Long-Running Bybit Demo Validation | **12.2a** Demo Activation / Runbook Contract; **12.2b** Controlled 24h → 72h Demo Run; **12.2c** Restart / Network / Failure Validation; **12.2d** 7-day Demo Soak + Report. |
 | 12.3 — Local V1 Hardening | **12.3a** Local Operator CLI; **12.3b** Configuration + Secret Hardening; **12.3c** Local Process Supervision / Startup; **12.3d** Backup + Log Rotation + Recovery; **12.3e** Local Deployment Audit. |
 | 12.4 — Controlled Live Validation | **12.4a** Live Exchange / Safety Contract; **12.4b** Live Read-Only Validation; **12.4c** Exact Live Dry-Run / Preflight; **12.4d** First Explicit Tiny Live Order; **12.4e** Tiny-Capital Live Runtime Validation; **12.4f** Final Stage 12 / V1 Audit + Release. |
@@ -39,7 +53,7 @@ Dynamic 0.5% risk-per-trade/stop-distance/Kelly/ATR/volatility sizing, compoundi
 
 Release/tag **v1.0.0** only after 12.1–12.3 and 12.4a–e are COMPLETE / FROZEN, 12.4f audit PASS and no unresolved safety blocker remains. The final audit covers frozen history, golden regressions, observability, Demo soak, local runbooks/secrets, Live evidence and limitations. No release tag is created now.
 
-Stage 12.0 changes only Decision 022, this README, PROJECT_STATE.md and CHANGELOG.md: zero production/test/schema/dependency/previous-Decision changes. The unchanged local full suite passes **2,943 tests**, failures/errors/skips **0/0/0**; pip check and both diff checks pass. Demo/Live credentials **NOT USED**; authenticated Demo/Live read/order/cancel and real user DB migration/activation/rearm **NOT RUN**; real Telegram bot message **NOT SENT**. Offline tests do not establish production/Live readiness or profitability.
+At Stage 12.0 completion, only Decision 022, this README, PROJECT_STATE.md and CHANGELOG.md changed: zero production/test/schema/dependency/previous-Decision changes. Its unchanged local full suite passed **2,943 tests**, failures/errors/skips **0/0/0**; pip check and both diff checks passed. Demo/Live credentials **NOT USED**; authenticated Demo/Live read/order/cancel and real user DB migration/activation/rearm **NOT RUN**; real Telegram bot message **NOT SENT**. Offline tests do not establish production/Live readiness or profitability.
 
 ### Final Stage 11 audit — Stage 11.8
 
@@ -53,7 +67,7 @@ Local execution: **2,943 tests passed**, failures/errors/skips **0/0/0**; all re
 
 Offline regression does not establish profitability, real-exchange reliability, long-running Demo reliability, monitoring/alerting, deployment hardening, production readiness or live-money readiness. Real user migration/activation/rearm, real Runtime HALT rearm and authenticated Demo read/order/cancellation: **NOT RUN**. The owner has since reviewed/frozen Stage 11.8 and Stage 11 at `b79d511`; the separately authorized Stage 12.0 contract above implements none of those future capabilities.
 
-The milestone records below retain their original scope, completion-time status and test totals; the Current stage and Stage 12.0 sections are current authority.
+The milestone records below retain their original scope, completion-time status and test totals; the Current stage and Stage 12.1a sections are current authority.
 
 The [Stage 11 roadmap](PROJECT_STATE.md#stage-11-roadmap) records the frozen policy, journal, gate, breaker, rearm and audit milestones. The canonical top-level roadmap has **12 stages**; Decision 022 now defines Stage 12 as the final v1 release gate with the exact subphases above. Earlier top-level Stages 13–15 naming is superseded only for future planning; historical records and earlier Decisions are unchanged.
 
@@ -467,7 +481,7 @@ Canonical BTC diagnostics retain **6,132 IS / 2,628 OOS**, boundary **2026-06-13
 
 The final audit accepts chronological cold-start OOS evaluation, deterministic sensitivity, descriptive local stability, fixed-configuration expanding walk-forward, consistent downstream diagnostics, and Notebook 06's visual research report. Stage 8 adds **235 tests** to the unchanged 747-test baseline: **982 total**, zero failures, errors, or skips. Frozen Stage 5–7 references, Decisions 010–012, notebook bytes, and BTC SHA256 are preserved. No optimizer, selected best EMA, robustness score, or stitched OOS portfolio exists. Already-seen single-asset/hourly/EMA research does not prove future profitability or provide demo/live trading evidence.
 
-Current focus: owner review/freeze of **Stage 12.0 / Decision 022**, COMPLETE / owner review pending. Stage 11 is FROZEN at `b79d511`; Stage 12 is STARTED / INCOMPLETE, 12.1–12.4 NOT STARTED and v1.0.0 NOT RELEASED. **12.1 — Observability & Operator Visibility is next; do not start automatically.** No credentials or real user DB/Demo/Live/Telegram operation occurred. Earlier completion records retain their original totals.
+Current focus: owner review/freeze of **Stage 12.1a / Decision 023**, COMPLETE / owner review pending. Stage 12.0 is FROZEN at `0b275c9`; Stage 11 remains FROZEN at `b79d511`. Stages 12 and 12.1 are STARTED / INCOMPLETE; 12.1b–e and 12.2–12.4 NOT STARTED; v1.0.0 NOT RELEASED. **12.1b — Structured Logs + Health Snapshot is next; do not start automatically.** No implementation, credentials/token use or real user DB/Demo/Live/Telegram operation occurred. Earlier completion records retain their original totals.
 
 - Stage 1 completed: reusable historical data collection and a validated BTCUSDT hourly snapshot.
 - Stage 2 completed: statistical market analysis of returns, volatility, volume, extreme movements, and BTC buy-and-hold drawdown in `notebooks/01_data_exploration.ipynb`.
