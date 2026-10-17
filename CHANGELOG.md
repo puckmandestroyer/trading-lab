@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-17 — Stage 12.1c Telegram Outbound Alerts
+
+- Added outbound-only Telegram consumption of validated events, with exactly ten default important-alert types and deterministic plain-text/exact Decimal rendering. No normal cycle/ACK/fill/BLOCK spam, commands, control buttons, poller, background worker, Streamlit or runtime wiring.
+- Added a fixed-origin sendMessage transport using an explicitly supplied dedicated requests-compatible session (existing dependency). Bounded messages/responses/timeouts, verified TLS, no redirects/SDK retries/environment/auth/proxy/header/cookie/hook leakage, secret-safe reprs/errors/results and thread-scoped suppression of token-bearing HTTP URL diagnostics. Known 429/5xx responses permit at most three attempts with 1s/2s backoff; ambiguous exceptions/malformed success never retry immediately.
+- Added separate private target-hashed immutable receipts and direct restart dedupe, with strict bounded reads, exclusive creation/fsync and permission/path/corruption guards. Success-before-receipt failure is DELIVERED_UNRECORDED with one sanitized local indication. Remote-success/crash gaps, deletion and concurrent calls can duplicate notifications; no exactly-once delivery claim and no trading consequence. Bounded ordered batches stop on unresolved failure.
+- Local validation: **73 new tests and 3,147 full-suite tests passed**, zero failures/errors/skips; frozen Stage 11/observability/EMA suites, `pip check` and both Git diff checks passed. Fake HTTP/sleep and temporary files/DBs only. The four frozen 12.1b blobs/exports, old tests, trading/runtime/risk/exchange/strategy production, schema, dependencies, Decisions, notebooks and data are unchanged. Golden remains 54 decisions / 2 placements / 2 fills / 0 cancellations / 1 epoch with exact IDs/links/economics.
+- Stage 12.1b independently owner-reviewed / FROZEN at `265bf33`; 12.1c COMPLETE / owner review pending. Stages 12 and 12.1 INCOMPLETE; 12.1d–e and 12.2–12.4 NOT STARTED; v1.0.0 NOT RELEASED. No automatic 12.1d continuation.
+- Real Telegram token/chat ID **NOT USED**, real message **NOT SENT**, external Telegram API request **NOT RUN**. Demo/Live credentials **NOT USED**; authenticated Demo/Live read/order/cancel, real user DB migration/activation/rearm and real runtime observability session **NOT RUN**.
+
 ## 2026-10-17 — Stage 12.1b Structured Logs + Health Snapshot
 
 - Added the non-authoritative observability package: immutable/slotted event and health models, contract version 1, 28 event types / 24 envelope fields, exact canonical Decimal strings, strict per-type allowlists and stable durable SHA256 IDs with separate process-run correlation.
