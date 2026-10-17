@@ -6,7 +6,7 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 ## Current stage
 
-Stage 12 — Production & Live Readiness and Stage 12.1 — Observability & Operator Visibility are STARTED / INCOMPLETE. Stage 12.1a — Observability Event / Logging Contract is COMPLETE / owner review pending under [Decision 023](decisions/023_observability_event_logging_contract.md). Stage 12.1b — Structured Logs + Health Snapshot is next / NOT STARTED; 12.1c–e and 12.2–12.4 are NOT STARTED. The project remains **pre-v1 / Stage 12 in progress; v1.0.0 NOT RELEASED**. Do not begin 12.1b automatically.
+Stage 12.1b — Structured Logs + Health Snapshot is COMPLETE / owner review pending under frozen [Decision 023](decisions/023_observability_event_logging_contract.md). Stage 12.1a is independently owner-reviewed / FROZEN at `cc293372d3c89bb05c8eb2280f17f3c8a764f5b1` (`Define observability event contract`). Stages 12 and 12.1 remain STARTED / INCOMPLETE; 12.1c–e and 12.2–12.4 are NOT STARTED. The project remains **pre-v1; v1.0.0 NOT RELEASED**. **12.1c — Telegram Outbound Alerts is next; do not begin automatically.**
 
 Stage 12.0 — Trading Lab V1 Production & Live Readiness Contract / [Decision 022](decisions/022_trading_lab_v1_production_live_readiness.md) is independently owner-reviewed, COMPLETE / FROZEN at `0b275c91abe53068dc4b0b05ade7be710d13cef6` (`Define Trading Lab v1 readiness contract`). Decision 022 is unchanged.
 
@@ -44,7 +44,7 @@ Stage 10.9 — Restart / Crash / Ambiguous-Action Recovery is COMPLETE, owner-re
 
 Stage 10.10 — Runtime Integration Regression is COMPLETE OFFLINE, independently owner-reviewed and FROZEN at `329252658aa703b90f107d862e34dbabd81f0f64`.
 
-Both audit-blocker corrections are independently owner-reviewed and FROZEN: account/order read classification at `4e947b192d9e2b3be8b9b050917ca9e03a250320`, public market-data classification at `c273a8be3213a1cbeb3fc12271d17618f2d28b94`. Stages 10.1–10.11 and all approved RuntimeStore/Stage 9 corrections remain FROZEN. Stage 11 implementation and final audit are documented below; Stage 12.1b must not start automatically. Optional authenticated Demo run: NOT PERFORMED / NOT AUTHORIZED.
+Both audit-blocker corrections are independently owner-reviewed and FROZEN: account/order read classification at `4e947b192d9e2b3be8b9b050917ca9e03a250320`, public market-data classification at `c273a8be3213a1cbeb3fc12271d17618f2d28b94`. Stages 10.1–10.11 and all approved RuntimeStore/Stage 9 corrections remain FROZEN. Stage 11 implementation and final audit are documented below; Stage 12.1c must not start automatically. Optional authenticated Demo run: NOT PERFORMED / NOT AUTHORIZED.
 
 Stage 9 — Bybit Demo Exchange Adapter remains COMPLETE/FROZEN, including the owner-reviewed Stage 9.5 pre-submit correction at `77a88fe1b1250cabde6a1a6fa4aa492db056084b`.
 
@@ -104,7 +104,25 @@ Stage 6 — Generic Backtesting Engine remains COMPLETE at `df72973de837ecbd4ee8
 
 Stage 5 — Analytics remains COMPLETE and frozen at `a3fde091be234fd78d216f6338752a810fa117f0` (`Complete Stage 5 analytics report`).
 
-## Observability event / logging contract — Stage 12.1a
+## Structured logs + health snapshot — Stage 12.1b
+
+COMPLETE / owner review pending, based on frozen `cc293372d3c89bb05c8eb2280f17f3c8a764f5b1`. Adds only `src/trading_lab/observability/{__init__,model,projection,health,storage}.py`, four focused observability test files and these three current documents. No previous production/test/Decision, schema, dependency, notebook/data/result or frozen financial/EMA/next-OPEN behavior changes.
+
+Public model: observability contract version 1, four severities, three presentation levels, three freshness states, exactly 28 event types and a 24-field envelope. Frozen/slotted events use closed per-type payload fields, canonical Decimal strings and compact sorted ASCII-escaped UTF-8 JSON. Arbitrary contexts, raw broker/exception/environment dumps, unsafe text, unknown/duplicate keys, floats and non-finite money are rejected. Summaries are fixed safe labels. Durable SHA256 references are instance/type + action/phase, execution ID, checkpoint sequence, original trip, verdict/candle or retained rearm/latch evidence; observation time/run/PID/randomness are excluded. Process identities use run/type and explicit bounded occurrence references. Process IDs are correlation, not proof of a durable fact.
+
+Projection uses only public RuntimeStore reads. Complete retained batches and output are bounded at 10,000; oversize fails, never truncates. Only the current action phase is projected; fills retain signed fees/units and original action/order references. LIVE BLOCK, original trip origins (including replay/ALLOWed EXIT), current HALT/uncertainty and provable runtime-rearm metadata remain distinct. Every historical child epoch is proved from chronological ACTIVATION candidates using public `RiskEpochRecord` hash validation plus equality to the public current epoch; no private SQL/helper or store extension is used. No cursor or manufactured historical OPEN/CLOSE/phase/occurrence time exists. The pure accepted-checkpoint transition projector confirms partial opening, exact closing or positive quantity changes; restoring certainty for an existing holding does not invent OPEN. No second reconciliation/accounting engine or trade-PnL formula is added.
+
+Health fences checkpoint A/B full equality and sequence, current risk epoch and latest valuation. Changing evidence fails once with `ObservabilityProjectionError`, without retry or a long transaction. Pending identities must resolve to matching nonterminal actions. Empty risk is not-ready with null state fields. Active health exposes exact epoch/configuration/valuation, equity/peak/day baseline/PnL/count/limits/trip, all nine approved risk configuration fields and frozen exact drawdown components, never wallet totals. Accepted candle CLOSE/risk boundaries supply market evidence. Missing/future evidence is UNKNOWN; inclusive bound FRESH, older STALE. Market/risk age uses decision_max_age_ms; broker/reconciliation age uses observation_max_age_ms. A new snapshot does not refresh old evidence. Generated freshness refers to construction; consumers must age generated_at_ms. Explicit bounded reason codes implement CRITICAL > ATTENTION > OK; ORDER_PENDING alone is not unhealthy.
+
+Local storage uses a caller-supplied resolved private root and a full SHA256 broker/account/bot directory, modes 0700/0600. No raw account path interpolation. Directory-relative no-follow opens refuse symlinks, special files, hard links, path escape and broader permissions. JSONL segments use the UTC **observation** date, retaining occurrence time separately. One append write is fsynced; readers require explicit bounds, surface duplicate IDs, report an unterminated tail as degraded and reject interior corruption. Atomic health writes fsync a same-directory unique temp file, replace, then fsync the directory where supported; strict readers accept old/new complete snapshots. Missing/malformed health is unavailable. Only an operation's failed temp is cleaned; crash orphans are ignored and no retention is added. Safe write helpers attempt one fixed stderr fallback and return False, without recursion/retry/trading writes or swallowing trading exceptions.
+
+Concrete bounds: safe text 64, orderLinkId 36, bot ID 12, run ID 32 hex, digest 64 hex, summary ceiling 128 characters; event 128 KiB, health 32 KiB; candles 10,000, execution IDs 256, fill lists 128; retained read/output 10,000 records; JSONL read 10,000 records / 16 MiB. Existing public store reads retain their own full-read bounds; no private paging API is invented.
+
+Local execution: **131 new tests passed** (model 28, projection 41, health 28, storage 34); full suite run once: **3,074 passed (2,943 + 131)**, failures/errors/skips **0/0/0**. Unchanged targeted suites pass: E2E 11, rearm 82, breakers 30, risk gate 67, pure risk 123, RuntimeStore 350, cycle 114, scheduler 86, restart 89, reconciliation 100, planner 79, state 188, locking 23, integration regression 64 and frozen EMA 16. These groups overlap and are not summed. `pip check`, `git diff --check` and `git diff --staged --check` pass. Golden remains **54 decisions / 2 placements / 2 fills / 0 cancellations / 1 risk epoch**, exact IDs/links/economics and restart. No runtime hook/automatic event emission, Telegram delivery, Streamlit, real monitoring or observability session. All I/O tests use temporary files/DBs and fakes. Credentials/token **NOT USED**, messages **NOT SENT**; authenticated Demo/Live read/order/cancel and real user DB migration/activation/rearm **NOT RUN**.
+
+Stages 12 and 12.1 remain INCOMPLETE; 12.1c–e and 12.2–12.4 NOT STARTED; v1.0.0 NOT RELEASED. **12.1c must not start automatically.**
+
+## Observability event / logging contract — Stage 12.1a (frozen completion record)
 
 [Decision 023](decisions/023_observability_event_logging_contract.md) defines architecture only: non-authoritative UTF-8 JSONL events, an atomic derived health snapshot, stable durable-fact IDs, exact Decimal-string financial serialization and bounded redaction/failure isolation. Conceptual observability contract version 1 is separate from schema v2/runtime v1/risk v1; no Python constant, logging package, hook, test, schema or dependency is implemented now.
 
@@ -136,8 +154,8 @@ Streamlit's required views are Overview, Position / Orders, Risk, Trades, Runtim
 
 | Phase | Milestone | Scope | Status |
 | --- | --- | --- | --- |
-| 12.1 — Observability & Operator Visibility (STARTED / INCOMPLETE) | 12.1a | Observability Event / Logging Contract | COMPLETE / owner review pending |
-| 12.1 | 12.1b | Structured Logs + Health Snapshot | NOT STARTED |
+| 12.1 — Observability & Operator Visibility (STARTED / INCOMPLETE) | 12.1a | Observability Event / Logging Contract | COMPLETE / FROZEN at cc29337 |
+| 12.1 | 12.1b | Structured Logs + Health Snapshot | COMPLETE / owner review pending |
 | 12.1 | 12.1c | Telegram Outbound Alerts | NOT STARTED |
 | 12.1 | 12.1d | Streamlit Dashboard | NOT STARTED |
 | 12.1 | 12.1e | Observability Offline Regression + Audit | NOT STARTED |
@@ -171,7 +189,7 @@ Stage 12.0 verification: unchanged full local suite **2,943 passed**, failures/e
 
 ## Runtime risk contract — Stage 11.1
 
-Milestone records below retain their original scope, completion-time status and test totals. The Current stage and Stage 12.1a contract sections state current status; Stage 12.0 is FROZEN at `0b275c9` and Stage 11 at `b79d511`.
+Milestone records below retain their original scope, completion-time status and test totals. The Current stage and Stage 12.1b sections state current status; Stage 12.1a is FROZEN at `cc29337`, Stage 12.0 at `0b275c9` and Stage 11 at `b79d511`.
 
 Decision 018 defines the future flow: closed market data → strategy intent → Stage 10 planner proposal → runtime risk gate → durable risk authorization → PREPARED → ATTEMPT_STARTED → Stage 9.5 Demo mutation. Strategy intent, proposed action and permission to take risk are separate facts. Stage 7 `position_fraction` remains historical research allocation, not runtime sizing.
 
@@ -464,11 +482,11 @@ Real user DB migration: **NOT RUN**. Real user risk activation/rearm: **NOT RUN*
 | 11.7 | End-to-End Risk Integration Regression | COMPLETE / owner-reviewed / FROZEN at `8a57b81` |
 | 11.8 | Final Stage 11 Audit + Docs | COMPLETE / owner-reviewed / FROZEN at `b79d511` |
 
-Stage 11.3 internal subphases are COMPLETE / FROZEN: **11.3a contract at `9807ed8`** and **11.3b implementation at `be0eba0`**. Stage 11.4 internal subphases: **11.4a FROZEN at `6bc9d773`, corrected Decision 020 FROZEN at `73c1df6`**; **11.4b implementation and Stage 11.4 overall FROZEN at `887e663`**. Stage 11.5 is COMPLETE / FROZEN at `f1c542b`. Stage 11.6a is FROZEN at `a45389a`; 11.6b and Stage 11.6 overall are COMPLETE / FROZEN at `a16fe071`. Stage 11.7 is COMPLETE / FROZEN at `8a57b81`. Stage 11.8 and Stage 11 overall are independently owner-reviewed, COMPLETE / FROZEN at `b79d511`. Stage 12.0 and 12.1a are documentation-only contracts above; 12.1b must not start automatically.
+Stage 11.3 internal subphases are COMPLETE / FROZEN: **11.3a contract at `9807ed8`** and **11.3b implementation at `be0eba0`**. Stage 11.4 internal subphases: **11.4a FROZEN at `6bc9d773`, corrected Decision 020 FROZEN at `73c1df6`**; **11.4b implementation and Stage 11.4 overall FROZEN at `887e663`**. Stage 11.5 is COMPLETE / FROZEN at `f1c542b`. Stage 11.6a is FROZEN at `a45389a`; 11.6b and Stage 11.6 overall are COMPLETE / FROZEN at `a16fe071`. Stage 11.7 is COMPLETE / FROZEN at `8a57b81`. Stage 11.8 and Stage 11 overall are independently owner-reviewed, COMPLETE / FROZEN at `b79d511`. Stage 12.0 and 12.1a are frozen documentation-only contracts; 12.1b implementation is recorded above and 12.1c must not start automatically.
 
 ### Canonical 12-stage roadmap
 
-Stages 1–11 retain their accepted scope/history. Stage 12 — Production & Live Readiness is the final top-level stage and v1 release gate under frozen Decision 022 at `0b275c9`. Stage 12.1 — Observability & Operator Visibility is STARTED / INCOMPLETE: 12.1a contract COMPLETE / owner review pending under Decision 023; 12.1b–e NOT STARTED. 12.2 Long-Running Bybit Demo Validation, 12.3 Local V1 Hardening and 12.4 Controlled Live Validation remain NOT STARTED. The exact milestone roadmap is recorded above. Prior top-level Stages 13–15 naming is superseded only for future planning; historical records and previous Decisions are unchanged. No implementation, Demo activation or Live operation is authorized by these contracts.
+Stages 1–11 retain their accepted scope/history. Stage 12 — Production & Live Readiness is the final top-level stage and v1 release gate under frozen Decision 022 at `0b275c9`. Stage 12.1 — Observability & Operator Visibility is STARTED / INCOMPLETE: 12.1a contract FROZEN under Decision 023 at `cc29337`; 12.1b COMPLETE / owner review pending; 12.1c–e NOT STARTED. 12.2 Long-Running Bybit Demo Validation, 12.3 Local V1 Hardening and 12.4 Controlled Live Validation remain NOT STARTED. The exact milestone roadmap is recorded above. Prior top-level Stages 13–15 naming is superseded only for future planning; historical records and previous Decisions are unchanged. Architecture contracts authorize no Demo activation or Live operation.
 
 ## Completed
 
@@ -2357,9 +2375,9 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Owner review/freeze of Stage 12.1a — Observability Event / Logging Contract / Decision 023, COMPLETE / owner review pending. Stage 12.0 is COMPLETE / FROZEN at `0b275c91abe53068dc4b0b05ade7be710d13cef6`; Stage 11 remains FROZEN at `b79d511`. Stages 12 and 12.1 are STARTED / INCOMPLETE; 12.1b–e and 12.2–12.4 are NOT STARTED; v1.0.0 NOT RELEASED.
+Owner review/freeze of Stage 12.1b — Structured Logs + Health Snapshot, COMPLETE / owner review pending. Stage 12.1a is FROZEN at `cc29337`, Stage 12.0 at `0b275c91abe53068dc4b0b05ade7be710d13cef6` and Stage 11 at `b79d511`. Stages 12 and 12.1 remain INCOMPLETE; 12.1c–e and 12.2–12.4 NOT STARTED; v1.0.0 NOT RELEASED.
 
-Stage 12.1a changes only Decision 023 and three current documents. All production, tests, previous Decisions, schema, dependencies, Stage 5 EMA/next-OPEN behavior, notebooks and data/results are preserved. No observability implementation, credentials/token use, authenticated Demo/Live activity, real user migration/activation/rearm or real Telegram message.
+Stage 12.1b adds only the observability package/focused tests and updates three current documents. Frozen production/tests/Decisions/schema/dependencies/EMA/next-OPEN/notebooks/data/results are preserved. No automatic runtime emission, Telegram/Streamlit, credentials/token use, authenticated Demo/Live activity, real user migration/activation/rearm, Telegram message or runtime observability session occurred.
 
 ## Not implemented yet
 
@@ -2378,7 +2396,7 @@ Stage 12.1a changes only Decision 023 and three current documents. All productio
 
 ## Next milestone
 
-Stage 12.1b — Structured Logs + Health Snapshot is next / NOT STARTED, requiring separate authorization after contract review/freeze. Stage 12.1a is COMPLETE / owner review pending; 12.1c–e and 12.2–12.4 remain NOT STARTED. Do not begin automatically. Stages 12 and 12.1 remain INCOMPLETE; v1.0.0 NOT RELEASED.
+Stage 12.1c — Telegram Outbound Alerts is next / NOT STARTED, requiring separate authorization after Stage 12.1b owner review/freeze. Stage 12.1a is FROZEN; 12.1b COMPLETE / owner review pending; 12.1d–e and 12.2–12.4 remain NOT STARTED. Do not begin automatically. Stages 12 and 12.1 remain INCOMPLETE; v1.0.0 NOT RELEASED.
 
 Real user runtime DB migration/risk activation and authenticated Demo read/order/cancellation remain NOT RUN. No approval to perform those operations follows from offline implementation or tests.
 

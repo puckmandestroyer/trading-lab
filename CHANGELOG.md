@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-17 — Stage 12.1b Structured Logs + Health Snapshot
+
+- Added the non-authoritative observability package: immutable/slotted event and health models, contract version 1, 28 event types / 24 envelope fields, exact canonical Decimal strings, strict per-type allowlists and stable durable SHA256 IDs with separate process-run correlation.
+- Added bounded public-read retained projection and pure adjacent-checkpoint transition projection. Current action phases/owned fills, LIVE BLOCK, original replay/EXIT trip origins, verified historical risk children and retained HALT/uncertainty/rearm remain distinct; no missing history, position cycle or trade PnL is invented.
+- Added fenced health with exact runtime/pending/risk/configuration/accepted-market facts and explicit freshness/reason-code precedence. Added private hashed instance paths, observation-date JSONL, bounded strict/torn-tail readers, atomic health.json, fsync, conservative permissions and one sanitized failure-isolated stderr fallback.
+- Local execution: **131 new tests passed** (28 model / 41 projection / 28 health / 34 storage); full suite run once: **3,074 passed (2,943 + 131)**, failures/errors/skips **0/0/0**. All targeted frozen component suites, `pip check` and both diff checks pass. Frozen golden remains **54 decisions / 2 placements / 2 fills / 0 cancellations / 1 epoch**, exact IDs/links/economics/restart. Zero changes to existing trading runtime/store/risk/exchange/strategy production, old tests, schema, dependencies, Decisions, notebooks/data/results.
+- Stage 12.1a independently owner-reviewed / FROZEN at `cc29337`; 12.1b COMPLETE / owner review pending; Stages 12 and 12.1 INCOMPLETE. 12.1c–e and 12.2–12.4 NOT STARTED; v1.0.0 NOT RELEASED. No automatic runtime emission, Telegram/Streamlit or actual monitoring session; do not start 12.1c automatically.
+- Demo/Live credentials and Telegram token **NOT USED**; real Telegram message **NOT SENT**; authenticated Demo/Live read/order/cancel, real user DB migration/activation/rearm and real runtime observability session **NOT RUN**. Temporary test files/DBs only.
+
 ## 2026-10-17 — Stage 12.1a Observability Event / Logging Contract
 
 - Added Decision 023: non-authoritative UTF-8 JSONL events, UTC-date append-only segmentation, atomic derived health snapshot, fixed envelope/per-type allowlists, stable durable SHA256 event IDs and process-only run correlation. Four severity levels and separate presentation health/freshness never change trading truth; no schema-v2 change or observability implementation.
