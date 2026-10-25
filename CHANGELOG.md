@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-25 — Stage 12.1 final audit closure
+
+- Independent owner re-audit PASS across all 12 acceptance checks, including automatic runtime integration, accepted reconciliation projection, OPEN/CLOSE visibility, failure isolation and trading-authority/Stage 11 golden preservation. Stage 12.1 and 12.1e COMPLETE / FROZEN; 12.1a–d, identity/performance corrections and both runtime-observability corrections FROZEN.
+- Frozen production baseline remains `e4c88c4408d85386c7081c94a2871952f03bf41f` (`Capture accepted reconciliation transitions`). This closure changes only README.md, PROJECT_STATE.md and CHANGELOG.md; no production, test, Decision, dependency or schema changes. Earlier completion records retain their original findings/status/totals.
+- Golden remains **54 decisions / 2 placements / 2 fills / 0 cancellations / 1 risk epoch**; process/cycle/execution/reconciliation counts **2/6/2/8**, position OPEN/change/CLOSE **1/0/1**, completed dashboard trades **1**, fake Telegram OPEN/CLOSE **1/1**. Realized trade PnL remains None/unavailable. Non-authoritative observability, fail-closed gaps, unrecoverable missed adjacent transitions, best-effort Telegram, sparse supported performance history and separate Streamlit launch are accepted limitations.
+- Final local validation: unchanged **3,368-test full suite passed**, failures/errors/skips **0/0/0**; `pip check`, `git diff --check` and `git diff --staged --check` passed. Local evidence only, not CI. No real runtime/monitoring, credentials, Telegram request/message, authenticated Bybit Demo/Live operation or real user DB migration/activation/rearm. Stage 12 remains INCOMPLETE; 12.2a and 12.2–12.4 NOT STARTED; v1.0.0 NOT RELEASED.
+
 ## 2026-10-25 — Accepted reconciliation projector + transition wiring correction
 
 - Reproduced the missing real golden BUY/SELL transitions before edits. Added explicit accepted_reconciliation=False mode: generic behavior unchanged; accepted adjacent commits permit equal timestamps and LAST_KNOWN quantity changes only with exact newly committed execution IDs. Same-quantity restoration, UNKNOWN, missing IDs and retained catch-up cannot invent lifecycle history.

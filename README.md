@@ -6,7 +6,7 @@ The long-term goal is to support historical market data, multiple independent st
 
 ## Current stage
 
-**Stage 12.1 Accepted Reconciliation Projector + Transition Wiring Correction: COMPLETE / owner review pending.** Exact post-commit reconciliation observation now supplies the accepted adjacent evidence needed for real OPEN/CLOSE events and dashboard trade reconstruction. The earlier runtime-observability integration at `c489bfa` is also not frozen. **Stage 12.1 overall remains INCOMPLETE / pending independent owner re-audit**, not FROZEN. Stages 12.1a–d and their identity/performance corrections remain independently FROZEN at `0c3b6a82c0e0aa435ab7590ddba398380dc97528`. Stage 12 remains INCOMPLETE; **12.2a and all 12.2–12.4 work remain NOT STARTED. v1.0.0 remains NOT RELEASED.**
+**Stage 12.1 — Observability & Operator Visibility: COMPLETE / FROZEN.** Independent owner re-audit passed, including both runtime-observability corrections. The frozen production baseline is `e4c88c4408d85386c7081c94a2871952f03bf41f` (`Capture accepted reconciliation transitions`); this final closure changes documentation only and does not replace that production baseline. Stage 12 remains INCOMPLETE; **12.2a and all 12.2–12.4 work remain NOT STARTED. v1.0.0 remains NOT RELEASED.**
 
 **Stage 12.0 / Decision 022 is independently owner-reviewed, COMPLETE / FROZEN at `0b275c91abe53068dc4b0b05ade7be710d13cef6` (`Define Trading Lab v1 readiness contract`).** Its v1 boundary/release gate remains unchanged.
 
@@ -18,9 +18,35 @@ The integrated risk boundary is **Strategy → Planner → Risk Gate → Durable
 
 **Current limits:** Demo only; one account/bot/EMA strategy/symbol; hourly `60`; LONG/FLAT Spot MARKET. No short/leverage/borrowing, automatic liquidation, risk-generated stop loss/take profit/trailing stop, manual risk kill/pause, configuration editing or operational controls UI. No long-running Demo validation or live trading has occurred.
 
+### Stage 12.1 final audit closure
+
+Independent owner re-audit: **all 12 acceptance checks PASS**, covering structured events, health snapshots, Telegram outbound, the generic Streamlit dashboard, performance/light UI, combined offline regression, runtime integration, accepted reconciliation projection, automatic OPEN/CLOSE visibility, failure isolation, trading authority and Stage 11 golden preservation. The [final acceptance matrix, frozen substage ledger and exact evidence](PROJECT_STATE.md#stage-121-final-audit-closure) record the closure. Stages 12.1a–d, both identity/performance corrections and both runtime-observability corrections are **FROZEN**; 12.1e is **COMPLETE / FROZEN**.
+
+The real offline golden remains **54 decisions / 2 placements / 2 fills / 0 cancellations / 1 risk epoch**. Observed counts are PROCESS_STARTED **2**, CYCLE_COMPLETED **6**, OWNED_EXECUTION_DISCOVERED **2**, RECONCILIATION_CONFIRMED **8**, POSITION_OPEN_CONFIRMED **1**, POSITION_QUANTITY_CHANGED **0**, POSITION_CLOSE_CONFIRMED **1**, completed dashboard trades **1**, and fake Telegram OPEN/CLOSE alerts **1 each**. Realized trade PnL remains **unavailable / None**. These are offline regression observations, not real broker operations or delivered Telegram messages.
+
+Accepted limitations: observability is non-authoritative; cycle-level multi-version gaps fail closed. If a crash precedes the ephemeral adjacent reconciliation observation, retained catch-up cannot invent historical OPEN/CLOSE from fills. Telegram is best-effort, not exactly-once. Performance history is sparse and uses only supported retained risk-equity observations. Runtime does not launch Streamlit automatically. These limitations do not block Stage 12.1 acceptance.
+
+Final closure validation: the unchanged **3,368-test full suite passed**, failures/errors/skips **0/0/0**; `pip check`, `git diff --check` and `git diff --staged --check` passed. This is local evidence only, not a CI or operational-readiness claim. Production, tests, Decisions, dependencies and schema have zero closure changes. Earlier milestone records below retain their original completion-time findings and test totals; the final closure supersedes their pending/blocked statuses.
+
+```text
+Real Streamlit runtime monitoring session: NOT RUN
+
+Real Telegram bot token: NOT USED
+Real Telegram chat ID: NOT USED
+Real Telegram message: NOT SENT
+External Telegram API request: NOT RUN
+
+Demo API credentials: NOT USED
+Live API credentials: NOT USED
+Authenticated Bybit Demo read/order/cancel: NOT RUN
+Authenticated Bybit Live read/order/cancel: NOT RUN
+
+Real user DB migration/activation/rearm: NOT RUN
+```
+
 ### Accepted reconciliation projector + transition wiring correction
 
-**COMPLETE / owner review pending; Stage 12.1 INCOMPLETE pending independent final owner re-audit.** The previous runtime-observability integration at `c489bfa` is not frozen. The blocked diagnostic changed no files; this separately approved extension addresses both missing prior confirmation and equal-timestamp reconciliation evidence.
+**PASS / FROZEN by independent owner review at the final production baseline `e4c88c4`.** The previous runtime-observability integration is also FROZEN. The blocked diagnostic changed no files; this separately approved extension addresses both missing prior confirmation and equal-timestamp reconciliation evidence. The implementation evidence below is preserved.
 
 `project_checkpoint_transition(..., accepted_reconciliation=False)` preserves generic behavior by default. Only the exact post-commit reconciliation callback opts in. Accepted mode requires adjacent checkpoints, CONFIRMED known after-quantity, matching non-null reconciliation/observation time and no time regression; equal timestamps remain real, unchanged evidence. LAST_KNOWN→CONFIRMED produces OPEN/CLOSE/quantity-change only when the exact quantity changed and a bounded unique tuple of newly committed execution IDs is present. Same-quantity certainty restoration, UNKNOWN prior state or missing execution IDs cannot create lifecycle history.
 
@@ -34,9 +60,9 @@ Local validation: **31 new correction tests passed; 425 combined Stage 12.1 test
 
 ### Runtime → Observability integration correction
 
-*Completion record at `c489bfa`, not frozen; the accepted-reconciliation correction above extends transition visibility while preserving this worker design.*
+*Historical completion record at `c489bfa`, now independently owner-reviewed / FROZEN in the final production baseline `e4c88c4`. The accepted-reconciliation correction above extends transition visibility while preserving this worker design.*
 
-**COMPLETE / owner review pending. Stage 12.1 remains INCOMPLETE pending independent owner re-audit.** This separately approved correction addresses the missing-wiring blocker found at `5ed7c27`; the earlier audit below is its historical baseline.
+**At original completion: COMPLETE / owner review pending; Stage 12.1 remained INCOMPLETE pending independent owner re-audit.** This separately approved correction addresses the missing-wiring blocker found at `5ed7c27`; the earlier audit below is its historical baseline. Final acceptance is recorded in the closure above.
 
 Future Stage 12 Demo executions must use `trading_lab.observability.run_observed_hourly_scheduler(...)`; raw `run_hourly_scheduler(...)` is for low-level tests/components. Ordering is **canonical lock / open store → prepare_process_restart(...) → create resources → observed wrapper**. All resources, storage location and clocks are supplied explicitly. Telegram transport/receipts must be supplied together; absent pair disables Telegram. No environment/secret discovery, activation, rearm, CLI or launcher is added.
 
@@ -58,7 +84,7 @@ Integration correction local validation: **40 new integration tests and all 394 
 
 ### Stage 12.1e — Offline observability audit (historical baseline at 5ed7c27)
 
-*The original missing-wiring finding below is superseded by the separately approved correction above; independent final re-audit remains pending.*
+*Historical findings and completion-time status below are superseded by the approved corrections and final PASS / FROZEN closure above.*
 
 The combined offline pipeline passes: accepted public RuntimeStore facts → event projection → real JSONL/health storage → fake Telegram delivery/receipts → the same real dashboard loader/model. **24 new audit tests and 3,297 full-suite tests (3,273 + 24) passed**, failures/errors/skips **0/0/0**. Frozen observability 142 / Telegram 73 / dashboard 115, Stage 10/11 crash/restart/risk/integration, golden and EMA checks passed; `pip check` and both diff checks passed. No frozen production, old tests, Decisions, schema, dependency, notebook or data changes. The [full acceptance matrix and unchanged source hashes](PROJECT_STATE.md#stage-121e--observability-offline-regression--final-audit) separate component evidence from runtime readiness.
 
@@ -168,11 +194,11 @@ V1 targets **local macOS, one runtime instance / Bybit account binding / bot, BT
 
 Future visibility is split between **Telegram outbound alerts** and a **local read-only Streamlit dashboard**. Neither may place/cancel orders, rearm runtime/risk, edit configuration, force liquidation or start Live trading. Alerts must describe durable reconciled ownership, not signals, proposals, ALLOW or ACK alone. Telegram failure cannot change trading truth; errors remain visible locally, and no SQLite transaction spans notification I/O. Dashboard views are Overview, Position / Orders, Risk, Trades, Runtime Health and Event / Error History. They show durable/derived owned executions, exact risk facts and health; wallet totals are not bot equity and no PnL is invented.
 
-The Stage 12 roadmap is fixed below: 12.0 and 12.1a–c, including the identity correction at `82ce7c58`, are FROZEN; 12.1d including its light performance correction is FROZEN at `0c3b6a82`; 12.1e baseline audit executed; runtime-observability integration and accepted-reconciliation corrections COMPLETE / owner review pending. **12.1 remains INCOMPLETE pending independent re-audit; all 12.2–12.4 milestones remain NOT STARTED.** Full phase gates and safety details are in [Decision 022](decisions/022_trading_lab_v1_production_live_readiness.md#stage-12-roadmap-and-phase-gates); Decision 023 governs observability.
+The Stage 12 roadmap is fixed below: 12.0 and 12.1a–d, including the identity/performance corrections, remain FROZEN. **12.1e and Stage 12.1 overall are COMPLETE / FROZEN**, including both runtime-observability corrections, at production baseline `e4c88c4408d85386c7081c94a2871952f03bf41f`. **Stage 12 remains INCOMPLETE; all 12.2–12.4 milestones remain NOT STARTED.** Full phase gates and safety details are in [Decision 022](decisions/022_trading_lab_v1_production_live_readiness.md#stage-12-roadmap-and-phase-gates); Decision 023 governs observability.
 
 | Phase | Milestones |
 | --- | --- |
-| 12.1 — Observability & Operator Visibility | **12.1a** Observability Event / Logging Contract — FROZEN; **12.1b** Structured Logs + Health Snapshot — FROZEN + identity correction FROZEN at 82ce7c58; **12.1c** Telegram Outbound Alerts — FROZEN at 557774a; **12.1d** Generic Streamlit Runtime Dashboard including performance/light-theme correction — FROZEN at 0c3b6a82; **12.1e** baseline audit executed; runtime-observability integration and accepted-reconciliation corrections COMPLETE / owner review pending; overall acceptance pending independent re-audit. |
+| 12.1 — Observability & Operator Visibility — COMPLETE / FROZEN | **12.1a** Observability Event / Logging Contract — FROZEN; **12.1b** Structured Logs + Health Snapshot including generic identity correction — FROZEN; **12.1c** Telegram Outbound Alerts — FROZEN; **12.1d** Generic Streamlit Runtime Dashboard including light performance UI correction — FROZEN; **12.1e** Final Audit — COMPLETE / FROZEN. Both runtime-observability corrections FROZEN; production baseline e4c88c4. |
 | 12.2 — Long-Running Bybit Demo Validation | **12.2a** Demo Activation / Runbook Contract; **12.2b** Controlled 24h → 72h Demo Run; **12.2c** Restart / Network / Failure Validation; **12.2d** 7-day Demo Soak + Report. |
 | 12.3 — Local V1 Hardening | **12.3a** Local Operator CLI; **12.3b** Configuration + Secret Hardening; **12.3c** Local Process Supervision / Startup; **12.3d** Backup + Log Rotation + Recovery; **12.3e** Local Deployment Audit. |
 | 12.4 — Controlled Live Validation | **12.4a** Live Exchange / Safety Contract; **12.4b** Live Read-Only Validation; **12.4c** Exact Live Dry-Run / Preflight; **12.4d** First Explicit Tiny Live Order; **12.4e** Tiny-Capital Live Runtime Validation; **12.4f** Final Stage 12 / V1 Audit + Release. |
@@ -613,7 +639,7 @@ Canonical BTC diagnostics retain **6,132 IS / 2,628 OOS**, boundary **2026-06-13
 
 The final audit accepts chronological cold-start OOS evaluation, deterministic sensitivity, descriptive local stability, fixed-configuration expanding walk-forward, consistent downstream diagnostics, and Notebook 06's visual research report. Stage 8 adds **235 tests** to the unchanged 747-test baseline: **982 total**, zero failures, errors, or skips. Frozen Stage 5–7 references, Decisions 010–012, notebook bytes, and BTC SHA256 are preserved. No optimizer, selected best EMA, robustness score, or stitched OOS portfolio exists. Already-seen single-asset/hourly/EMA research does not prove future profitability or provide demo/live trading evidence.
 
-Current focus: owner review/freeze of the **Accepted Reconciliation Projector + Transition Wiring Correction and prior runtime-observability integration**, then independent Stage 12.1 final re-audit. Stages 12.1a–d and their identity/performance corrections remain FROZEN at `0c3b6a82`; the runtime integration corrections are not frozen. Stage 12.1 overall INCOMPLETE. The v1 runtime remains EMA-only. Stage 12 INCOMPLETE; 12.2–12.4 NOT STARTED; v1.0.0 NOT RELEASED. Do not start 12.2 automatically. No real runtime monitoring session or authenticated broker/Telegram operation occurred. Earlier completion records retain their original scope/results.
+Current status: **Stage 12.1 COMPLETE / FROZEN** after independent owner re-audit, with production baseline `e4c88c4408d85386c7081c94a2871952f03bf41f`. The next milestone is **12.2a — Demo Activation / Runbook Contract, NOT STARTED**; it requires separate authorization and does not start automatically. The v1 runtime remains EMA-only. Stage 12 INCOMPLETE; 12.2–12.4 NOT STARTED; v1.0.0 NOT RELEASED. No real runtime monitoring session or authenticated broker/Telegram operation occurred. Earlier completion records retain their original scope/results.
 
 - Stage 1 completed: reusable historical data collection and a validated BTCUSDT hourly snapshot.
 - Stage 2 completed: statistical market analysis of returns, volatility, volume, extreme movements, and BTC buy-and-hold drawdown in `notebooks/01_data_exploration.ipynb`.
