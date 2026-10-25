@@ -819,6 +819,13 @@ class StructuralRiskBoundaryTests(unittest.TestCase):
     def test_frozen_post_authorization_send_flow_is_byte_identical(self):
         marker = "        action_id = plan.action.logical_action_id\n"
         tail = inspect.getsource(cycle).split(marker)[1]
+        # Exclude only the separately approved post-action reconciliation
+        # callback forwarding. Every other send-path byte keeps its old hash.
+        approved = ("        final = reconcile_startup(store, broker, utc_now=utc_now, monotonic=monotonic,\n"
+                    "                                  reconciliation_observer=reconciliation_observer)\n")
+        self.assertEqual(tail.count(approved), 1)
+        tail = tail.replace(approved,
+            "        final = reconcile_startup(store, broker, utc_now=utc_now, monotonic=monotonic)\n")
         self.assertEqual(hashlib.sha256(tail.encode()).hexdigest(),
                          "373e7474c034079881ccb6b4e9e81eff48f999eefc1522f0c5829f7ff403e6fe")
 

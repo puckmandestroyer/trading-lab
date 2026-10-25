@@ -62,6 +62,7 @@ def run_hourly_scheduler(
     utc_now: Callable[[], datetime],
     monotonic: Callable[[], float] = monotonic_clock,
     cycle_observer: Callable[[SingleCycleResult], object] | None = None,
+    reconciliation_observer: Callable[[RuntimeCheckpoint, RuntimeCheckpoint, tuple[str, ...]], object] | None = None,
 ) -> SchedulerResult:
     """Run immediately, then on the absolute UTC grid until stop/HALT/STOPPING.
 
@@ -148,7 +149,8 @@ def run_hourly_scheduler(
             # Deliberately no try/finally: an exception can mean an indeterminate
             # durable send boundary. Only later approved restart code may recover.
             last_cycle = run_single_cycle(store, market_reader, broker, order_adapter,
-                                           utc_now=utc_now, monotonic=monotonic)
+                                           utc_now=utc_now, monotonic=monotonic,
+                                           reconciliation_observer=reconciliation_observer)
             if (type(last_cycle) is not SingleCycleResult
                     or not isinstance(last_cycle.outcome, CycleOutcome)
                     or (last_cycle.reason is not None and not isinstance(last_cycle.reason, RuntimeReason))):

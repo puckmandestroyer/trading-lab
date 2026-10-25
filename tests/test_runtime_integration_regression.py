@@ -1129,15 +1129,15 @@ class PreservationIntegrationTests(IntegrationCase):
     def test_frozen_production_hashes_match_owner_reviewed_fef6_baseline(self):
         # Preserve frozen sources with the approved account-read and public-
         # market/cycle corrections. Only their corresponding hashes are refreshed.
-        # Scheduler alone adds the owner-approved, failure-isolated observer.
+        # Owner-approved cycle/reconciliation/scheduler callback plumbing only.
         hashes = {
             "runtime/__init__.py": "8843b5105846f5386e9ac799f06b8446688043482618cbb8d3fc5a6655f40b60",
-            "runtime/cycle.py": "9099043265bfa8c048d52cbc9cf3de725f450207bc25f58807cf95fcd919107e",
+            "runtime/cycle.py": "75a03537819ce66cff38c871a800ee461d35bd1c2995ba599ae32bd2338a4fce",
             "runtime/locking.py": "b10c5a8ac5e4ed4b8a7616b656602319c4e238eb0d2404fc2d31e6d636048273",
             "runtime/planner.py": "e97b0f9c709e909c56f132cfd5a718a3fbb8a488debb0c71823415adb0605686",
-            "runtime/reconciliation.py": "2c9386a5f4e3670144722e53202f869c8b7ce6e67ce963342a45bbf6f9ef0bb9",
+            "runtime/reconciliation.py": "d67f816fbeb225b311546f1bf99a6176b77b7bf57042818fecad99fbbd70aa33",
             "runtime/recovery.py": "847a7634018925c9815f52e2f9ff7654ab422ea61fd877fdb418c1806d1b58f4",
-            "runtime/scheduler.py": "f461814f91ee943e44b449d2e3c8d7f2e67e2f4e12c0855bdba088b36034c271",
+            "runtime/scheduler.py": "3f65cb158118811c4994785b04f979cd93fc3a36e1119cca4dc98bd6d39d2c91",
             "runtime/state.py": "014b92aca145d61a57df230d3c3747025768090d2b96cdeaa97a96e5ad2675bc",
             "runtime/store.py": "5ec4e7ebcb7c31272a9dd25bd5a283faedee333c767b426317329dc36da132ed",
             "data/closed_candles.py": "1c2068060dd73729f8bd3468901fd9c34b3807509906801f8f03af1d83914af6",

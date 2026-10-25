@@ -1547,7 +1547,9 @@ class FingerprintTests(unittest.TestCase):
 class PureBoundaryValidationTests(unittest.TestCase):
     def test_public_signature_requires_existing_resources_and_explicit_utc_clock(self):
         parameters = inspect.signature(run_single_cycle).parameters
-        self.assertEqual(list(parameters), ["store", "market_reader", "broker", "order_adapter", "utc_now", "monotonic"])
+        self.assertEqual(list(parameters), ["store", "market_reader", "broker", "order_adapter", "utc_now", "monotonic", "reconciliation_observer"])
+        self.assertIs(parameters["reconciliation_observer"].kind, inspect.Parameter.KEYWORD_ONLY)
+        self.assertIsNone(parameters["reconciliation_observer"].default)
         self.assertIs(parameters["utc_now"].kind, inspect.Parameter.KEYWORD_ONLY)
         self.assertIs(parameters["utc_now"].default, inspect.Parameter.empty)
         with self.assertRaises(CycleError):

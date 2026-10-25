@@ -381,7 +381,7 @@ class EventModelTests(unittest.TestCase):
                 approved_call = calls[0]
                 self.assertIn(approved_call, list(ast.walk(wrapper)))
                 self.assertEqual([keyword.arg for keyword in approved_call.keywords],
-                                 ["utc_now", "monotonic", "cycle_observer"])
+                                 ["utc_now", "monotonic", "cycle_observer", "reconciliation_observer"])
             for node in ast.walk(tree):
                 if isinstance(node, ast.Import):
                     self.assertFalse({x.name.split('.')[0] for x in node.names} & forbidden_modules, file.name)

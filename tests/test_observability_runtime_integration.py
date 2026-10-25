@@ -631,13 +631,23 @@ class ObservedGoldenCase(consumers.Consumers,golden.IntegrationCase):
 
 class ObservedGoldenTests(ObservedGoldenCase):
     def test_automatic_golden_preserves_exact_ids_economics_and_restart(self):
+        transport = self.transport(*[http.Response() for _ in range(10)])
+        self.observation_options = dict(telegram_transport=transport,telegram_receipts=self.receipts)
         history,actions,fills,_ = self.golden()
         self.assertEqual((len(history),len(self.sends),len(fills),len(self.cancels),
                           self.store.get_current_risk_epoch().epoch_sequence),(54,2,2,0,1))
         model = self.load()
         self.assertEqual([e.event_type for e in model.events].count(T.CYCLE_COMPLETED),6)
         self.assertEqual(len([e for e in model.events if e.event_type is T.OWNED_EXECUTION_DISCOVERED]),2)
-        self.assertEqual(model.trades,())  # Whole cycles skip versions: transitions stay honest gaps.
+        self.assertEqual(sum(e.event_type is T.POSITION_OPEN_CONFIRMED for e in model.events),1)
+        self.assertEqual(sum(e.event_type is T.POSITION_CLOSE_CONFIRMED for e in model.events),1)
+        self.assertEqual(sum(e.event_type is T.POSITION_QUANTITY_CHANGED for e in model.events),0)
+        self.assertEqual(len(model.trades),1)
+        self.assertEqual(len(model.trades[0].executions),2)
+        self.assertIsNone(model.trades[0].realized_pnl_quote)
+        messages = [call[1]["json"]["text"] for call in self.telegram_session.calls]
+        self.assertEqual(sum("Confirmed position opened" in text for text in messages),1)
+        self.assertEqual(sum("Confirmed position closed" in text for text in messages),1)
         self.assertEqual(self.output.read_health().risk_equity,self.store.get_latest_risk_valuation().risk_equity)
 
     def test_deleting_automatic_artifacts_cannot_change_next_logical_behavior(self):

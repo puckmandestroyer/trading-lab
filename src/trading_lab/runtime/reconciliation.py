@@ -10,6 +10,7 @@ from dataclasses import dataclass, fields, replace
 from datetime import datetime, timedelta, timezone
 from decimal import Context, Decimal, MAX_EMAX, MIN_EMIN, localcontext
 import math
+import sys
 from time import monotonic as monotonic_clock
 
 from ..exchange.account_state import (
@@ -336,12 +337,25 @@ def _result(store, placement, cancellation, new=()):
                                 tuple(fill.broker_execution_id for fill in new))
 
 
+def _observe_reconciliation(observer, before, after, new_execution_ids):
+    """Notify only after persistence returned; the callback has no authority."""
+    if observer is not None:
+        try:
+            observer(before, after, new_execution_ids)
+        except Exception:
+            try:
+                sys.stderr.write("Runtime reconciliation observation failed.\n")
+            except Exception:
+                pass
+
+
 def reconcile_startup(
     store: RuntimeStore,
     broker: ReadOnlyBroker,
     *,
     utc_now: Callable[[], datetime],
     monotonic: Callable[[], float] = monotonic_clock,
+    reconciliation_observer: Callable[[RuntimeCheckpoint, RuntimeCheckpoint, tuple[str, ...]], object] | None = None,
 ) -> ReconciliationResult:
     """Acquire at most one complete read round and persist its validated result.
 
@@ -509,6 +523,7 @@ def reconcile_startup(
                                  evidence=RuntimeEvidence(quantity))
             cp = _checkpoint(current, event, now_ms, reconciled=True)
             store.save_checkpoint(cp, expected_sequence=current.sequence)
+            _observe_reconciliation(reconciliation_observer, current, cp, ())
             return _result(store, None, cancellation)
         observed = _observation(placement, order)
         terminal = order.status in _ORDER_TERMINAL
@@ -532,6 +547,8 @@ def reconcile_startup(
                                  evidence=RuntimeEvidence(quantity, current.snapshot.pending_action))
         cp = _checkpoint(current, event, now_ms, reconciled=True)
         store.record_observation(observed, cp, expected_sequence=current.sequence, fills=new)
+        _observe_reconciliation(reconciliation_observer, current, cp,
+                                tuple(fill.broker_execution_id for fill in new))
         return _result(store, observed, cancellation, new)
     except _Issue as issue:
         return problem(issue)

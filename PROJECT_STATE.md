@@ -6,7 +6,7 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 ## Current stage
 
-**Stage 12.1 Runtime → Observability Integration Correction: COMPLETE / owner review pending.** The canonical observed wrapper now automatically captures runtime events and health and dispatches explicitly configured Telegram alerts through a bounded sink worker. **Stage 12.1 overall remains INCOMPLETE / pending independent owner re-audit**, not FROZEN. Stages 12.1a–d and their identity/performance corrections remain independently FROZEN at `0c3b6a82c0e0aa435ab7590ddba398380dc97528`. Stage 12 remains INCOMPLETE; **12.2a and all 12.2–12.4 work remain NOT STARTED. v1.0.0 remains NOT RELEASED.**
+**Stage 12.1 Accepted Reconciliation Projector + Transition Wiring Correction: COMPLETE / owner review pending.** Exact post-commit reconciliation observation now supplies the accepted adjacent evidence needed for real OPEN/CLOSE events and dashboard trade reconstruction. The earlier runtime-observability integration at `c489bfa` is also not frozen. **Stage 12.1 overall remains INCOMPLETE / pending independent owner re-audit**, not FROZEN. Stages 12.1a–d and their identity/performance corrections remain independently FROZEN at `0c3b6a82c0e0aa435ab7590ddba398380dc97528`. Stage 12 remains INCOMPLETE; **12.2a and all 12.2–12.4 work remain NOT STARTED. v1.0.0 remains NOT RELEASED.**
 
 Stage 12.0 — Trading Lab V1 Production & Live Readiness Contract / [Decision 022](decisions/022_trading_lab_v1_production_live_readiness.md) is independently owner-reviewed, COMPLETE / FROZEN at `0b275c91abe53068dc4b0b05ade7be710d13cef6` (`Define Trading Lab v1 readiness contract`). Decision 022 is unchanged.
 
@@ -104,7 +104,52 @@ Stage 6 — Generic Backtesting Engine remains COMPLETE at `df72973de837ecbd4ee8
 
 Stage 5 — Analytics remains COMPLETE and frozen at `a3fde091be234fd78d216f6338752a810fa117f0` (`Complete Stage 5 analytics report`).
 
+## Accepted reconciliation projector + transition wiring correction
+
+**COMPLETE / owner review pending**, based on `c489bfa1506fc55ba8e9fe877611a4e0bf853f86`. The previous integration is not frozen. Stage 12.1 overall remains INCOMPLETE pending independent final owner re-audit; Stage 12.2 NOT STARTED and v1.0.0 NOT RELEASED.
+
+### Reproduced blocker and explicit evidence
+
+Before editing production, the real offline golden reproduced BUY `59→60`: LAST_KNOWN `0` → CONFIRMED `0.04995`, new execution `exec-buy-1`; SELL `72→73`: LAST_KNOWN `0.04995` → CONFIRMED exact zero, new execution `exec-sell-1`. Initial/final reconciliation share a timestamp in each action cycle. The old generic projector emitted no OPEN/CLOSE because it required both a changed reconciliation timestamp and CONFIRMED prior evidence. Reconciliation deliberately reserves recovery budget under UNCERTAIN/LAST_KNOWN; changing that trading state or inventing timestamps would be incorrect.
+
+The projector now adds keyword-only `accepted_reconciliation=False`. **Default generic behavior is unchanged:** exact sequence adjacency, confirmed after-state, changed reconciliation timestamp and confirmed prior evidence for a quantity transition. Only the direct successful reconciliation callback opts into accepted mode; cycle-level projection and retained catch-up do not.
+
+Accepted mode requires adjacent versions, a CONFIRMED known after-quantity, non-null matching `after.observed_at_ms == after.last_reconciled_at_ms`, and no regression from a known prior reconciliation timestamp. Equal timestamps are valid. The actual accepted reconciliation time is preserved as occurred_at_ms; no new time is invented. An accepted commit emits RECONCILIATION_CONFIRMED.
+
+LAST_KNOWN → CONFIRMED emits a position lifecycle event **only for an actual exact quantity change with non-empty newly committed execution IDs**. IDs use the existing bounded unique safe-string tuple validation (maximum 256). Exact `0→positive` is OPEN, `positive→0` CLOSE, and changed `positive→positive` QUANTITY_CHANGED; no tolerance or dust rounding. Same positive/zero quantity only restores certainty, UNKNOWN prior evidence never creates a historical lifecycle, and missing execution IDs fail closed for the relaxed path. Generic CONFIRMED→CONFIRMED behavior and deterministic durable IDs remain unchanged.
+
+### Generic callback and authority boundary
+
+`reconcile_startup`, `run_single_cycle` and `run_hourly_scheduler` add optional keyword-only `reconciliation_observer=None`. The callback receives `(before_checkpoint, after_checkpoint, new_execution_ids)`. It runs at exactly two sites: after the no-active-placement `save_checkpoint` returns, or after the placement `record_observation(..., fills=new)` returns, both created with `reconciled=True`. Cancellation intermediate commits are not observed; the final pair uses the current checkpoint after that intermediate commit. Failure/lost return invokes no callback. Ordinary callback exceptions produce one fixed sanitized stderr attempt, with failed stderr ignored, preserving all authority results and control reads/clocks.
+
+Cycle passes the callback only to its existing initial/final reconciliation calls; scheduler forwards it to the existing cycle. No authority module imports observability. The canonical observed wrapper binds `session.observe_reconciliation`, which uses only supplied immutable evidence/cached configuration, the separate observability clock, the projector with `accepted_reconciliation=True`, and existing `_enqueue`. It performs no RuntimeStore/broker/health read or sink I/O. Its non-authoritative frontier advances even on capture failure, preventing later cycle-level duplication or false adjacency.
+
+The existing **64-batch put_nowait queue, one daemon worker and 2-second drain** are unchanged. Worker has no RuntimeStore/SQLite, market, broker, adapter, strategy, planner or risk authority. Position events queue before cycle-completed/retained/health observations. Existing stable event-ID and receipt dedupe remain. No callback is inserted inside **ATTEMPT_STARTED → one possible broker mutation**; an AST regression checks this boundary.
+
+### Real golden acceptance and retained-history limits
+
+| Real observed golden, including restart | Count |
+| --- | ---: |
+| Decisions / placements / fills / cancellations / risk epochs | **54 / 2 / 2 / 0 / 1** |
+| PROCESS_STARTED / CYCLE_COMPLETED | **2 / 6** |
+| OWNED_EXECUTION_DISCOVERED / RECONCILIATION_CONFIRMED | **2 / 8** |
+| POSITION_OPEN_CONFIRMED / POSITION_QUANTITY_CHANGED / POSITION_CLOSE_CONFIRMED | **1 / 0 / 1** |
+| Completed dashboard trades | **1** |
+| Automatic fake Telegram OPEN / CLOSE alerts | **1 / 1** |
+
+All exact action IDs/orderLinkIds, submitted amounts, prices, fees, ownership and scheduler results remain unchanged. No extra broker mutation. The frozen dashboard reconstructs the trade from captured boundaries and referenced executions; realized_pnl_quote remains None because no exact trade-PnL field was supplied. No dashboard formula is changed or PnL manufactured.
+
+Real partial-fill regression produces **one OPEN / two QUANTITY_CHANGED / one CLOSE**, with four exact execution references and no reconciliation/cycle duplication. ACK-only and unknown outcomes cannot fabricate a trade. Same-quantity restart reconciliation does not invent OPEN. **Cycle-level observation remains fail-closed across multi-version gaps.** If a crash loses the ephemeral adjacent reconciliation observation, retained catch-up still cannot reconstruct the lost OPEN/CLOSE from fills; complete history is not promised.
+
+Local validation: **31 new correction tests passed; 425 combined Stage 12.1 tests and 494 projector/reconciliation/cycle/scheduler/restart/golden tests passed**, failures/errors/skips **0/0/0**. **206 targeted Stage 11/EMA tests passed**, failures/errors/skips **0/0/0**. **3,368 full-suite tests passed (3,337 + 31)**, failures/errors/skips **0/0/0**. `pip check`, `git diff --check` and `git diff --staged --check` passed. Local execution evidence only, not a CI claim. Source guards retain the original send-path hash after excluding only the exact approved final-reconciliation callback forwarding. Focused regressions cover accepted/generic modes, equal/regressed/missing times, exact dust/null/zero/UNKNOWN distinctions, execution-ID safety, identity stability, callback timing/failed/lost persistence, cancellation intermediate adjacency, no extra control reads/clocks, observer failure equivalence for ReconciliationResult/SingleCycleResult/SchedulerResult, real partial/ACK/restart paths, and Telegram timeout/429/5xx/receipt failures specifically on OPEN/CLOSE.
+
+Only five production files change: projection.py, runtime_integration.py and runtime/{reconciliation,cycle,scheduler}.py. Retained projection, sink worker, observability exports/model/health/storage/Telegram, RuntimeStore schema v2/state/recovery/risk gate, risk/exchange/strategy/backtest/dashboard, Decisions, requirements, notebooks and data remain unchanged. No new event type, schema, migration, dependency, Decision 024, environment loading, launcher or runtime activation.
+
+No real Streamlit runtime monitoring session, Telegram credential/message/request, Demo/Live credential/authenticated operation, real runtime or real user DB migration/activation/rearm occurred. Review/freeze of the corrections and independent final Stage 12.1 re-audit are next; do not start Stage 12.2 automatically.
+
 ## Runtime → Observability integration correction
+
+*Historical completion record at `c489bfa`; this integration remains not frozen. The accepted-reconciliation correction above extends its observation boundary without changing its sink architecture.*
 
 **COMPLETE / owner review pending**, based on `5ed7c27b4bf52f18c9e13dcac80d5af0c94f843f`. This separately approved correction addresses the missing automatic wiring found by the Stage 12.1e audit. It does not close or freeze Stage 12.1: independent owner review and final re-audit remain required.
 
@@ -347,7 +392,7 @@ Streamlit's required views are Overview, Position / Orders, Risk, Trades, Runtim
 | 12.1 | 12.1b | Structured Logs + Health Snapshot | FROZEN at 265bf33 + identity correction FROZEN at 82ce7c58 |
 | 12.1 | 12.1c | Telegram Outbound Alerts | COMPLETE / FROZEN at 557774a |
 | 12.1 | 12.1d | Generic Streamlit Runtime Dashboard | FROZEN including performance/light-theme correction at 0c3b6a82 |
-| 12.1 | 12.1e | Observability Offline Regression + Final Audit | Baseline audit executed; integration correction COMPLETE / owner review pending; independent re-audit pending |
+| 12.1 | 12.1e | Observability Offline Regression + Final Audit | Baseline audit executed; integration and accepted-reconciliation corrections COMPLETE / owner review pending; independent re-audit pending |
 | 12.2 — Long-Running Bybit Demo Validation | 12.2a | Demo Activation / Runbook Contract | NOT STARTED |
 | 12.2 | 12.2b | Controlled 24h → 72h Demo Run | NOT STARTED |
 | 12.2 | 12.2c | Restart / Network / Failure Validation | NOT STARTED |
@@ -675,7 +720,7 @@ Stage 11.3 internal subphases are COMPLETE / FROZEN: **11.3a contract at `9807ed
 
 ### Canonical 12-stage roadmap
 
-Stages 1–11 retain their accepted scope/history. Stage 12 — Production & Live Readiness is the final top-level stage and v1 release gate under frozen Decision 022 at `0b275c9`. Stage 12.1 — Observability & Operator Visibility is STARTED / INCOMPLETE: 12.1a FROZEN at `cc29337`, 12.1b FROZEN at `265bf33` plus identity correction FROZEN at `82ce7c58`; 12.1c FROZEN at `557774a`; 12.1d including its performance/light-theme correction FROZEN at `0c3b6a82`; 12.1e baseline audit executed, followed by the owner-approved runtime-observability integration correction COMPLETE / owner review pending. Stage 12.1 overall is INCOMPLETE pending independent owner re-audit. 12.2 Long-Running Bybit Demo Validation, 12.3 Local V1 Hardening and 12.4 Controlled Live Validation remain NOT STARTED. The exact milestone roadmap is recorded above. Prior top-level Stages 13–15 naming is superseded only for future planning; historical records and previous Decisions are unchanged. Architecture contracts authorize no Demo activation or Live operation.
+Stages 1–11 retain their accepted scope/history. Stage 12 — Production & Live Readiness is the final top-level stage and v1 release gate under frozen Decision 022 at `0b275c9`. Stage 12.1 — Observability & Operator Visibility is STARTED / INCOMPLETE: 12.1a FROZEN at `cc29337`, 12.1b FROZEN at `265bf33` plus identity correction FROZEN at `82ce7c58`; 12.1c FROZEN at `557774a`; 12.1d including its performance/light-theme correction FROZEN at `0c3b6a82`; 12.1e baseline audit executed, followed by the owner-approved runtime-observability integration and accepted-reconciliation corrections COMPLETE / owner review pending. Stage 12.1 overall is INCOMPLETE pending independent owner re-audit. 12.2 Long-Running Bybit Demo Validation, 12.3 Local V1 Hardening and 12.4 Controlled Live Validation remain NOT STARTED. The exact milestone roadmap is recorded above. Prior top-level Stages 13–15 naming is superseded only for future planning; historical records and previous Decisions are unchanged. Architecture contracts authorize no Demo activation or Live operation.
 
 ## Completed
 
@@ -2564,7 +2609,7 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Owner review/freeze of the completed Runtime → Observability integration correction, followed by independent Stage 12.1 final re-audit. Stages 12.1a–d and their corrections remain FROZEN at `0c3b6a82`. Stage 12.1 overall remains INCOMPLETE; no operational activation occurred. Stage 12.2 remains NOT STARTED and v1.0.0 NOT RELEASED.
+Owner review/freeze of the Accepted Reconciliation Projector + Transition Wiring Correction and prior runtime-observability integration, followed by independent Stage 12.1 final re-audit. Stages 12.1a–d and their identity/performance corrections remain FROZEN at `0c3b6a82`; the runtime integration corrections are not frozen. Stage 12.1 overall remains INCOMPLETE; no operational activation occurred. Stage 12.2 remains NOT STARTED and v1.0.0 NOT RELEASED.
 
 ## Not implemented yet
 
@@ -2583,7 +2628,7 @@ Owner review/freeze of the completed Runtime → Observability integration corre
 
 ## Next milestone
 
-Independent owner review/freeze of this integration correction and final Stage 12.1 re-audit are required before Stage 12.1 can close. Stage 12.2a — Demo Activation / Runbook Contract and all 12.2–12.4 work remain NOT STARTED; do not begin automatically. No permission to load credentials, perform broker/Telegram operations, migrate/activate/rearm a real journal or start Demo validation follows from this correction. Stage 12.1 remains INCOMPLETE; v1.0.0 remains NOT RELEASED.
+Independent owner review/freeze of both runtime-observability corrections and final Stage 12.1 re-audit are required before Stage 12.1 can close. Stage 12.2a — Demo Activation / Runbook Contract and all 12.2–12.4 work remain NOT STARTED; do not begin automatically. No permission to load credentials, perform broker/Telegram operations, migrate/activate/rearm a real journal or start Demo validation follows from this correction. Stage 12.1 remains INCOMPLETE; v1.0.0 remains NOT RELEASED.
 
 ## Backtesting execution contract
 

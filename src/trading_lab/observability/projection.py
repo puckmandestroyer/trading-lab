@@ -20,7 +20,7 @@ from ..runtime.scheduler import SchedulerResult, SchedulerExit
 from .model import (
     ObservabilityProjectionError, ObservabilityValidationError, make_event,
     ObservabilityEventType as T, MAX_RETAINED_RECORDS, ACTION_FIELDS,
-    RiskVerdict, validate_run_id, integer, require,
+    RiskVerdict, validate_run_id, validate_value, integer, require,
 )
 
 
@@ -190,8 +190,13 @@ def project_retained_events(store, *, run_id: str, observed_at_ms: int):
 
 
 def project_checkpoint_transition(configuration, before, after, *, run_id, observed_at_ms,
-                                  contributing_execution_ids=()):
-    """Describe accepted post-commit facts only; never call from a lost commit."""
+                                  contributing_execution_ids=(), accepted_reconciliation=False):
+    """Describe accepted post-commit facts only; never call from a lost commit.
+
+    The explicit mode is only for the direct successful reconciliation-commit
+    callback, not catch-up or cycle-level inference. Generic callers keep the
+    stricter confirmation/time-change requirements used before this extension.
+    """
     with projection_errors():
         exact(configuration, RuntimeConfiguration)
         exact(before, RuntimeCheckpoint)
@@ -199,19 +204,34 @@ def project_checkpoint_transition(configuration, before, after, *, run_id, obser
         require(after.sequence == before.sequence + 1)
         events = []
         b, a = before.snapshot, after.snapshot
+        require(type(accepted_reconciliation) is bool)
+        if accepted_reconciliation:
+            require(type(contributing_execution_ids) is tuple)
+            validate_value("contributing_execution_ids", contributing_execution_ids)
+            require(a.position_evidence is PositionEvidence.CONFIRMED
+                    and a.owned_base_quantity is not None
+                    and after.last_reconciled_at_ms is not None
+                    and after.observed_at_ms is not None
+                    and after.observed_at_ms == after.last_reconciled_at_ms
+                    and (before.last_reconciled_at_ms is None
+                         or after.last_reconciled_at_ms >= before.last_reconciled_at_ms))
 
         def emit(kind, **fields):
             events.append(make_event(configuration, kind, run_id=run_id, observed_at_ms=observed_at_ms,
                 checkpoint_sequence=after.sequence, runtime_state=a.state, runtime_reason=a.reason, **fields))
 
-        if (a.position_evidence is PositionEvidence.CONFIRMED and after.last_reconciled_at_ms is not None
-                and after.last_reconciled_at_ms != before.last_reconciled_at_ms):
+        if (accepted_reconciliation or (a.position_evidence is PositionEvidence.CONFIRMED
+                and after.last_reconciled_at_ms is not None
+                and after.last_reconciled_at_ms != before.last_reconciled_at_ms)):
             emit(T.RECONCILIATION_CONFIRMED, occurred_at_ms=after.last_reconciled_at_ms,
                  details=(("position_evidence", a.position_evidence), ("owned_base_quantity", a.owned_base_quantity),
                           ("pending_action_id", None if a.pending_action is None else a.pending_action.logical_action_id),
                           ("last_reconciled_at_ms", after.last_reconciled_at_ms),
                           ("last_broker_observation_at_ms", after.observed_at_ms)))
-            if b.position_evidence is PositionEvidence.CONFIRMED and b.owned_base_quantity != a.owned_base_quantity:
+            known_before = (b.position_evidence is PositionEvidence.CONFIRMED or
+                (accepted_reconciliation and b.position_evidence is PositionEvidence.LAST_KNOWN
+                 and b.owned_base_quantity is not None and bool(contributing_execution_ids)))
+            if known_before and b.owned_base_quantity != a.owned_base_quantity:
                 kind = (T.POSITION_OPEN_CONFIRMED if b.owned_base_quantity == 0 else
                         T.POSITION_CLOSE_CONFIRMED if a.owned_base_quantity == 0 else T.POSITION_QUANTITY_CHANGED)
                 emit(kind, occurred_at_ms=after.last_reconciled_at_ms,

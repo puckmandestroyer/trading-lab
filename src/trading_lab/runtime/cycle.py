@@ -189,6 +189,7 @@ def run_single_cycle(
     *,
     utc_now: Callable[[], datetime],
     monotonic: Callable[[], float] = monotonic_clock,
+    reconciliation_observer: Callable[[RuntimeCheckpoint, RuntimeCheckpoint, tuple[str, ...]], object] | None = None,
 ) -> SingleCycleResult:
     """Reconcile, handle one bounded prefix, optionally send once and observe once.
 
@@ -202,7 +203,8 @@ def run_single_cycle(
             or not callable(getattr(order_adapter, "place_market_order", None))):
         raise CycleError("Existing store/read/action boundaries and explicit clocks are required.")
 
-    initial = reconcile_startup(store, broker, utc_now=utc_now, monotonic=monotonic)
+    initial = reconcile_startup(store, broker, utc_now=utc_now, monotonic=monotonic,
+                                reconciliation_observer=reconciliation_observer)
     config, current = store.get_configuration(), initial.checkpoint
     processed, execution_ids = [], list(initial.new_execution_ids)
     last_ms = current.observed_at_ms or 0
@@ -470,7 +472,8 @@ def run_single_cycle(
         # Persistence is outside exception classification. Failure stops here;
         # no second send, observation repair or reconciliation after a failed write.
         store.record_observation(observed, proposed, expected_sequence=cp.sequence)
-        final = reconcile_startup(store, broker, utc_now=utc_now, monotonic=monotonic)
+        final = reconcile_startup(store, broker, utc_now=utc_now, monotonic=monotonic,
+                                  reconciliation_observer=reconciliation_observer)
         execution_ids.extend(final.new_execution_ids)
         return result(CycleOutcome.OBSERVED)
 

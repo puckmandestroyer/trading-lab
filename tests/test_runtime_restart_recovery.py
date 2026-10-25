@@ -1229,16 +1229,17 @@ class RestartBoundaryTests(unittest.TestCase):
 
     def test_frozen_runtime_sources_match_approved_baseline(self):
         # Literal frozen SHA256 values; only reconciliation includes the
-        # owner-approved read-failure correction. Not runtime constants.
+        # owner-approved read-failure correction; callback-only extensions below
+        # are separately owner-approved. Not runtime constants.
         expected = {
             "state": "014b92aca145d61a57df230d3c3747025768090d2b96cdeaa97a96e5ad2675bc",
             "store": "5ec4e7ebcb7c31272a9dd25bd5a283faedee333c767b426317329dc36da132ed",
             "locking": "b10c5a8ac5e4ed4b8a7616b656602319c4e238eb0d2404fc2d31e6d636048273",
-            "reconciliation": "2c9386a5f4e3670144722e53202f869c8b7ce6e67ce963342a45bbf6f9ef0bb9",
+            "reconciliation": "d67f816fbeb225b311546f1bf99a6176b77b7bf57042818fecad99fbbd70aa33",
             "planner": "e97b0f9c709e909c56f132cfd5a718a3fbb8a488debb0c71823415adb0605686",
-            "cycle": "9099043265bfa8c048d52cbc9cf3de725f450207bc25f58807cf95fcd919107e",
+            "cycle": "75a03537819ce66cff38c871a800ee461d35bd1c2995ba599ae32bd2338a4fce",
             # Owner-approved optional post-cycle observer; restart behavior is unchanged.
-            "scheduler": "f461814f91ee943e44b449d2e3c8d7f2e67e2f4e12c0855bdba088b36034c271",
+            "scheduler": "3f65cb158118811c4994785b04f979cd93fc3a36e1119cca4dc98bd6d39d2c91",
             "__init__": "8843b5105846f5386e9ac799f06b8446688043482618cbb8d3fc5a6655f40b60",
         }
         directory = Path(module.__file__).parent

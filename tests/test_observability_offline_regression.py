@@ -563,11 +563,11 @@ class GoldenArtifactIsolationTests(Consumers,golden_fixtures.IntegrationCase):
 # digests include the owner-approved integration correction. All other guards
 # and the protected primitive/authority files remain unchanged.
 FROZEN = {
-    "src/trading_lab/observability":"652f0ebbf82f925f062f5d4e879c8302844448726e70a7371da49e6d87f6ee19",
+    "src/trading_lab/observability":"f67eb3a80421d73ee04cfcc5dbff4f2692e3a570274d76ecd138cecdeab0fd62",
     "src/trading_lab/dashboard":"bdb8b1db4a3927b4cf0c13d7a5946df5f1b183b382e2bec356b2056b4316d38d",
     "dashboard/app.py":"7298145c0ccae620cdc4b1149917a47d7492af7a4bb3c8755cf0cd2a2ac368fe",
     ".streamlit/config.toml":"3a57bb7c48a19a0f2890e8f800bf3d7ab0e3a0cf3e1fb9e62ad70f0bffdbfcee",
-    "src/trading_lab/runtime":"09a3576157662167f0d16f30ea6f918c5e4b29cb6187aeed63b3a3009e3bdf62",
+    "src/trading_lab/runtime":"b137d1d21073777a4f4f5794ca4b3465cbce34f1de7316a9bbf789a65213b44b",
     "src/trading_lab/risk":"263fee1375d59b1222d4da9d5918cb2a512cb98f597c35f9585f2469fe2be007",
     "src/trading_lab/exchange":"0e6704369fc862848f49627c769ba6dc7d9a381b1e5a81164aaf67585928842a",
     "src/trading_lab/strategies":"94bf53f33446251fd969eb72013ab21cf206f939caf3baa37b0a16cc8ed754b9",

@@ -155,6 +155,18 @@ class _RuntimeObservationSession:
         except Exception:
             _degrade(self.degraded)
 
+    def observe_reconciliation(self, before, after, new_execution_ids):
+        """Exact post-commit evidence only: no store/broker/health read here."""
+        try:
+            events = project_checkpoint_transition(self.configuration, before, after,
+                run_id=self.run_id, observed_at_ms=self._time(),
+                contributing_execution_ids=new_execution_ids, accepted_reconciliation=True)
+            self._enqueue(events)
+        except Exception:
+            _degrade(self.degraded)
+        finally:
+            self.last_observed_checkpoint = after
+
     def observe(self, result):
         self.cycle_count += 1
         before, after = self.last_observed_checkpoint, result.checkpoint
@@ -245,7 +257,8 @@ def run_observed_hourly_scheduler(
     session.start()
     try:
         result = run_hourly_scheduler(store, market_reader, broker, order_adapter, stop_signal,
-            utc_now=utc_now, monotonic=monotonic, cycle_observer=session.observe)
+            utc_now=utc_now, monotonic=monotonic, cycle_observer=session.observe,
+            reconciliation_observer=session.observe_reconciliation)
     except BaseException as error:
         session.failed(error)
         session.drain()

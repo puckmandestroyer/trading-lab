@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-25 — Accepted reconciliation projector + transition wiring correction
+
+- Reproduced the missing real golden BUY/SELL transitions before edits. Added explicit accepted_reconciliation=False mode: generic behavior unchanged; accepted adjacent commits permit equal timestamps and LAST_KNOWN quantity changes only with exact newly committed execution IDs. Same-quantity restoration, UNKNOWN, missing IDs and retained catch-up cannot invent lifecycle history.
+- Added generic failure-isolated post-commit reconciliation callback at exactly two validated persistence sites, with optional cycle/scheduler forwarding and queue-only session capture. No observer after failed/lost persistence or inside the send boundary; existing queue/worker/drain and trading authority remain unchanged.
+- Real golden now yields exactly one OPEN, one CLOSE, one completed dashboard trade and one fake Telegram alert per boundary; 54/2/2/0/1 and exact IDs/economics remain unchanged. Real partial fills yield 1/2/1 lifecycle events. No manufactured trade PnL; missed historical boundaries still cannot be recovered from retained fills.
+- Local validation: **31 new correction tests passed; 425 combined Stage 12.1 tests and 494 projector/reconciliation/cycle/scheduler/restart/golden tests passed**, failures/errors/skips **0/0/0**. **206 targeted Stage 11/EMA tests passed**, failures/errors/skips **0/0/0**. **3,368 full-suite tests passed (3,337 + 31)**, failures/errors/skips **0/0/0**. `pip check`, `git diff --check` and `git diff --staged --check` passed. Local execution evidence only, not a CI claim. Source guards retain the original send-path hash after excluding only the exact approved final-reconciliation callback forwarding. Only approved production/API/AST/fingerprint changes; no schema, event taxonomy, Decision, dependency, dashboard, risk/exchange/strategy/backtest, notebook/data or operational activation changes.
+- Correction COMPLETE / owner review pending; previous integration not frozen. Stage 12.1 INCOMPLETE pending independent final owner re-audit, Stage 12.2 NOT STARTED, v1.0.0 NOT RELEASED. No real monitoring/runtime, credentials, Telegram request/message, authenticated Demo/Live operation or real user DB operation.
+
 ## 2026-10-25 — Runtime → Observability integration correction
 
 - Added the canonical explicitly configured observed hourly wrapper: automatic lifecycle/cycle/retained/adjacent-transition events and health capture, bounded durable-ID dedupe, one 64-batch non-blocking queue and an ordered daemon for JSONL/health/optional Telegram. Separate observability clock; no authority on worker, implicit resources, secrets, launcher or Streamlit launch.

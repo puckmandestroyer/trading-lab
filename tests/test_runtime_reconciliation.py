@@ -637,7 +637,7 @@ class ReconciliationTests(StoreCase):
         tree = ast.parse(source)
         imports = {node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)}
         imports.update(alias.name for node in ast.walk(tree) if isinstance(node, ast.Import) for alias in node.names)
-        self.assertEqual(imports, {"collections.abc", "dataclasses", "datetime", "decimal", "math", "time",
+        self.assertEqual(imports, {"collections.abc", "dataclasses", "datetime", "decimal", "math", "sys", "time",
                                    "exchange.account_state", "state", "store"})
         forbidden = {"_connection", "execute", "connect", "place_order", "place_market_order", "cancel_order",
                      "amend_order", "replace_order", "sleep", "getenv", "environ"}
