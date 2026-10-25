@@ -368,6 +368,20 @@ class EventModelTests(unittest.TestCase):
             "run_hourly_scheduler", "reconcile_startup", "save_checkpoint", "start_attempt", "asdict", "vars"}
         for file in directory.glob("*.py"):
             tree = ast.parse(file.read_text())
+            # Owner-approved integration is the sole exception: the canonical
+            # wrapper calls the authority-only scheduler once, with its generic
+            # observer. No primitive or worker gains scheduler authority.
+            approved_call = None
+            if file.name == "runtime_integration.py":
+                calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)
+                         and isinstance(node.func, ast.Name) and node.func.id == "run_hourly_scheduler"]
+                self.assertEqual(len(calls), 1)
+                wrapper = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
+                               and node.name == "run_observed_hourly_scheduler")
+                approved_call = calls[0]
+                self.assertIn(approved_call, list(ast.walk(wrapper)))
+                self.assertEqual([keyword.arg for keyword in approved_call.keywords],
+                                 ["utc_now", "monotonic", "cycle_observer"])
             for node in ast.walk(tree):
                 if isinstance(node, ast.Import):
                     self.assertFalse({x.name.split('.')[0] for x in node.names} & forbidden_modules, file.name)
@@ -375,6 +389,7 @@ class EventModelTests(unittest.TestCase):
                     self.assertNotIn((node.module or "").split('.')[0], forbidden_modules)
                 if isinstance(node, ast.Call):
                     name = node.func.attr if isinstance(node.func, ast.Attribute) else node.func.id if isinstance(node.func, ast.Name) else ""
-                    self.assertNotIn(name, forbidden_calls, (file.name, name))
+                    if node is not approved_call:
+                        self.assertNotIn(name, forbidden_calls, (file.name, name))
                 if isinstance(node, ast.Attribute):
                     self.assertNotIn(node.attr, {"_connection", "_transaction", "_risk_rows", "_encode"})

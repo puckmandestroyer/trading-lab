@@ -1,9 +1,9 @@
-"""Stage 12.1e: offline component composition, NOT automatic runtime wiring.
+"""Stage 12.1e component regression, complemented by automatic wiring tests.
 
 Only temporary journals/artifacts, public production APIs and established
 synthetic fixture helpers are used. No private SQL or new trading behavior.
-The absent runtime emission integration is an acceptance blocker in the audit,
-not an intentionally failing unit test or a hook supplied by this test module.
+The original audit's missing-wiring blocker is now covered by the production
+wrapper regressions in test_observability_runtime_integration, not test hooks.
 """
 
 import ast
@@ -559,14 +559,15 @@ class GoldenArtifactIsolationTests(Consumers,golden_fixtures.IntegrationCase):
 
 
 # SHA256 over sorted relative path + NUL + each file's SHA256 bytes.
-# Captured at independently frozen 0c3b6a82; includes all Python files in each
-# package, all Decisions, and exact file bytes for the app/theme/requirements.
+# Captured at independently frozen 0c3b6a82; only observability/runtime package
+# digests include the owner-approved integration correction. All other guards
+# and the protected primitive/authority files remain unchanged.
 FROZEN = {
-    "src/trading_lab/observability":"6a2a07b49558a99281e5b244fbcc9e2c5dbbec957a98cd687bc310c4419970b3",
+    "src/trading_lab/observability":"652f0ebbf82f925f062f5d4e879c8302844448726e70a7371da49e6d87f6ee19",
     "src/trading_lab/dashboard":"bdb8b1db4a3927b4cf0c13d7a5946df5f1b183b382e2bec356b2056b4316d38d",
     "dashboard/app.py":"7298145c0ccae620cdc4b1149917a47d7492af7a4bb3c8755cf0cd2a2ac368fe",
     ".streamlit/config.toml":"3a57bb7c48a19a0f2890e8f800bf3d7ab0e3a0cf3e1fb9e62ad70f0bffdbfcee",
-    "src/trading_lab/runtime":"f6562601a9f69e735b450d40d4aa1821d5936d43e03c1d4179f2be980fc364f0",
+    "src/trading_lab/runtime":"09a3576157662167f0d16f30ea6f918c5e4b29cb6187aeed63b3a3009e3bdf62",
     "src/trading_lab/risk":"263fee1375d59b1222d4da9d5918cb2a512cb98f597c35f9585f2469fe2be007",
     "src/trading_lab/exchange":"0e6704369fc862848f49627c769ba6dc7d9a381b1e5a81164aaf67585928842a",
     "src/trading_lab/strategies":"94bf53f33446251fd969eb72013ab21cf206f939caf3baa37b0a16cc8ed754b9",

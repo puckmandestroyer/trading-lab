@@ -731,7 +731,9 @@ class PublicAndStructuralTests(SchedulerCase):
 
     def test_exact_public_api_and_no_test_only_bounds(self):
         parameters = inspect.signature(run_hourly_scheduler).parameters
-        self.assertEqual(list(parameters), ["store", "market_reader", "broker", "order_adapter", "stop_signal", "utc_now", "monotonic"])
+        self.assertEqual(list(parameters), ["store", "market_reader", "broker", "order_adapter", "stop_signal", "utc_now", "monotonic", "cycle_observer"])
+        self.assertIs(parameters["cycle_observer"].kind, inspect.Parameter.KEYWORD_ONLY)
+        self.assertIsNone(parameters["cycle_observer"].default)
         self.assertIs(parameters["utc_now"].kind, inspect.Parameter.KEYWORD_ONLY)
         self.assertIs(parameters["utc_now"].default, inspect.Parameter.empty)
         self.assertTrue(issubclass(SchedulerError, RuntimeError))
@@ -769,9 +771,9 @@ class PublicAndStructuralTests(SchedulerCase):
         tree = ast.parse(inspect.getsource(module))
         imports = {node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)}
         imports.update(alias.name for node in ast.walk(tree) if isinstance(node, ast.Import) for alias in node.names)
-        self.assertEqual(imports, {"collections.abc", "dataclasses", "datetime", "enum", "math", "numbers", "time",
+        self.assertEqual(imports, {"collections.abc", "dataclasses", "datetime", "enum", "math", "numbers", "time", "sys",
                                    "exchange.account_state", "exchange.bybit_demo_orders", "cycle", "state", "store"})
-        allowed_attributes = {"get_configuration", "get_checkpoint", "save_checkpoint", "is_set", "wait", "utcoffset", "isfinite"}
+        allowed_attributes = {"get_configuration", "get_checkpoint", "save_checkpoint", "is_set", "wait", "utcoffset", "isfinite", "write"}
         for node in ast.walk(tree):
             self.assertNotIsInstance(node, (ast.AsyncFunctionDef, ast.Await, ast.TryStar))
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):

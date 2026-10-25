@@ -1237,7 +1237,8 @@ class RestartBoundaryTests(unittest.TestCase):
             "reconciliation": "2c9386a5f4e3670144722e53202f869c8b7ce6e67ce963342a45bbf6f9ef0bb9",
             "planner": "e97b0f9c709e909c56f132cfd5a718a3fbb8a488debb0c71823415adb0605686",
             "cycle": "9099043265bfa8c048d52cbc9cf3de725f450207bc25f58807cf95fcd919107e",
-            "scheduler": "f588124296a4442ab0c969ae55202d991ee1e003d500a5aa3f373f03d074608d",
+            # Owner-approved optional post-cycle observer; restart behavior is unchanged.
+            "scheduler": "f461814f91ee943e44b449d2e3c8d7f2e67e2f4e12c0855bdba088b36034c271",
             "__init__": "8843b5105846f5386e9ac799f06b8446688043482618cbb8d3fc5a6655f40b60",
         }
         directory = Path(module.__file__).parent

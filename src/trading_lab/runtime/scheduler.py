@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from enum import Enum
 import math
 from numbers import Real
+import sys
 from time import monotonic as monotonic_clock
 
 from ..exchange.account_state import ReadOnlyBroker
@@ -60,12 +61,15 @@ def run_hourly_scheduler(
     *,
     utc_now: Callable[[], datetime],
     monotonic: Callable[[], float] = monotonic_clock,
+    cycle_observer: Callable[[SingleCycleResult], object] | None = None,
 ) -> SchedulerResult:
     """Run immediately, then on the absolute UTC grid until stop/HALT/STOPPING.
 
     A batch permits at most three normal transient-read attempts (1s, then 2s).
     Retry starts must fit the original monotonic budget and scheduled close's
     decision age. Exceptions never license retry, cleanup or a STOPPING write.
+    The optional observer sees only validated post-cycle durable results. Its
+    return value and failures have no authority over scheduler control.
     """
     if (not isinstance(store, RuntimeStore) or not callable(utc_now) or not callable(monotonic)
             or not callable(getattr(stop_signal, "is_set", None))
@@ -152,6 +156,14 @@ def run_hourly_scheduler(
             cp = store.get_checkpoint()
             if last_cycle.checkpoint != cp:
                 raise SchedulerError("Cycle control result differs from durable checkpoint.")
+            if cycle_observer is not None:
+                try:
+                    cycle_observer(last_cycle)
+                except Exception:
+                    try:
+                        sys.stderr.write("Runtime cycle observation failed.\n")
+                    except Exception:
+                        pass
             utc_ms, elapsed = control()
             if stopped():
                 return shutdown()

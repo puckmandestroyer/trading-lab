@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-25 — Runtime → Observability integration correction
+
+- Added the canonical explicitly configured observed hourly wrapper: automatic lifecycle/cycle/retained/adjacent-transition events and health capture, bounded durable-ID dedupe, one 64-batch non-blocking queue and an ordered daemon for JSONL/health/optional Telegram. Separate observability clock; no authority on worker, implicit resources, secrets, launcher or Streamlit launch.
+- Added only the approved optional generic scheduler post-cycle hook after durable validation. Callback/sink/queue/Telegram/drain failures are observational only; cached-context critical capture after scheduler failure makes no later store/broker call and re-raises the original exception. Two-second drain; exact Decimal and honest transition/history gaps preserved.
+- Local validation: **40 new integration / 394 combined Stage 12.1 / 86 scheduler tests passed**, failures/errors/skips **0/0/0**. **3,337 full-suite tests passed (3,297 + 40)**, zero failures/errors/skips; restart 89 and the frozen Stage 10/11/EMA selection pass. Golden remains 54/2/2/0/1, exact IDs/economics/timing unchanged. Pip and both diff checks passed; local evidence only. Existing behavioral tests remain intact; only approved scheduler API/import, canonical-wrapper AST exception and source fingerprint guards are refreshed. Frozen primitives, broker mutation boundary, Stage 9/10/11 behavior, schema, Decisions, dashboard, dependencies, notebooks/data remain unchanged.
+- Integration correction COMPLETE / owner review pending; 12.1a–d/corrections FROZEN; 12.1 overall INCOMPLETE pending independent owner re-audit, 12.2 NOT STARTED, v1.0.0 NOT RELEASED. No real monitoring/runtime, Telegram credential/message/request, authenticated Demo/Live operation or real user DB operation.
+
 ## 2026-10-17 — Stage 12.1e Offline Observability Regression + Final Audit
 
 - Added one 24-test combined regression module over public temporary journal facts, real projection/storage/health, fake Telegram HTTP/receipts and the same dashboard artifacts. Covers restart/IDs, partial/unknown/ACK semantics, independent latches/rearm, exact values, atomic/stale health, corruption/bounds, failure/secret isolation and whole-derived-tree deletion with frozen golden preservation (54/2/2/0/1, exact IDs/economics).
