@@ -4,6 +4,14 @@ Use this directory for small command-line utilities that call reusable code unde
 
 Keep reusable logic under `src/trading_lab/` and let scripts call that code. Store original datasets under `data/raw/`, transformed copies under `data/processed/`, and generated outputs under `results/`. Credentials must come from environment variables.
 
+## Stage 12.2a activation contract (local proposal)
+
+[Proposed Decision 024](../decisions/024_demo_activation_runbook_contract.md) is the canonical future Demo activation/runbook contract: **IMPLEMENTED LOCALLY / OWNER REVIEW PENDING / NOT COMMITTED**. It authorizes no request or runtime. No staging, commit or push in this milestone. Stage 12.1 is COMPLETE / FROZEN at production baseline e4c88c4; 12.2 STARTED / INCOMPLETE through documentation only; 12.2b–d and 12.3/12.4 NOT STARTED; v1.0.0 NOT RELEASED.
+
+Real secrets belong in owner-only external storage, conceptually `~/.config/trading-lab/demo.env`, with 0700 parent / 0600 file, current-user ownership and no symlinks. Never put values in ChatGPT/Codex, Git/GitHub, shell literal arguments/history, logs or observability/dashboard artifacts. Future approved loading requires `set +x`, no environment/file display, explicit process-environment population and no dotenv discovery. Do not create/load that file here. `.env.example` has four empty names only; .gitignore is defense in depth. Suspected exposure means STOP and revoke/rotate.
+
+The first future authenticated operation is separately authorized **read mode only**, without place/cancel/--confirm-demo-action. This diagnostic is not the runtime. Future operational activation requires the canonical account lock/store/restart/risk preflight and **run_observed_hourly_scheduler(...)**, with explicit resources. Credentials, read success or Telegram success cannot authorize trading; Stage 12.2b requires a separate owner decision. Streamlit remains a separate credential-free localhost-only reader. No new launcher/CLI or execution of the commands below is part of 12.2a.
+
 ## Optional manual Bybit Demo smoke
 
 `bybit_demo_smoke.py` is a bounded manual diagnostic, not a trading runtime.
@@ -62,7 +70,8 @@ All CLI control tests use synthetic credentials and fake clients. **No actual
 authenticated Demo smoke/order was executed during Stage 9.6.** Offline success
 proves software contracts, not actual Demo fills or profitability. No actual
 authenticated Demo smoke/order was executed during Stage 9. Stage 9.1–9.7 and
-Stage 9 remain COMPLETE. Stages 10.1–10.3 are frozen; 10.4 adds only public/read-only
-closed-candle observations. Stage 10 is INCOMPLETE, with 10.5 next and NOT STARTED.
-No operational runtime exists yet.
+Stages 9–11 remain COMPLETE / FROZEN. Stage 12.1 is COMPLETE / FROZEN; its observed
+runtime entrypoint is implemented and offline-tested but has never been activated
+on a real account. Stage 12.2a is a local proposed contract only, not a launcher
+or operational authorization; 12.2b–d remain NOT STARTED.
 Do not run this tool against Demo automatically.

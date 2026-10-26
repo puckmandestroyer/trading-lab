@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-26 — Stage 12.2a Demo Activation / Runbook Contract (local proposal)
+
+- Added proposed Decision 024: external owner-only secret custody, explicit PASS/FAIL gates, canonical observed-runtime activation/resource ordering, exact configuration/risk preflight, fresh initialization versus restart, bounded authorized run progression, shutdown/recovery and secret-exposure response. No operational authorization, launcher or production change.
+- Updated current status and manual-smoke guidance; .env.example now has only four empty Bybit Demo/Telegram variables. Existing ignore protections, frozen Decisions/source/tests/schema/dependencies and Stage 12.1 production baseline e4c88c4 remain unchanged. Production tests added/modified: 0/0. No credential file, real API/Telegram request, runtime/Streamlit session or real user DB operation.
+- Local validation: unchanged full suite **3,368 passed**, failures/errors/skips **0/0/0**; pip check, git diff --check, git diff --cached --exit-code and repository-only secret/template/ignore/artifact checks passed. HEAD/origin/main remain d66aa7b8175992fbd2779f56fbd720ae308b5295. **No git add/commit/push/tag; all changes remain unstaged for owner review.**
+- 12.1 COMPLETE / FROZEN; 12.2a IMPLEMENTED LOCALLY / OWNER REVIEW PENDING / NOT COMMITTED; 12.2 STARTED / INCOMPLETE through contract only; 12.2b–d and 12.3/12.4 NOT STARTED; Stage 12 INCOMPLETE; v1.0.0 NOT RELEASED.
+
 ## 2026-10-25 — Stage 12.1 final audit closure
 
 - Independent owner re-audit PASS across all 12 acceptance checks, including automatic runtime integration, accepted reconciliation projection, OPEN/CLOSE visibility, failure isolation and trading-authority/Stage 11 golden preservation. Stage 12.1 and 12.1e COMPLETE / FROZEN; 12.1a–d, identity/performance corrections and both runtime-observability corrections FROZEN.

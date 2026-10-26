@@ -6,7 +6,7 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 ## Current stage
 
-**Stage 12.1 — Observability & Operator Visibility: COMPLETE / FROZEN.** Independent owner re-audit passed, including both runtime-observability corrections. The frozen production baseline is `e4c88c4408d85386c7081c94a2871952f03bf41f` (`Capture accepted reconciliation transitions`); this final closure changes documentation only and does not replace that production baseline. Stage 12 remains INCOMPLETE; **12.2a and all 12.2–12.4 work remain NOT STARTED. v1.0.0 remains NOT RELEASED.**
+**Stage 12.2a — Demo Activation / Runbook Contract: IMPLEMENTED LOCALLY / OWNER REVIEW PENDING / NOT COMMITTED.** This is working-tree documentation/template status only; [proposed Decision 024](decisions/024_demo_activation_runbook_contract.md) is not frozen and authorizes no operation. Stage 12.2 is STARTED / INCOMPLETE. **Stage 12.1 remains COMPLETE / FROZEN** at production baseline `e4c88c4408d85386c7081c94a2871952f03bf41f`. HEAD/origin/main remain `d66aa7b8175992fbd2779f56fbd720ae308b5295`; no staging, commit or push is permitted in this task. Stage 12 remains INCOMPLETE; **12.2b–d, 12.3 and 12.4 NOT STARTED. v1.0.0 NOT RELEASED.**
 
 Stage 12.0 — Trading Lab V1 Production & Live Readiness Contract / [Decision 022](decisions/022_trading_lab_v1_production_live_readiness.md) is independently owner-reviewed, COMPLETE / FROZEN at `0b275c91abe53068dc4b0b05ade7be710d13cef6` (`Define Trading Lab v1 readiness contract`). Decision 022 is unchanged.
 
@@ -104,7 +104,45 @@ Stage 6 — Generic Backtesting Engine remains COMPLETE at `df72973de837ecbd4ee8
 
 Stage 5 — Analytics remains COMPLETE and frozen at `a3fde091be234fd78d216f6338752a810fa117f0` (`Complete Stage 5 analytics report`).
 
+## Stage 12.2a — Demo Activation / Runbook Contract (local proposal)
+
+**IMPLEMENTED LOCALLY / OWNER REVIEW PENDING / NOT COMMITTED.** Proposed [Decision 024](decisions/024_demo_activation_runbook_contract.md) defines the later operational procedure without implementing or authorizing it. Stage 12.2 is STARTED / INCOMPLETE through this contract only. Stage 12.1 remains COMPLETE / FROZEN at `e4c88c4408d85386c7081c94a2871952f03bf41f`; published documentation baseline/unchanged HEAD and origin/main are `d66aa7b8175992fbd2779f56fbd720ae308b5295`. Staging stays empty. Later stages remain NOT STARTED; v1.0.0 NOT RELEASED.
+
+The contract covers secret custody, repository/secrets/state/offline/connectivity/runtime PASS/FAIL gates, canonical lock/store/restart/resource ordering, exact runtime/risk manifest, explicit first risk initialization, bounded Demo progression and shutdown/recovery. Secrets belong outside Git, conceptually `~/.config/trading-lab/demo.env`, in current-user-owned storage with 0700 parent / 0600 file and no symlinks. Real values never enter ChatGPT/Codex, Git/GitHub, shell history/literal arguments, screenshots, logs, observability, receipts or dashboard state. Future approved loading requires tracing disabled, no value/environment dump and no implicit dotenv discovery. Suspected exposure means STOP/revoke/rotate, not history clean-up followed by reuse.
+
+Future authenticated connectivity starts with the unchanged bounded smoke script's read mode, followed by separately authorized non-trading Telegram smoke and exact configuration/risk preflight. Trading requires additional explicit Stage 12.2b approval and **run_observed_hourly_scheduler(...)**; it cannot follow merely from credentials or successful reads. Runtime/Streamlit are separate, dashboard localhost-only/credential-free. No amounts, wallet sizing, automatic rearm, launcher, operator CLI or new production capability. Restart retains the existing journal/IDs/epochs and reconciles; neither reset nor migration is activation. Fresh risk initialization is explicit, once-only and requires safe confirmed ownership plus accepted durable candle/fill evidence.
+
+Expected local files: new Decision 024; README.md, PROJECT_STATE.md, CHANGELOG.md, scripts/README.md and four-name blank .env.example. Existing .gitignore, Decisions 016–023, src/, dashboard/, smoke implementation, tests, schema, dependencies, notebooks and data remain unchanged. Production tests added/modified: **0/0**. No generated runtime or credential files are introduced.
+
+Local validation: unchanged full suite **3,368 passed** in **609.441 seconds**, failures/errors/skips **0/0/0**; pip check, git diff --check and git diff --cached --exit-code passed. Repository-only secret/template/ignore/artifact checks passed. Staging remains empty; HEAD/origin/main unchanged. Do not stage even after success. These are local/offline results only; no CI or operational-readiness claim.
+
+```text
+Real credential files created: NO
+Real credentials loaded: NO
+Real credentials displayed: NO
+Real credentials written to repository: NO
+Staging area contains secrets: NO
+Staging area empty: YES
+
+Telegram API request: NOT RUN
+Bybit public request: NOT RUN
+Bybit authenticated request: NOT RUN
+Bybit Demo mutation: NOT RUN
+Bybit Live request: NOT RUN
+Real runtime/Streamlit session: NOT RUN
+Real user DB migration/activation/rearm: NOT RUN
+
+git add: NOT RUN
+git commit: NOT RUN
+git push: NOT RUN
+origin/main unchanged: YES
+```
+
+Next: owner review of the local proposal. No staging/publication is authorized in this task. Stage 12.2b, 12.2c, 12.2d, 12.3 and 12.4 remain NOT STARTED; actual operations require separate explicit authorization. Completion-time future-stage statuses in the frozen records below remain historical.
+
 ## Stage 12.1 final audit closure
+
+*Frozen completion-time record at d66aa7b; its future-stage statuses are historical. The local Stage 12.2a proposal above states current working-tree status.*
 
 Independent owner re-audit concluded **technical acceptance PASS**. The Runtime → Observability Integration Correction and Accepted Reconciliation Projector + Transition Wiring Correction are both **PASS / FROZEN**. The final frozen production baseline is **`e4c88c4408d85386c7081c94a2871952f03bf41f` — `Capture accepted reconciliation transitions`**. This closure modifies only README.md, PROJECT_STATE.md and CHANGELOG.md; its documentation commit does not replace the production baseline. Production, tests, Decisions, dependencies and schema have zero changes.
 
@@ -474,7 +512,7 @@ Streamlit's required views are Overview, Position / Orders, Risk, Trades, Runtim
 | 12.1 | 12.1c | Telegram Outbound Alerts | COMPLETE / FROZEN at 557774a |
 | 12.1 | 12.1d | Generic Streamlit Runtime Dashboard | FROZEN including performance/light-theme correction at 0c3b6a82 |
 | 12.1 | 12.1e | Observability Offline Regression + Final Audit | COMPLETE / FROZEN; independent owner re-audit PASS, including both runtime-observability corrections FROZEN |
-| 12.2 — Long-Running Bybit Demo Validation | 12.2a | Demo Activation / Runbook Contract | NOT STARTED |
+| 12.2 — Long-Running Bybit Demo Validation (STARTED / INCOMPLETE, working-tree contract only) | 12.2a | Demo Activation / Runbook Contract | IMPLEMENTED LOCALLY / OWNER REVIEW PENDING / NOT COMMITTED |
 | 12.2 | 12.2b | Controlled 24h → 72h Demo Run | NOT STARTED |
 | 12.2 | 12.2c | Restart / Network / Failure Validation | NOT STARTED |
 | 12.2 | 12.2d | 7-day Demo Soak + Report | NOT STARTED |
@@ -801,7 +839,7 @@ Stage 11.3 internal subphases are COMPLETE / FROZEN: **11.3a contract at `9807ed
 
 ### Canonical 12-stage roadmap
 
-Stages 1–11 retain their accepted scope/history. Stage 12 — Production & Live Readiness remains INCOMPLETE and is the final top-level stage and v1 release gate under frozen Decision 022 at `0b275c9`. Stage 12.1 — Observability & Operator Visibility is COMPLETE / FROZEN at production baseline `e4c88c4408d85386c7081c94a2871952f03bf41f`: 12.1a–d and the identity/performance corrections remain FROZEN; 12.1e is COMPLETE / FROZEN; both runtime-observability corrections are FROZEN after independent owner re-audit PASS. Stage 12.2a — Demo Activation / Runbook Contract is next and NOT STARTED. 12.2 Long-Running Bybit Demo Validation, 12.3 Local V1 Hardening and 12.4 Controlled Live Validation remain NOT STARTED; v1.0.0 remains NOT RELEASED. The exact milestone roadmap is recorded above. Prior top-level Stages 13–15 naming is superseded only for future planning; historical records and previous Decisions are unchanged. Architecture contracts authorize no Demo activation or Live operation.
+Stages 1–11 retain their accepted scope/history. Stage 12 — Production & Live Readiness remains INCOMPLETE and is the final top-level stage and v1 release gate under frozen Decision 022 at `0b275c9`. Stage 12.1 — Observability & Operator Visibility is COMPLETE / FROZEN at production baseline `e4c88c4408d85386c7081c94a2871952f03bf41f`: 12.1a–d and the identity/performance corrections remain FROZEN; 12.1e is COMPLETE / FROZEN; both runtime-observability corrections are FROZEN after independent owner re-audit PASS. Stage 12.2a — Demo Activation / Runbook Contract is IMPLEMENTED LOCALLY / OWNER REVIEW PENDING / NOT COMMITTED; Stage 12.2 is STARTED / INCOMPLETE through that working-tree proposal only. 12.2b–d, 12.3 Local V1 Hardening and 12.4 Controlled Live Validation remain NOT STARTED; v1.0.0 remains NOT RELEASED. The exact milestone roadmap is recorded above. Prior top-level Stages 13–15 naming is superseded only for future planning; historical records and previous Decisions are unchanged. Architecture contracts authorize no Demo activation or Live operation.
 
 ## Completed
 
@@ -2690,7 +2728,7 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Stage 12.1 final audit closure is COMPLETE / FROZEN after independent owner re-audit, including both runtime-observability corrections. Production baseline remains `e4c88c4408d85386c7081c94a2871952f03bf41f`; this closure is documentation-only. No operational activation occurred. Stage 12 remains INCOMPLETE; Stage 12.2 remains NOT STARTED and v1.0.0 NOT RELEASED.
+Owner review of **local proposed Decision 024 / Stage 12.2a**, IMPLEMENTED LOCALLY / OWNER REVIEW PENDING / NOT COMMITTED. Stage 12.2 is STARTED / INCOMPLETE through documentation only. Stage 12.1 remains COMPLETE / FROZEN at production baseline `e4c88c4408d85386c7081c94a2871952f03bf41f`; no operational activation occurred. Staging stays empty; no add/commit/push. Stage 12 remains INCOMPLETE; 12.2b–d, 12.3/12.4 NOT STARTED; v1.0.0 NOT RELEASED.
 
 ## Not implemented yet
 
@@ -2709,7 +2747,7 @@ Stage 12.1 final audit closure is COMPLETE / FROZEN after independent owner re-a
 
 ## Next milestone
 
-Stage 12.2a — Demo Activation / Runbook Contract is next and NOT STARTED; all 12.2–12.4 work remains NOT STARTED. Do not begin automatically. Stage 12.1 is COMPLETE / FROZEN; Stage 12 remains INCOMPLETE and v1.0.0 remains NOT RELEASED. This documentation closure grants no permission to load credentials, perform broker/Telegram operations, migrate/activate/rearm a real journal or start Demo validation.
+Owner review of the uncommitted Stage 12.2a contract is next; this task permits no staging/publication. Stage 12.2b — Controlled 24h → 72h Demo Run remains NOT STARTED and needs separate explicit authorization for every mutation-bearing step; 12.2c–d and all 12.3/12.4 work remain NOT STARTED. Do not begin automatically. Stage 12.1 is COMPLETE / FROZEN; Stage 12 remains INCOMPLETE and v1.0.0 remains NOT RELEASED. This contract grants no permission to load credentials, perform broker/Telegram operations, migrate/activate/rearm a real journal or start Demo validation.
 
 ## Backtesting execution contract
 
