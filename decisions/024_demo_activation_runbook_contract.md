@@ -1,21 +1,21 @@
 # 024 — Demo Activation / Runbook Contract
 
 - Date: 2026-10-26
-- Status: **Proposed / Stage 12.2a owner review pending**; implemented locally, NOT COMMITTED, not frozen.
+- Status: **Accepted / Stage 12.2a COMPLETE / FROZEN after independent remote owner audit.**
 - Scope: Contract/runbook only. Every operational step below is a future requirement, not an instruction to execute now.
-- Repository baseline: `d66aa7b8175992fbd2779f56fbd720ae308b5295` — `Complete Stage 12.1 final audit`.
+- Reviewed substantive publication baseline: `aa479968f58bd9e1cd22864ace94176c2cf7044c` — `Define Stage 12.2a Demo activation runbook`; parent `d66aa7b8175992fbd2779f56fbd720ae308b5295` — `Complete Stage 12.1 final audit`.
 - Frozen Stage 12.1 production baseline: `e4c88c4408d85386c7081c94a2871952f03bf41f` — `Capture accepted reconciliation transitions`; COMPLETE / FROZEN.
 - Governing frozen contracts: [016](016_manual_demo_smoke.md), [017](017_demo_trading_runtime_contract.md), [018](018_runtime_risk_management.md), [019](019_runtime_risk_journal_schema.md), [020](020_runtime_risk_gate_authorization.md), [021](021_runtime_risk_rearm_operator_controls.md), [022](022_trading_lab_v1_production_live_readiness.md), [023](023_observability_event_logging_contract.md), unchanged.
 
 ## Authority and explicit non-actions
 
-Stage 12.2 is STARTED / INCOMPLETE through this working-tree contract only. Stage 12.2a is **IMPLEMENTED LOCALLY / OWNER REVIEW PENDING / NOT COMMITTED**. Stages 12.2b, 12.2c, 12.2d, 12.3 and 12.4 remain NOT STARTED. Stage 12 overall remains INCOMPLETE; v1.0.0 remains NOT RELEASED.
+Stage 12.2 is STARTED / INCOMPLETE through this accepted contract only. Stage 12.2a is **COMPLETE / FROZEN** after publication and independent remote owner audit. Stages 12.2b, 12.2c, 12.2d, 12.3 and 12.4 remain NOT STARTED. Stage 12 overall remains INCOMPLETE; v1.0.0 remains NOT RELEASED.
 
 Credentials being configured, authenticated read success and Telegram success do **not** authorize trading. Only a later explicit owner authorization for **Stage 12.2b controlled Demo run**, with concrete configuration, risk values, permitted operations, start/stop window and stop conditions, permits the observed runtime to place Demo orders under frozen strategy/risk logic. Do not automatically advance between steps or durations. Contract review/freeze and operational authorization are separate decisions.
 
 This milestone creates no launcher, operator CLI, daemon, launchd job, Docker setup, dependency, schema or production change. It does not construct clients, authenticate, make public/network/DNS preflights, load or discover credentials, open a real runtime DB, migrate/activate/rearm a real journal, start runtime/Streamlit or send Telegram. No secret file is created, inside or outside the repository. No home-directory search, Keychain, shell-history, existing-environment, browser-storage, Telegram or Bybit-account inspection is permitted here. Tests use existing local synthetic fixtures/fake transports and temporary databases only.
 
-**For this entire Stage 12.2a task: no git add, commit, push, tag, force push, reset, stash or disposal of owner work, even after all checks pass.** The deliverable is the unstaged local diff; staging stays empty and HEAD/origin/main stay at the repository baseline.
+The substantive contract was published by normal fast-forward push at the reviewed baseline above. Its acceptance authorizes no operation by itself. A subsequent documentation-only closure records the independent remote audit and corrects stale pre-publication status bookkeeping without altering the accepted contract or production/trading baseline.
 
 ## Secret custody and process boundary
 
@@ -98,7 +98,7 @@ Every gate requires an explicit recorded PASS before dependent work; UNKNOWN/mis
 
 | Gate | PASS requirements / authority |
 | --- | --- |
-| A — Repository | Owner-reviewed expected published revision/baseline verified; worktree understood; no unexpected code changes. This local uncommitted proposal is not a released activation entrypoint. |
+| A — Repository | Owner-reviewed expected published revision/baseline verified; worktree understood; no unexpected code changes. This accepted contract is not a released activation entrypoint. |
 | B — Secrets | Approved external private file, 0700 parent, 0600 regular owned file, required names present/non-empty, no value displayed, correct Demo-only profile and no Live-key fallback. |
 | C — Local state | Safe private absolute directories, canonical lock obtainable, exact runtime/risk configuration consistent with durable identity. Inspect path metadata before opening; SQL access requires the lock. |
 | D — Offline software | Relevant/full frozen regressions and pip check pass; no unreviewed production drift from e4c88c4. No credentials or external requests to prove this gate. |
@@ -201,34 +201,33 @@ Any reasonable possibility of exposure through Git/GitHub, chat, shared screensh
 
 Before any future commit/push while real credentials exist locally, require a secret-sanity gate: approved secret files outside the repository/ignored; only explicit reviewed paths in staging; no credential values or API-key identifiers in tracked/staged content; no generated runtime/SQLite/observability/receipt state staged. A future approved scanner must keep values in private memory, never CLI arguments, and emit only **PASS** or **FAIL + affected path**, never matches, snippets or secret-bearing diff lines. Stronger scanner/tooling belongs to 12.3b, not this milestone. A FAIL blocks Git publication and invokes the exposure policy where applicable.
 
-Prohibit broad staging `git add .`, `git add -A` and `git commit -a` during credential work; later authorized commits stage reviewed paths explicitly only after this gate. GitHub PRs/issues, commit messages, tags and release notes may contain no secret. **This task permits no staging at all**, no commit/push/tag and no history/worktree manipulation. Do not inspect existing owner credentials to audit this documentation proposal.
+Prohibit broad staging `git add .`, `git add -A` and `git commit -a` during credential work; later authorized commits stage reviewed paths explicitly only after this gate. GitHub PRs/issues, commit messages, tags and release notes may contain no secret. Contract acceptance grants no Git or operational authorization. Do not inspect existing owner credentials to audit this documentation.
 
-## Stage 12.2a acceptance and local verification
+## Stage 12.2a acceptance, publication and closure verification
 
-Acceptance requires this proposed contract, consistent working-tree-only status in current docs, a four-name blank `.env.example`, unchanged `.env`/`.env.*` ignore protections, zero production/dashboard/smoke-script/test/schema/dependency changes, no launcher or operational action, and owner review pending. No previous Decision is modified. Existing full suite baseline is **3,368 tests**, requiring zero failures/errors/skips; also run local pip check and git diff --check. Verify git diff --cached --exit-code succeeds; do not stage files or cite a staged-diff check as evidence of staged work.
+The independent remote owner audit of `aa479968f58bd9e1cd22864ace94176c2cf7044c` passed the substantive contract, standalone diagnostic versus lock-held operational runtime distinction, credential custody, Demo/Live separation and separate Stage 12.2b authorization boundary. It confirmed remote main at that commit, exact parent `d66aa7b8175992fbd2779f56fbd720ae308b5295`, one commit beyond that parent and exactly six expected documentation/template paths. Production, tests, frozen Decisions 001–023, dependencies and schema had zero changes; `.env.example` contained only four empty credential assignments. The audit found only stale pre-publication status wording, addressed by this documentation-state closure.
 
-Final validation results are recorded in PROJECT_STATE.md and CHANGELOG.md after execution. Inspect repository-only metadata for newly created credential/runtime artifacts without reading credentials; confirm all template values empty and no token/key/secret value introduced. Do not search outside the repository. HEAD and origin/main must both remain `d66aa7b8175992fbd2779f56fbd720ae308b5295`; staging empty; only the expected local contract/documentation/template changes remain. The uncommitted working tree is intentionally the deliverable.
+Completion-time local validation remains **3,368 passed**, zero failures/errors/skips; pip check, diff checks and secret review passed, as recorded in PROJECT_STATE.md and CHANGELOG.md. This is local evidence only. The independent remote owner audit observed GitHub combined statuses `[]` and workflow runs `[]`: no CI execution evidence. Publication used a normal fast-forward push. No operational validation is implied.
+
+The documentation-only closure changes only this Decision, README.md, PROJECT_STATE.md, CHANGELOG.md and scripts/README.md; `.env.example` and all production/test/frozen-Decision/dependency/schema files remain unchanged. It records the independent remote audit and corrects stale status wording without altering the accepted contract or establishing a new production/trading baseline. Closure verification uses diff checks and repository-only secret review; the full suite was not rerun for this documentation-only correction. No credential creation/loading or inspection outside the repository is part of the closure.
+
+Completion-time operational non-actions for Stage 12.2a and its documentation-only closure:
 
 ```text
 Real credential files created: NO
 Real credentials loaded: NO
 Real credentials displayed: NO
 Real credentials written to repository: NO
-Staging area contains secrets: NO
-Staging area empty: YES
 
 Telegram API request: NOT RUN
 Bybit public request: NOT RUN
 Bybit authenticated request: NOT RUN
 Bybit Demo mutation: NOT RUN
 Bybit Live request: NOT RUN
-Real runtime/Streamlit session: NOT RUN
-Real user DB migration/activation/rearm: NOT RUN
+Real runtime: NOT RUN
+Streamlit runtime monitoring: NOT RUN
+Real DB migration/activation/rearm: NOT RUN
 
-git add: NOT RUN
-git commit: NOT RUN
-git push: NOT RUN
-origin/main unchanged: YES
 ```
 
-Stage 12.2a remains local implementation / owner review pending / NOT COMMITTED, not frozen. Stage 12.2b requires separate explicit owner authorization and must not begin automatically. Stage 12.1 remains COMPLETE / FROZEN; Stages 12.2b–d, 12.3 and 12.4 NOT STARTED; v1.0.0 NOT RELEASED.
+Stage 12.2a is COMPLETE / FROZEN at its reviewed substantive publication baseline. Stage 12.2 remains STARTED / INCOMPLETE; Stage 12 overall remains INCOMPLETE. Stage 12.2b requires separate explicit owner authorization and must not begin automatically. Stage 12.1 remains COMPLETE / FROZEN; Stages 12.2b–d, 12.3 and 12.4 NOT STARTED; v1.0.0 NOT RELEASED.

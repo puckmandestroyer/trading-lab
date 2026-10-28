@@ -1,11 +1,19 @@
 # Changelog
 
+## 2026-10-27 — Stage 12.2a documentation-state closure
+
+- Independent remote owner audit of substantive publication `aa479968f58bd9e1cd22864ace94176c2cf7044c` PASS except stale pre-publication status wording, corrected here. Normal fast-forward publication, exact parent `d66aa7b8175992fbd2779f56fbd720ae308b5295`, one commit beyond that parent, six expected paths and four empty credential assignments confirmed; production/test/frozen Decisions 001–023/dependency/schema diffs **0**. Contract, diagnostic/runtime distinction, custody, Demo/Live separation and separate 12.2b authorization PASS.
+- Decision 024 and Stage 12.2a **COMPLETE / FROZEN**; Stage 12.1 production baseline remains `e4c88c4408d85386c7081c94a2871952f03bf41f`. A documentation-only closure corrects stale status bookkeeping across five documents without altering the accepted contract or production/trading baseline. Stage 12.2 STARTED / INCOMPLETE; 12.2b–d and 12.3/12.4 NOT STARTED; Stage 12 INCOMPLETE; v1.0.0 NOT RELEASED.
+- Completion-time **3,368 passed locally**, pip check, diff checks and secret review PASS remain historical validation evidence; no full-suite rerun for this documentation-only closure. The independent remote owner audit observed GitHub combined statuses `[]` / workflow runs `[]`: no CI execution evidence. No credentials created/loaded/displayed/transmitted, external requests, runtime/Streamlit operation or real DB migration/activation/rearm.
+
 ## 2026-10-26 — Stage 12.2a Demo Activation / Runbook Contract (local proposal)
+
+*Completion-time proposal record; publication and accepted status are recorded in the closure above.*
 
 - Added proposed Decision 024: external owner-only secret custody, explicit PASS/FAIL gates, canonical observed-runtime activation/resource ordering, exact configuration/risk preflight, fresh initialization versus restart, bounded authorized run progression, shutdown/recovery and secret-exposure response. No operational authorization, launcher or production change.
 - Updated current status and manual-smoke guidance; .env.example now has only four empty Bybit Demo/Telegram variables. Existing ignore protections, frozen Decisions/source/tests/schema/dependencies and Stage 12.1 production baseline e4c88c4 remain unchanged. Production tests added/modified: 0/0. No credential file, real API/Telegram request, runtime/Streamlit session or real user DB operation.
-- Local validation: unchanged full suite **3,368 passed**, failures/errors/skips **0/0/0**; pip check, git diff --check, git diff --cached --exit-code and repository-only secret/template/ignore/artifact checks passed. HEAD/origin/main remain d66aa7b8175992fbd2779f56fbd720ae308b5295. **No git add/commit/push/tag; all changes remain unstaged for owner review.**
-- 12.1 COMPLETE / FROZEN; 12.2a IMPLEMENTED LOCALLY / OWNER REVIEW PENDING / NOT COMMITTED; 12.2 STARTED / INCOMPLETE through contract only; 12.2b–d and 12.3/12.4 NOT STARTED; Stage 12 INCOMPLETE; v1.0.0 NOT RELEASED.
+- Local validation: unchanged full suite **3,368 passed**, failures/errors/skips **0/0/0**; pip check, git diff --check, git diff --cached --exit-code and repository-only secret/template/ignore/artifact checks passed. At proposal completion, HEAD/origin/main were d66aa7b8175992fbd2779f56fbd720ae308b5295 and changes were unstaged for owner review; publication followed under separate authorization.
+- Completion-time status: 12.1 COMPLETE / FROZEN; 12.2a IMPLEMENTED LOCALLY / OWNER REVIEW PENDING / NOT COMMITTED; 12.2 STARTED / INCOMPLETE through contract only; 12.2b–d and 12.3/12.4 NOT STARTED; Stage 12 INCOMPLETE; v1.0.0 NOT RELEASED. Current 12.2a acceptance is recorded above.
 
 ## 2026-10-25 — Stage 12.1 final audit closure
 

@@ -4,9 +4,9 @@ Use this directory for small command-line utilities that call reusable code unde
 
 Keep reusable logic under `src/trading_lab/` and let scripts call that code. Store original datasets under `data/raw/`, transformed copies under `data/processed/`, and generated outputs under `results/`. Credentials must come from environment variables.
 
-## Stage 12.2a activation contract (local proposal)
+## Stage 12.2a activation contract (COMPLETE / FROZEN)
 
-[Proposed Decision 024](../decisions/024_demo_activation_runbook_contract.md) is the canonical future Demo activation/runbook contract: **IMPLEMENTED LOCALLY / OWNER REVIEW PENDING / NOT COMMITTED**. It authorizes no request or runtime. No staging, commit or push in this milestone. Stage 12.1 is COMPLETE / FROZEN at production baseline e4c88c4; 12.2 STARTED / INCOMPLETE through documentation only; 12.2b–d and 12.3/12.4 NOT STARTED; v1.0.0 NOT RELEASED.
+[Accepted Decision 024](../decisions/024_demo_activation_runbook_contract.md) is the canonical future Demo activation/runbook contract: **COMPLETE / FROZEN** after independent remote owner audit of reviewed substantive publication `aa479968f58bd9e1cd22864ace94176c2cf7044c`. It authorizes no request or runtime. A documentation-only closure records the independent remote audit and corrects stale pre-publication status wording without altering the accepted contract or production/trading baseline. Stage 12.1 is COMPLETE / FROZEN at production baseline e4c88c4; 12.2 STARTED / INCOMPLETE through documentation only; 12.2b–d and 12.3/12.4 NOT STARTED; Stage 12 INCOMPLETE; v1.0.0 NOT RELEASED.
 
 Real secrets belong in owner-only external storage, conceptually `~/.config/trading-lab/demo.env`, with 0700 parent / 0600 file, current-user ownership and no symlinks. Never put values in ChatGPT/Codex, Git/GitHub, shell literal arguments/history, logs or observability/dashboard artifacts. Future approved loading requires `set +x`, no environment/file display, explicit process-environment population and no dotenv discovery. Do not create/load that file here. `.env.example` has four empty names only; .gitignore is defense in depth. Suspected exposure means STOP and revoke/rotate.
 
@@ -72,6 +72,6 @@ proves software contracts, not actual Demo fills or profitability. No actual
 authenticated Demo smoke/order was executed during Stage 9. Stage 9.1–9.7 and
 Stages 9–11 remain COMPLETE / FROZEN. Stage 12.1 is COMPLETE / FROZEN; its observed
 runtime entrypoint is implemented and offline-tested but has never been activated
-on a real account. Stage 12.2a is a local proposed contract only, not a launcher
-or operational authorization; 12.2b–d remain NOT STARTED.
+on a real account. Stage 12.2a is an accepted COMPLETE / FROZEN contract, not a
+launcher or operational authorization; 12.2b–d remain NOT STARTED.
 Do not run this tool against Demo automatically.
