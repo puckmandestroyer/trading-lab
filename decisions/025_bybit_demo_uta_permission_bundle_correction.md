@@ -1,11 +1,27 @@
 # 025 — Bybit Demo UTA permission-bundle compatibility correction
 
 - Date: 2026-10-30
-- Status: **Proposed / owner review pending / not frozen.**
+- Status: **Accepted / COMPLETE / FROZEN after independent remote owner audit.**
 - Scope: Additive operational compatibility clarification for Stage 12.2 Bybit Demo Trading, virtual Demo funds and the frozen local V1 Spot runtime only. No implementation or operational authorization.
-- Repository baseline: `98db2c588bc4fd633549a02c5a54d1b397787d5e` — `Close Stage 12.2a documentation state`; documentation bookkeeping only.
+- Reviewed substantive publication baseline: `2364bdecaa353dbdf6eeab87b16372ccee89cc6a` — `Document Bybit Demo UTA permission exception`.
+- Parent: `98db2c588bc4fd633549a02c5a54d1b397787d5e` — `Close Stage 12.2a documentation state`; documentation bookkeeping only.
 - Stage 12.2a remains COMPLETE / FROZEN at reviewed substantive publication baseline `aa479968f58bd9e1cd22864ace94176c2cf7044c`. Stage 12.1 remains COMPLETE / FROZEN at production baseline `e4c88c4408d85386c7081c94a2871952f03bf41f`.
-- Frozen Decisions 001–024, including [024](024_demo_activation_runbook_contract.md), are unchanged. This proposal requires owner acceptance before the exception can be used; it does not relax the existing permission gate while pending.
+- Frozen Decisions 001–024, including [024](024_demo_activation_runbook_contract.md), are unchanged. This accepted correction defines only the narrow Demo UTA permission exception below; acceptance authorizes no operation by itself.
+
+## Independent remote audit and freeze closure
+
+The independent remote owner audit of substantive publication `2364bdecaa353dbdf6eeab87b16372ccee89cc6a` concluded **PASS**. At that audit, remote main resolved to the reviewed commit with exact parent `98db2c588bc4fd633549a02c5a54d1b397787d5e`, exactly one commit beyond that prior baseline, and exactly these published paths:
+
+```text
+M CHANGELOG.md
+M PROJECT_STATE.md
+M README.md
+A decisions/025_bybit_demo_uta_permission_bundle_correction.md
+```
+
+The audit verified the fail-closed UTA/RW/SpotTrade gate, exact permission-group allowlist/prohibitions, Spot-only runtime boundary, broader API-key capability caveat, Demo-only scope with no Live exception, and separate Gate G authority. Stage 12.2b remained NOT STARTED. It found no production, test, schema, dependency or frozen Decision 001–024 drift; no secret or credential incident occurred.
+
+A documentation-only freeze closure records this acceptance and updates proposal-status bookkeeping. It does not change the reviewed permission contract or establish a new production/trading baseline. Operational permission re-audit, preflight and trading remain separately authorized activities.
 
 ## Context and sanitized activation evidence
 
@@ -32,7 +48,7 @@ The owner observed that the current Bybit Demo UTA permission UI did not allow s
 
 Earlier in the Stage 12.2 activation sequence, the owner replaced the diagnostic Read-Only key with a new Read-Write Demo key. That owner-reported operational change is distinct from this documentation task, which did not perform or inspect the replacement.
 
-No API key, secret, API-key identifier, user/account UID, note/remark, address, expiry date or raw response is retained here. The issue is excess Demo permission scope, **not a credential leak incident**. Preparing this proposal alone does not require revoking the existing key. Any actual exposure still requires STOP and immediate revoke/rotate under Decision 024.
+No API key, secret, API-key identifier, user/account UID, note/remark, address, expiry date or raw response is retained here. The issue is excess Demo permission scope, **not a credential leak incident**. This documentation-only correction alone does not require revoking the existing key. Any actual exposure still requires STOP and immediate revoke/rotate under Decision 024.
 
 ## Official permission vocabulary
 
@@ -48,9 +64,9 @@ The official [Get API Key Information documentation](https://bybit-exchange.gith
 
 This field vocabulary does not prove that a given UI must bundle those groups. The observed bundling above comes from the owner's activation audit. Do not copy the documentation's example credentials, routing examples or raw response into an operational procedure.
 
-## Proposed fail-closed Demo permission gate
+## Accepted fail-closed Demo permission gate
 
-Only if the current Bybit Demo UTA profile unavoidably bundles the additional trading groups with required Spot Read-Write authority may this narrow exception be considered after owner acceptance. It is not a general weakening of least privilege and does not apply to Stage 12.4 Live.
+This accepted exception applies only when the current Bybit Demo UTA profile unavoidably bundles the additional trading groups with required Spot Read-Write authority. It is not a general weakening of least privilege and does not apply to Stage 12.4 Live.
 
 Require all of the following for the exact active Demo key:
 
@@ -61,7 +77,7 @@ Require all of the following for the exact active Demo key:
 - Withdrawal, asset/account transfer, convert/exchange, earn and fiat/payment authority are forbidden, regardless of which field reports them.
 - Validate the documented response/array shapes and reviewed permission values. Missing required evidence, malformed/ambiguous data or changed permission shapes/values stops activation for owner review. Never silently expand the allowlist or interpret unfamiliar authority as safe.
 
-An earlier PASS is not permanent authority. A different key or changed permissions require a new audit; a new non-empty group is FAIL until separately reviewed, not an automatic extension of this proposal.
+An earlier PASS is not permanent authority. A different key or changed permissions require a new audit; a new non-empty group is FAIL until separately reviewed, not an automatic extension of this accepted correction.
 
 ## Runtime boundary versus credential capability
 
@@ -76,9 +92,9 @@ The frozen production boundary remains unchanged under Decisions 013, 015 and 01
 
 **These code restrictions do not make the API key itself Spot-only.** Broader key grants remain real credential capabilities. A stolen or externally reused Demo key could potentially be used outside Trading Lab against the additional groups; the adapter cannot constrain that use.
 
-The proposed exception is limited to Demo Trading and virtual Demo funds, private secret custody, controlled Stage 12.2 validation and immediate revoke/rotate upon exposure. Real secrets remain outside the repository with 0700 private parent / 0600 secret file; no values or identifiers belong in Git/chat/logs/dashboard/observability. Existing no-tracing, no-environment-dump and no-secret-file-display rules remain unchanged. The permission bundle alone is not evidence of exposure and does not require rotation solely because this documentation is prepared.
+The accepted exception is limited to Demo Trading and virtual Demo funds, private secret custody, controlled Stage 12.2 validation and immediate revoke/rotate upon exposure. Real secrets remain outside the repository with 0700 private parent / 0600 secret file; no values or identifiers belong in Git/chat/logs/dashboard/observability. Existing no-tracing, no-environment-dump and no-secret-file-display rules remain unchanged. The permission bundle alone is not evidence of exposure and does not require rotation solely because this documentation is prepared.
 
-## Proposed pre-Gate-G procedure
+## Required pre-Gate-G procedure
 
 This is a future permission-audit requirement, not executable code or authorization to make a request now:
 
@@ -90,15 +106,17 @@ This is a future permission-audit requirement, not executable code or authorizat
 
 Like the standalone Stage 9 read diagnostic, a separately authorized standalone permission audit runs only while runtime is fully stopped and no other process operates this bot/account runtime. It proves permission/connectivity facts only, not ownership, reconciliation, risk readiness or trading authority. It neither holds nor satisfies the operational runtime account lock. Every operational activation/preflight/restart still requires the canonical RuntimeAccountLock first, then RuntimeStore, exact configuration/risk checks, `prepare_process_restart` when applicable, authenticated runtime resources, reconciliation and the separately authorized `run_observed_hourly_scheduler(...)`.
 
-Re-run the permission gate after API-key rotation, permission changes, replacement runtime-key creation or any observed Bybit permission/API behavior change. An earlier successful audit cannot authorize a different key. This proposal adds no audit CLI, credential loader or automatic re-audit/retry loop.
+Re-run the permission gate after API-key rotation, permission changes, replacement runtime-key creation or any observed Bybit permission/API behavior change. An earlier successful audit cannot authorize a different key. This accepted correction adds no audit CLI, credential loader or automatic re-audit/retry loop.
 
 ## Gate G and Live remain separate
 
 A verified UTA RW key, an owner-accepted Demo UTA permission bundle, prior read smoke, Telegram smoke, RuntimeStore readiness, risk activation, reconciliation and a final readiness audit **do not equal trading authorization**. Listing these prerequisites does not claim they have all been executed or passed.
 
-Stage 12.2b still requires a separate explicit owner authorization with exact runtime configuration, exact risk configuration, a bounded run window, permitted mutation scope and stop conditions. Decision 025 itself authorizes no Gate G, Demo mutation or runtime operation, even if later accepted.
+Stage 12.2b still requires a separate explicit owner authorization with exact runtime configuration, exact risk configuration, a bounded run window, permitted mutation scope and stop conditions. Decision 025 acceptance itself authorizes no Gate G, Demo mutation or runtime operation.
 
-**This Demo compatibility exception does not carry into Stage 12.4.** Before Live, independently re-review permissions against then-current Bybit behavior and obtain a new Live-specific contract/approval. Bundled derivative/option authority must not be accepted automatically because it was considered for Demo. Live and Demo credentials remain entirely separate, with no Demo → Live fallback. This proposal grants no Live exception or routing capability.
+**Stage 12.2b — NOT STARTED.** Acceptance freezes only this compatibility contract. It authorizes no order placement/cancellation, runtime/scheduler start, RuntimeStore operation, reconciliation, risk/runtime rearm, Telegram send or broker request. Each operational activity requires its separate explicit owner authorization.
+
+**This Demo compatibility exception does not carry into Stage 12.4.** Before Live, independently re-review permissions against then-current Bybit behavior and obtain a new Live-specific contract/approval. Bundled derivative/option authority must not be accepted automatically because it was considered for Demo. Live and Demo credentials remain entirely separate, with no Demo → Live fallback. This accepted correction grants no Live exception or routing capability.
 
 ## Unchanged runtime identity and approved risk profile
 
@@ -130,6 +148,6 @@ RuntimeStore identity, configuration digest, risk epoch, history anchor, databas
 
 ## Stage state and verification scope
 
-Stage 12.1 and Stage 12.2a remain COMPLETE / FROZEN. Decision 025 is **PROPOSED / OWNER REVIEW PENDING / NOT FROZEN**. Stage 12.2 remains STARTED / INCOMPLETE; Stage 12.2b, 12.2c, 12.2d, 12.3 and 12.4 remain NOT STARTED. Stage 12 remains INCOMPLETE; v1.0.0 remains NOT RELEASED.
+Stage 12.1 and Stage 12.2a remain COMPLETE / FROZEN. Decision 025 is **ACCEPTED / COMPLETE / FROZEN** at its reviewed substantive publication baseline after independent remote owner audit PASS. Stage 12.2 remains STARTED / INCOMPLETE; Stage 12.2b, 12.2c, 12.2d, 12.3 and 12.4 remain NOT STARTED. Stage 12 remains INCOMPLETE; v1.0.0 remains NOT RELEASED.
 
-Only this new Decision plus PROJECT_STATE.md, README.md and CHANGELOG.md expose the proposal. Existing Decisions 001–024, source, tests, dashboard, scripts, dependencies, schemas, templates, notebooks and data are unchanged. This task performs repository diff/scope/secret checks only; no full-suite rerun. The prior 3,368-test result remains local historical evidence, not a new run or CI claim. No credential file access, broker/Telegram request, order mutation, RuntimeStore operation, runtime/reconciliation/risk/rearm operation occurs in preparing this proposal.
+The documentation-only freeze closure changes only this Decision plus PROJECT_STATE.md, README.md and CHANGELOG.md. Existing Decisions 001–024, source, tests, dashboard, scripts, dependencies, schemas, templates, notebooks and data are unchanged. Closure verification uses repository diff/scope/secret checks only; no full-suite rerun. The prior 3,368-test result remains local historical evidence, not a new run or CI claim. No credential file access, broker/Telegram request, order mutation, RuntimeStore operation or runtime/reconciliation/risk/rearm operation is performed by the documentation closure.

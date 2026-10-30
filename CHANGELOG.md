@@ -1,6 +1,14 @@
 # Changelog
 
+## 2026-10-30 — Decision 025 freeze closure
+
+- Independent remote owner audit PASS at substantive publication `2364bdecaa353dbdf6eeab87b16372ccee89cc6a` — `Document Bybit Demo UTA permission exception`; exact parent `98db2c588bc4fd633549a02c5a54d1b397787d5e`, one commit beyond that baseline and exactly four published paths verified: M CHANGELOG.md, M PROJECT_STATE.md, M README.md, A decisions/025_bybit_demo_uta_permission_bundle_correction.md.
+- Decision 025 **ACCEPTED / COMPLETE / FROZEN**. The reviewed permission contract is unchanged: fail-closed UTA/RW/SpotTrade, exact four-group allowlist/prohibitions, Spot-only runtime, broader key capability outside Trading Lab, Demo-only scope with no Live exception, and separate Gate G. No secret/credential incident occurred.
+- Documentation-only acceptance/status closure; no new production/trading baseline or implementation/runtime/risk/test/schema/dependency/frozen Decision 001–024 changes. No credential access, broker/Telegram request, RuntimeStore/reconciliation/rearm or order operation; full suite not rerun. Stage 12.1/12.2a COMPLETE / FROZEN; Stage 12.2 STARTED / INCOMPLETE; 12.2b–d, 12.3 and 12.4 NOT STARTED; Stage 12 INCOMPLETE; v1.0.0 NOT RELEASED. Stage 12.2b preparation and mutation/runtime authorization remain separate explicit owner decisions.
+
 ## 2026-10-30 — Proposed Demo UTA permission-bundle compatibility correction
+
+*Historical proposal/publication record; independent remote acceptance and freeze are recorded in the closure above.*
 
 - Added proposed Decision 025 for Stage 12.2 only: retain Spot-only least privilege as preferred; document owner-observed unavoidable Demo UTA bundling and a proposed pre-Gate-G audit requiring `uta == 1` / `readOnly == 0` / SpotTrade, non-empty groups limited to Spot / ContractTrade / Derivatives / Options, and no Wallet/transfer/withdraw or unrelated authority. Missing/malformed/non-UTA evidence and unknown/changed permissions fail closed; key replacement/rotation or permission changes require a new audit. Decision 025 itself does not inspect, modify, rotate or persist credential values or change their storage contract.
 - Explicitly separate the frozen Spot-only adapter from the key's broader capabilities outside Trading Lab. No Live exception, production capability or mutation/runtime authorization; excess Demo permission scope is not a credential leak incident and does not alone require rotation. Recorded only sanitized owner-provided audit facts, including no placement/cancellation and client closure; no credential/account identifiers or raw response.
