@@ -8,6 +8,8 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 **Stage 12.2a — Demo Activation / Runbook Contract: COMPLETE / FROZEN** after independent remote owner audit of reviewed substantive publication baseline `aa479968f58bd9e1cd22864ace94176c2cf7044c`. Accepted [Decision 024](decisions/024_demo_activation_runbook_contract.md) authorizes no operation. Stage 12.2 is STARTED / INCOMPLETE. **Stage 12.1 remains COMPLETE / FROZEN** at production baseline `e4c88c4408d85386c7081c94a2871952f03bf41f`. A documentation-only closure records the independent remote audit and corrects stale pre-publication status wording; it establishes no new production/trading baseline. Stage 12 remains INCOMPLETE; **12.2b–d, 12.3 and 12.4 NOT STARTED. v1.0.0 NOT RELEASED.**
 
+**Decision 025 — Bybit Demo UTA permission-bundle compatibility correction: PROPOSED / OWNER REVIEW PENDING / NOT FROZEN.** The [additive proposal](decisions/025_bybit_demo_uta_permission_bundle_correction.md) records sanitized owner-authorized pre-mutation permission-audit evidence and proposes a narrow Demo-only pre-Gate-G permission gate requiring `uta == 1`, `readOnly == 0` and SpotTrade. Decision 024 and all other frozen contracts remain unchanged. No permission exception is in effect before owner acceptance; no mutation/runtime authorization is granted. Stage 12.2b remains NOT STARTED.
+
 Stage 12.0 — Trading Lab V1 Production & Live Readiness Contract / [Decision 022](decisions/022_trading_lab_v1_production_live_readiness.md) is independently owner-reviewed, COMPLETE / FROZEN at `0b275c91abe53068dc4b0b05ade7be710d13cef6` (`Define Trading Lab v1 readiness contract`). Decision 022 is unchanged.
 
 Stage 11 — Runtime Risk Management, including Stage 11.8 — Final Stage 11 Audit + Documentation, is independently owner-reviewed, COMPLETE / FROZEN at `b79d511b94fa6e5dd07f59d95e7c51f175f3f756` (`Complete Stage 11 final audit`). Its frozen implementation and Decisions 018–021 are unchanged.
@@ -103,6 +105,14 @@ Stage 7.1 — Risk & Position Sizing Contract remains Accepted as Decision 011.
 Stage 6 — Generic Backtesting Engine remains COMPLETE at `df72973de837ecbd4ee81f4bdaf77efd74730a56`.
 
 Stage 5 — Analytics remains COMPLETE and frozen at `a3fde091be234fd78d216f6338752a810fa117f0` (`Complete Stage 5 analytics report`).
+
+## Proposed Demo UTA permission-bundle correction — Decision 025
+
+Repository baseline: `98db2c588bc4fd633549a02c5a54d1b397787d5e`. Decision 025 is **PROPOSED / OWNER REVIEW PENDING / NOT FROZEN**. The owner supplied sanitized evidence from a separately authorized pre-mutation audit: secret custody PASS, key Read-Write, SpotTrade present, additional non-empty ContractTrade / Derivatives / Options groups, no placement/cancellation and client closed. The owner observed no Spot-only selection in the current Demo UTA permission UI; this is profile-specific activation evidence, not a universal Bybit claim. No key/secret, API-key identifier, user/account UID, note, address, expiry or raw response is recorded.
+
+Spot-only least privilege remains preferred. The proposed exception permits non-empty groups only from Spot, ContractTrade, Derivatives and Options, with `uta == 1`, `readOnly == 0` and SpotTrade required; missing/malformed/non-UTA evidence FAILS. Wallet/transfer/withdraw, convert/exchange, earn, fiat/payment and every other unrelated non-empty group FAIL. Changed/unknown permission shapes stop for owner review. The runtime remains Spot-only at its code boundary; broader key capabilities remain real outside Trading Lab. No Live exception is granted. The issue is excess Demo permission scope, not a leak incident; documentation preparation alone does not require key rotation. Exposure still requires revoke/rotate.
+
+Decision 025 adds no implementation and changes no existing Decision, runtime identity, configuration digest, risk epoch, history anchor, database or approved risk profile. The profile is documented only from owner-supplied non-secret values. No credential access, broker/Telegram request, order mutation, RuntimeStore operation or runtime/reconciliation/risk/rearm operation is performed by this documentation task. The full 3,368-test suite is not rerun; prior results remain local historical evidence only. Stage 12.1/12.2a remain COMPLETE / FROZEN; Stage 12.2 STARTED / INCOMPLETE; 12.2b, 12.2c, 12.2d, 12.3 and 12.4 NOT STARTED; Stage 12 INCOMPLETE; v1.0.0 NOT RELEASED. Owner acceptance of this proposal and separate explicit Stage 12.2b authorization remain required.
 
 ## Stage 12.2a — Demo Activation / Runbook Contract (COMPLETE / FROZEN)
 
@@ -2727,7 +2737,7 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-The Stage 12.2a substantive contract is COMPLETE / FROZEN after independent remote owner audit of `aa479968f58bd9e1cd22864ace94176c2cf7044c`. A documentation-only closure records that audit and corrects stale status bookkeeping without changing the accepted contract or production/trading baseline. Stage 12.2 is STARTED / INCOMPLETE through documentation only. Stage 12.1 remains COMPLETE / FROZEN at production baseline `e4c88c4408d85386c7081c94a2871952f03bf41f`; no operational activation occurred. Stage 12 remains INCOMPLETE; 12.2b–d, 12.3/12.4 NOT STARTED; v1.0.0 NOT RELEASED.
+Owner review of proposed [Decision 025](decisions/025_bybit_demo_uta_permission_bundle_correction.md): **PROPOSED / OWNER REVIEW PENDING / NOT FROZEN**. It documents the owner-observed Demo UTA permission bundle and a proposed fail-closed pre-Gate-G audit, not an accepted exception or mutation/runtime authorization. Stage 12.2 is STARTED / INCOMPLETE; Stage 12.1 and 12.2a remain COMPLETE / FROZEN at their recorded baselines. Stage 12.2b–d, 12.3/12.4 remain NOT STARTED; Stage 12 remains INCOMPLETE; v1.0.0 NOT RELEASED.
 
 ## Not implemented yet
 
@@ -2746,7 +2756,7 @@ The Stage 12.2a substantive contract is COMPLETE / FROZEN after independent remo
 
 ## Next milestone
 
-The Stage 12.2a substantive contract is COMPLETE / FROZEN. The next milestone, Stage 12.2b — Controlled 24h → 72h Demo Run, remains NOT STARTED and needs separate explicit authorization for every mutation-bearing step; 12.2c–d and all 12.3/12.4 work remain NOT STARTED. Do not begin automatically. Stage 12.1 is COMPLETE / FROZEN; Stage 12 remains INCOMPLETE and v1.0.0 remains NOT RELEASED. This contract grants no permission to load credentials, perform broker/Telegram operations, migrate/activate/rearm a real journal or start Demo validation.
+Review the proposed Decision 025 compatibility correction before considering its permission exception. Stage 12.2a remains COMPLETE / FROZEN. The next implementation/operational milestone, Stage 12.2b — Controlled 24h → 72h Demo Run, remains NOT STARTED and needs separate explicit authorization for every mutation-bearing step; 12.2c–d and all 12.3/12.4 work remain NOT STARTED. Do not begin automatically. Stage 12.1 is COMPLETE / FROZEN; Stage 12 remains INCOMPLETE and v1.0.0 remains NOT RELEASED. Neither contract nor proposal grants permission to load credentials, perform broker/Telegram operations, migrate/activate/rearm a real journal or start Demo validation.
 
 ## Backtesting execution contract
 

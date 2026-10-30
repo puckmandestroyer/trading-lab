@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-30 — Proposed Demo UTA permission-bundle compatibility correction
+
+- Added proposed Decision 025 for Stage 12.2 only: retain Spot-only least privilege as preferred; document owner-observed unavoidable Demo UTA bundling and a proposed pre-Gate-G audit requiring `uta == 1` / `readOnly == 0` / SpotTrade, non-empty groups limited to Spot / ContractTrade / Derivatives / Options, and no Wallet/transfer/withdraw or unrelated authority. Missing/malformed/non-UTA evidence and unknown/changed permissions fail closed; key replacement/rotation or permission changes require a new audit. Decision 025 itself does not inspect, modify, rotate or persist credential values or change their storage contract.
+- Explicitly separate the frozen Spot-only adapter from the key's broader capabilities outside Trading Lab. No Live exception, production capability or mutation/runtime authorization; excess Demo permission scope is not a credential leak incident and does not alone require rotation. Recorded only sanitized owner-provided audit facts, including no placement/cancellation and client closure; no credential/account identifiers or raw response.
+- Decision 025 **PROPOSED / OWNER REVIEW PENDING / NOT FROZEN**. Existing Decisions 001–024, source/tests/schema/dependencies/templates/scripts and approved runtime/risk profile remain unchanged. Stage 12.1/12.2a COMPLETE / FROZEN; Stage 12.2 STARTED / INCOMPLETE; 12.2b–d and 12.3/12.4 NOT STARTED; Stage 12 INCOMPLETE; v1.0.0 NOT RELEASED. Documentation checks only, no full-suite rerun; 3,368 passed remains prior local evidence. No credential access, broker/Telegram request, order mutation, RuntimeStore operation or runtime/reconciliation/risk/rearm operation in this task.
+
 ## 2026-10-27 — Stage 12.2a documentation-state closure
 
 - Independent remote owner audit of substantive publication `aa479968f58bd9e1cd22864ace94176c2cf7044c` PASS except stale pre-publication status wording, corrected here. Normal fast-forward publication, exact parent `d66aa7b8175992fbd2779f56fbd720ae308b5295`, one commit beyond that parent, six expected paths and four empty credential assignments confirmed; production/test/frozen Decisions 001–023/dependency/schema diffs **0**. Contract, diagnostic/runtime distinction, custody, Demo/Live separation and separate 12.2b authorization PASS.
