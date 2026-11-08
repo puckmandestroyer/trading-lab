@@ -6,7 +6,7 @@ The long-term goal is to support historical market data, multiple independent st
 
 ## Current stage
 
-**Accepted Stage 12.2 clock correction:** [Decision 026](decisions/026_demo_clock_skew_tolerance_correction.md) is **ACCEPTED / COMPLETE / FROZEN** after independent owner review PASS. It accepts the `max_clock_skew_ms: 1000 → 6000` target only for the reviewed V1 Demo deployment. **6000 ms is accepted policy, not an active durable value: the reviewed store remains at 1000 ms; production implementation is NOT IMPLEMENTED and durable migration is NOT RUN.** Operational use requires independently reviewed/frozen implementation and separately authorized migration. Decision/observation freshness stays **60000 ms** and the existing opaque configuration digest is preserved without a new derivation. This documentation freeze changes no runtime state or trading authority. **Stage 12.2b remains NOT STARTED.**
+**Accepted Stage 12.2 clock correction:** [Decision 026](decisions/026_demo_clock_skew_tolerance_correction.md) remains **ACCEPTED / COMPLETE / FROZEN**. Its narrow migration implementation is **IMPLEMENTED / OWNER REVIEW REQUIRED**, with offline synthetic tests only. **Real durable migration: NOT RUN. The current owner-reviewed real durable value remains 1000 ms; 6000 ms is the accepted target, not an active real-store value.** Operational use still requires independent implementation review/freeze and separate migration authorization. Decision/observation freshness stays **60000 ms** and the existing opaque configuration digest is preserved without a new derivation. **Stage 12.2b remains NOT STARTED.**
 
 **Stage 12.2a — Demo Activation / Runbook Contract: COMPLETE / FROZEN** after independent remote owner audit of reviewed substantive publication baseline `aa479968f58bd9e1cd22864ace94176c2cf7044c`. Accepted [Decision 024](decisions/024_demo_activation_runbook_contract.md) authorizes no operation. Stage 12.2 is STARTED / INCOMPLETE. **Stage 12.1 remains COMPLETE / FROZEN** at production baseline `e4c88c4408d85386c7081c94a2871952f03bf41f`. A documentation-only closure records the independent remote audit and corrects stale pre-publication status wording; it establishes no new production/trading baseline. Stage 12 remains INCOMPLETE; **12.2b–d, 12.3 and 12.4 NOT STARTED. v1.0.0 NOT RELEASED.**
 
@@ -21,6 +21,24 @@ The long-term goal is to support historical market data, multiple independent st
 The integrated risk boundary is **Strategy → Planner → Risk Gate → Durable Authorization → Broker → Reconciliation → Risk Accounting**. The pure policy uses a fixed operator-authorized capital envelope and bot-owned cash/inventory marked at authoritative hourly closed-candle prices, never unrelated wallet assets. Stage 7 research `position_fraction` is separate from runtime safety. ALLOW/BLOCK/TRIP evaluates exact proposals without resizing; a risk trip blocks ENTRY but permits a genuine exact owned-base strategy EXIT under every operational safety check. Strategy intent, proposal, risk permission and broker execution remain separate facts. This risk integration is offline-tested and has not been activated on a real account.
 
 **Current limits:** Demo only; one account/bot/EMA strategy/symbol; hourly `60`; LONG/FLAT Spot MARKET. No short/leverage/borrowing, automatic liquidation, risk-generated stop loss/take profit/trailing stop, manual risk kill/pause, configuration editing or operational controls UI. No long-running Demo validation or live trading has occurred.
+
+### Decision 026 migration implementation — owner review required
+
+`trading_lab.runtime.store` adds one standalone boundary:
+
+```python
+migrate_demo_clock_skew_1000_to_6000(
+    lock: RuntimeAccountLock, configuration: RuntimeConfiguration,
+) -> bool
+```
+
+The caller supplies the reviewed **old 1000-ms configuration** and an already-held canonical account lock, with no store open. Only the exact V1 `bybit-demo` / `demo-main` / `bot1`, BTCUSDT hourly EMA20/50 profile is supported: 10-USDT BUY budget, history anchor `1792713600000`, unchanged reviewed timing/read limits, schema v2 / runtime contract v1. Both caller-supplied opaque digests must exactly match durable identity. No path, field, amount, destination or generic patch argument exists.
+
+`True` means one atomic `identity.max_clock_skew_ms: 1000 → 6000` update, followed by close/reopen with the exact target configuration and full integrity/evidence verification. `False` means the exact target was already present and validated without another write. Every other mismatch fails closed. The existing transaction boundary validates the old binding before the update and the exact new binding afterward; ordinary open/read/transaction identity validation is unchanged. Complete logical rows, rowids and raw Decimal TEXT are compared while excluding only the skew field. Schema, checkpoint sequence/state, history, consumed IDs, actions/fills and all risk history remain unchanged. An uncertain commit closes and raises without automatic retry or reopen; later independent inspection is required.
+
+The boundary has no broker, credential, strategy, scheduler, restart, reconciliation or rearm dependency. Implementation availability grants no operational permission. Decision 026's original implementation-status statements remain its frozen contract-completion record; this section records the later implementation milestone. The real store was not opened or migrated, and Stage 12.2b is NOT STARTED.
+
+Local validation: **50 new migration tests; 350 existing RuntimeStore tests; 23 locking tests; 64 runtime integration tests; 16 frozen EMA tests; four refreshed preservation guards — all pass. Full suite: 3,418 passed (3,368 + 50)**, failures/errors/skips **0/0/0**, in **613.752 seconds**. `pip check`, in-memory compilation, preservation/secret checks and `git diff --check` pass. This is local offline evidence, not CI or real operational validation. Only checksum expectations/comments change in four existing tests; the original store prefix and all Decisions remain byte-identical.
 
 ### Demo activation contract — Stage 12.2a (COMPLETE / FROZEN)
 

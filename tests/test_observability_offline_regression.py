@@ -562,17 +562,21 @@ class GoldenArtifactIsolationTests(Consumers,golden_fixtures.IntegrationCase):
 # Captured at independently frozen 0c3b6a82; only observability/runtime package
 # digests include the owner-approved integration correction. All other guards
 # and the protected primitive/authority files remain unchanged.
+# Decision 026 adds only standalone store migration functions. Pin the unchanged
+# accepted Decisions 001-026 collection at f80529a as well; its older aggregate
+# was already stale at that baseline. The original store prefix is pinned in
+# test_runtime_clock_skew_migration; no existing behavior is exempted.
 FROZEN = {
     "src/trading_lab/observability":"f67eb3a80421d73ee04cfcc5dbff4f2692e3a570274d76ecd138cecdeab0fd62",
     "src/trading_lab/dashboard":"bdb8b1db4a3927b4cf0c13d7a5946df5f1b183b382e2bec356b2056b4316d38d",
     "dashboard/app.py":"7298145c0ccae620cdc4b1149917a47d7492af7a4bb3c8755cf0cd2a2ac368fe",
     ".streamlit/config.toml":"3a57bb7c48a19a0f2890e8f800bf3d7ab0e3a0cf3e1fb9e62ad70f0bffdbfcee",
-    "src/trading_lab/runtime":"b137d1d21073777a4f4f5794ca4b3465cbce34f1de7316a9bbf789a65213b44b",
+    "src/trading_lab/runtime":"e5c8d4f80ba0f7208a0b0108ab6a3bdb02cc5e4f11bcbfe50fdf237fdfddc45d",
     "src/trading_lab/risk":"263fee1375d59b1222d4da9d5918cb2a512cb98f597c35f9585f2469fe2be007",
     "src/trading_lab/exchange":"0e6704369fc862848f49627c769ba6dc7d9a381b1e5a81164aaf67585928842a",
     "src/trading_lab/strategies":"94bf53f33446251fd969eb72013ab21cf206f939caf3baa37b0a16cc8ed754b9",
     "src/trading_lab/backtest":"4ce97250d710bcaec724767b1ca6d8af1edf2b9d753a8679c55743fe041f3caa",
-    "decisions":"46c758ebeda9978365a9a3833b61cdd952d406db971dadcebd265e54df70d662",
+    "decisions":"313966499899419916b88b9ccb216ba6ed7b34b1194d45cc081df85b4a94e293",
     "requirements.txt":"c67f2c580b0a06d18d891a22538cd6ad66638d06e1b31191f40ca4da642528d2",
 }
 

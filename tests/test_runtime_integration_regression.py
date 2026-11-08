@@ -1130,6 +1130,8 @@ class PreservationIntegrationTests(IntegrationCase):
         # Preserve frozen sources with the approved account-read and public-
         # market/cycle corrections. Only their corresponding hashes are refreshed.
         # Owner-approved cycle/reconciliation/scheduler callback plumbing only.
+        # Decision 026 adds only the standalone clock migration boundary. Its
+        # tests separately retain the original complete store-prefix hash.
         hashes = {
             "runtime/__init__.py": "8843b5105846f5386e9ac799f06b8446688043482618cbb8d3fc5a6655f40b60",
             "runtime/cycle.py": "75a03537819ce66cff38c871a800ee461d35bd1c2995ba599ae32bd2338a4fce",
@@ -1139,7 +1141,7 @@ class PreservationIntegrationTests(IntegrationCase):
             "runtime/recovery.py": "847a7634018925c9815f52e2f9ff7654ab422ea61fd877fdb418c1806d1b58f4",
             "runtime/scheduler.py": "3f65cb158118811c4994785b04f979cd93fc3a36e1119cca4dc98bd6d39d2c91",
             "runtime/state.py": "014b92aca145d61a57df230d3c3747025768090d2b96cdeaa97a96e5ad2675bc",
-            "runtime/store.py": "5ec4e7ebcb7c31272a9dd25bd5a283faedee333c767b426317329dc36da132ed",
+            "runtime/store.py": "15eec27654268bccccdba7171fd6e7ca8d893c190949b05f1c3de42b1d9de429",
             "data/closed_candles.py": "1c2068060dd73729f8bd3468901fd9c34b3807509906801f8f03af1d83914af6",
             "exchange/bybit_public_market.py": "62183a274d7a04a0aaac5642a0801ca61221717e2ac344c5ab77aeabad504b1b",
             "exchange/bybit_demo.py": "322500c83ce6077c51b8d7ba966b421c661ced7888bde3052f8d4892900eb748",

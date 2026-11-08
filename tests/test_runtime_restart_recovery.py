@@ -1231,9 +1231,11 @@ class RestartBoundaryTests(unittest.TestCase):
         # Literal frozen SHA256 values; only reconciliation includes the
         # owner-approved read-failure correction; callback-only extensions below
         # are separately owner-approved. Not runtime constants.
+        # Decision 026 appends only standalone store migration functions; the
+        # original complete store prefix remains pinned by its new tests.
         expected = {
             "state": "014b92aca145d61a57df230d3c3747025768090d2b96cdeaa97a96e5ad2675bc",
-            "store": "5ec4e7ebcb7c31272a9dd25bd5a283faedee333c767b426317329dc36da132ed",
+            "store": "15eec27654268bccccdba7171fd6e7ca8d893c190949b05f1c3de42b1d9de429",
             "locking": "b10c5a8ac5e4ed4b8a7616b656602319c4e238eb0d2404fc2d31e6d636048273",
             "reconciliation": "d67f816fbeb225b311546f1bf99a6176b77b7bf57042818fecad99fbbd70aa33",
             "planner": "e97b0f9c709e909c56f132cfd5a718a3fbb8a488debb0c71823415adb0605686",

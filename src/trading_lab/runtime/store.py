@@ -2015,3 +2015,124 @@ class RuntimeStore:
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
+
+
+def _clock_migration_evidence(store):
+    """Exact logical rows/TEXT, excluding only Decision 026's one owned field.
+
+    Full validation bounds the tables before this snapshot. Including rowids
+    also detects replacement rows; no serialization or financial rounding occurs.
+    """
+    return {
+        table: tuple(tuple((name, value) for name, value in dict(row).items()
+                           if (table, name) != ("identity", "max_clock_skew_ms"))
+                     for row in store._connection.execute(
+                         "SELECT rowid AS _rowid_, * FROM " + table + " ORDER BY rowid"))
+        for table in _SCHEMA
+    }
+
+
+def migrate_demo_clock_skew_1000_to_6000(
+    lock: RuntimeAccountLock, configuration: RuntimeConfiguration,
+) -> bool:
+    """Decision 026 only: True for migration, False for exact completion.
+
+    Requires a stopped runtime, its already-held canonical lock, no open store,
+    and the reviewed old V1 Demo configuration. Both opaque identity digests are
+    caller-supplied and must match durable truth; neither is derived here.
+    No real database operation is authorized merely by availability of this API.
+
+    Known rollback raises without success. An uncertain commit/rollback closes
+    and raises through the frozen transaction boundary, without retry or reopen.
+    Only known completion proceeds to exact target reopen/evidence verification.
+    No store handle escapes this lifecycle; normal store validation is unchanged.
+    """
+    _require(type(lock) is RuntimeAccountLock and type(configuration) is RuntimeConfiguration,
+             "An exact acquired lock and reviewed old configuration are required.")
+    replace(configuration)
+    expected = RuntimeConfiguration(
+        "bybit-demo", "demo-main", "bot1", "ema_trend",
+        configuration.strategy_implementation_digest,
+        (("fast_span", 20), ("slow_span", 50), ("warmup_candles", 50)),
+        "BTCUSDT", "BTC", "USDT", "60", _HOUR_MS,
+        configuration.configuration_digest, Decimal("10"), 1792713600000,
+        60000, 60000, 600000, 5, 3, 10000, 1000,
+    )
+    if configuration != expected:
+        raise RuntimeStoreConflictError("Clock migration requires the exact reviewed V1 Demo source profile.")
+    target = replace(configuration, max_clock_skew_ms=6000)
+    lock._assert_held()
+    if (lock.broker_id, lock.account_binding) != (configuration.broker_id, configuration.account_binding):
+        raise RuntimeStoreConflictError("Lock and runtime account identities differ.")
+    path = lock.registry_root / "accounts" / lock.account_key / "runtime.sqlite3"
+    if path != lock.database_path or _OPEN_DATABASES.get(path, 0) or lock._stores:
+        raise RuntimeStoreConflictError("Clock migration requires the canonical database with no open store.")
+
+    # Same existing-file/path/sidecar protections as the explicit schema migration.
+    # This is a closed lifecycle, not a mismatch-tolerant ordinary store opener.
+    instance = object.__new__(RuntimeStore)
+    instance._lock, instance._configuration = lock, configuration
+    instance._connection, instance._attached = None, False
+    try:
+        for directory in (path.parent.parent, path.parent):
+            if directory.is_symlink() or not directory.is_dir():
+                raise RuntimeStoreIntegrityError("Existing safe store directories are required.")
+        info = path.lstat()
+        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > _MAX_DATABASE_BYTES:
+            raise RuntimeStoreIntegrityError("Clock migration requires a regular unaliased existing database.")
+        for suffix in ("-journal", "-wal", "-shm"):
+            sidecar = path.with_name(path.name + suffix)
+            if sidecar.exists() or sidecar.is_symlink():
+                metadata = sidecar.lstat()
+                if suffix != "-journal" or not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+                    raise RuntimeStoreIntegrityError("Unsafe or incompatible SQLite sidecar.")
+        instance._database_path = path
+        instance._database_identity = (info.st_dev, info.st_ino)
+        instance._connection = sqlite3.connect(path.as_uri() + "?mode=rw", uri=True,
+                                               isolation_level=None, timeout=0)
+        instance._connection.row_factory = sqlite3.Row
+        connection = instance._connection
+        schema = {row[0]: row[1] for row in connection.execute(
+            "SELECT name,sql FROM sqlite_master WHERE sql IS NOT NULL")}
+        if (schema != {**_SCHEMA, **_INDEXES}
+                or connection.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_VERSION
+                or connection.execute("PRAGMA journal_mode").fetchone()[0] != "delete"):
+            raise RuntimeStoreIntegrityError("Clock migration requires exact supported schema v2.")
+        instance._configure()
+        saved = instance._one("identity")
+        if saved not in (configuration, target):
+            raise RuntimeStoreConflictError("Durable clock migration identity/configuration differs.")
+        instance._configuration = saved
+        instance._validate_all()
+        preserved = _clock_migration_evidence(instance)
+        migrated = saved == configuration
+        if migrated:
+            with instance._transaction():
+                # Revalidate the complete old binding/evidence after BEGIN IMMEDIATE.
+                instance._validate_all()
+                if _clock_migration_evidence(instance) != preserved:
+                    raise RuntimeStoreIntegrityError("Clock migration source evidence changed.")
+                changed = connection.execute(
+                    "UPDATE identity SET max_clock_skew_ms=6000 WHERE singleton=1 AND max_clock_skew_ms=1000")
+                if changed.rowcount != 1:
+                    raise RuntimeStoreConflictError("Clock migration source was not updated exactly once.")
+                # Only this disposable migration handle is rebound. Normal
+                # post-transaction identity equality now validates the exact target.
+                instance._configuration = target
+                instance._validate_all()
+                if _clock_migration_evidence(instance) != preserved:
+                    raise RuntimeStoreIntegrityError("Clock migration changed protected durable evidence.")
+    except (OSError, sqlite3.Error):
+        raise RuntimeStoreIntegrityError("Cannot complete clock migration; inspect the durable outcome.") from None
+    finally:
+        instance.close()
+
+    # Never reached after an uncertain commit. There is no compensating write,
+    # automatic migration retry, restart preparation or runtime continuation.
+    try:
+        with RuntimeStore.open(lock, target, initialize=False) as verified:
+            if verified.get_configuration() != target or _clock_migration_evidence(verified) != preserved:
+                raise RuntimeStoreIntegrityError("Clock migration evidence verification failed.")
+    except RuntimeStoreError:
+        raise RuntimeStoreIntegrityError("Post-completion clock migration validation failed; inspect the durable outcome.") from None
+    return migrated

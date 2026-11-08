@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-09 — Decision 026 narrow clock migration implementation
+
+- Added standalone `migrate_demo_clock_skew_1000_to_6000(lock, configuration)`: exact reviewed V1 Demo profile only, canonical held lock/no open store, one atomic identity field update, complete row preservation and exact target reopen. Exact completed target is verification-only; mismatches fail closed and uncertain commits stop without retry/reopen. Ordinary RuntimeStore methods/validation remain byte-identical.
+- Added offline synthetic migration, identity/path/integrity, preservation, rollback/uncertainty and capability regressions. Refreshed affected checksums in four existing source guards, with a new assertion preserving the original complete store prefix; pinned the already-stale Decision-collection checksum to unchanged accepted Decisions 001–026 at f80529a. No behavioral assertion, schema, dependency, risk/strategy/timing, frozen Decision, notebook or data change.
+- Local validation: 50 new tests; focused groups 423 / 130 / 54 passed; final full suite **3,418 passed (3,368 + 50)** in 613.752 seconds, failures/errors/skips 0/0/0. `pip check`, in-memory compilation, preservation/secret checks and diff checks pass. Local evidence only, not CI.
+- Decision 026 remains ACCEPTED / COMPLETE / FROZEN; migration implementation IMPLEMENTED / OWNER REVIEW REQUIRED. Real migration NOT RUN; current owner-reviewed real durable skew remains 1000 ms. No real RuntimeStore, credential access, broker/Telegram request, runtime or order operation. Stage 12.2b NOT STARTED; Stage 12 remains INCOMPLETE; v1.0.0 NOT RELEASED.
+
 ## 2026-11-08 — Decision 026 freeze closure
 
 - Recorded independent owner **OWNER REVIEW PASS / ACCEPTED FOR FREEZE** of the four-path local proposal based on `347b6d0126ea7dc1c64f65d346bba2ee10eab043`. Decision 026 is **ACCEPTED / COMPLETE / FROZEN**; the reviewed one-field Demo policy is unchanged.
