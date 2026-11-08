@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-09 — Decision 026 migration profile binding correction
+
+- Corrected the owner-review provenance blocker: history anchor and optional broker-account binding now come directly from the reviewed caller configuration, alongside the two opaque digests. Complete durable identity equality remains mandatory; none of these fields is an editable migration target. The fixed V1 Demo policy and sole skew1000→6000 mutation are unchanged.
+- Added four synthetic regressions for matching non-default/optional values and no-write mismatch rejection. Retained original migration coverage and refreshed only affected source fingerprints in the four preservation guards. Normal RuntimeStore behavior, schema, dependencies and frozen Decisions remain unchanged.
+- Local validation: **54 migration tests**, **447 focused tests** and **3,422 full-suite tests (3,418 + 4)** passed; full suite 603.049 seconds, failures/errors/skips 0/0/0. `pip check`, compilation, secret/scope review and diff checks pass. No CI or operational-readiness claim.
+- Implementation remains OWNER REVIEW REQUIRED / NOT FROZEN. Real RuntimeStore and credentials not accessed; real migration, operational preflight, broker/Telegram requests, reconciliation and order actions NOT RUN. Stage 12.2b NOT STARTED.
+
 ## 2026-11-09 — Decision 026 narrow clock migration implementation
 
 - Added standalone `migrate_demo_clock_skew_1000_to_6000(lock, configuration)`: exact reviewed V1 Demo profile only, canonical held lock/no open store, one atomic identity field update, complete row preservation and exact target reopen. Exact completed target is verification-only; mismatches fail closed and uncertain commits stop without retry/reopen. Ordinary RuntimeStore methods/validation remain byte-identical.

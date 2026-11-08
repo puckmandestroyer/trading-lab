@@ -2038,8 +2038,9 @@ def migrate_demo_clock_skew_1000_to_6000(
     """Decision 026 only: True for migration, False for exact completion.
 
     Requires a stopped runtime, its already-held canonical lock, no open store,
-    and the reviewed old V1 Demo configuration. Both opaque identity digests are
-    caller-supplied and must match durable truth; neither is derived here.
+    and the reviewed old V1 Demo configuration. The history anchor, optional
+    broker-account binding and both opaque digests come from that configuration
+    and must match durable truth; none is discovered, derived or changed here.
     No real database operation is authorized merely by availability of this API.
 
     Known rollback raises without success. An uncertain commit/rollback closes
@@ -2055,8 +2056,9 @@ def migrate_demo_clock_skew_1000_to_6000(
         configuration.strategy_implementation_digest,
         (("fast_span", 20), ("slow_span", 50), ("warmup_candles", 50)),
         "BTCUSDT", "BTC", "USDT", "60", _HOUR_MS,
-        configuration.configuration_digest, Decimal("10"), 1792713600000,
+        configuration.configuration_digest, Decimal("10"), configuration.history_anchor_ms,
         60000, 60000, 600000, 5, 3, 10000, 1000,
+        broker_account_id=configuration.broker_account_id,
     )
     if configuration != expected:
         raise RuntimeStoreConflictError("Clock migration requires the exact reviewed V1 Demo source profile.")

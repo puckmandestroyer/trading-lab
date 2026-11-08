@@ -59,23 +59,24 @@ class ClockSkewMigrationTests(unittest.TestCase):
 
     def fixture(self, *, rich=True, target=False):
         config = self.target if target else self.config
+        anchor = config.history_anchor_ms
         with RuntimeStore.open(self.lock, config, initialize=True) as store:
             checkpoint = store.get_checkpoint()
             checkpoint = replace(checkpoint, sequence=1, snapshot=RuntimeStateSnapshot(
                 RuntimeState.FLAT, D(0), PositionEvidence.CONFIRMED, 0),
-                observed_at_ms=ANCHOR+HOUR+10, last_reconciled_at_ms=ANCHOR+HOUR+10,
-                coverage_start_ms=ANCHOR, coverage_end_ms=ANCHOR+HOUR,
-                bootstrap_until_ms=ANCHOR, replay_until_ms=ANCHOR)
+                observed_at_ms=anchor+HOUR+10, last_reconciled_at_ms=anchor+HOUR+10,
+                coverage_start_ms=anchor, coverage_end_ms=anchor+HOUR,
+                bootstrap_until_ms=anchor, replay_until_ms=anchor)
             store.save_checkpoint(checkpoint, expected_sequence=0)
-            candle = CandleRecord("BTCUSDT", "60", ANCHOR, "d"*64,
+            candle = CandleRecord("BTCUSDT", "60", anchor, "d"*64,
                                   D(100), D(110), D(90), D(100), D("1.23456789"))
-            decision = DecisionRecord("BTCUSDT", "60", ANCHOR, "d"*64, "HOLD", 0,
-                                      DecisionDisposition.BOOTSTRAP, ANCHOR+HOUR)
+            decision = DecisionRecord("BTCUSDT", "60", anchor, "d"*64, "HOLD", 0,
+                                      DecisionDisposition.BOOTSTRAP, anchor+HOUR)
             store.commit_decision(candle, decision, replace(checkpoint, sequence=2,
-                last_processed_candle_ms=ANCHOR), expected_sequence=1)
+                last_processed_candle_ms=anchor), expected_sequence=1)
             store.initialize_risk_journal(RuntimeRiskConfiguration(
                 D(100), D(10), D(10), D(10), D("0.05"), D("0.10"), 3, "BTC", "USDT"),
-                candle_open_ms=ANCHOR)
+                candle_open_ms=anchor)
             if rich:
                 self.populate_owned_history(store, config, candle)
             checkpoint = store.get_checkpoint()
@@ -85,21 +86,22 @@ class ClockSkewMigrationTests(unittest.TestCase):
                 expected_sequence=checkpoint.sequence)
 
     def populate_owned_history(self, store, config, candle):
+        anchor = config.history_anchor_ms
         checkpoint = store.get_checkpoint()
-        now = ANCHOR+2*HOUR+10
+        now = anchor+2*HOUR+10
         checkpoint = replace(checkpoint, sequence=checkpoint.sequence+1,
                              observed_at_ms=now, last_reconciled_at_ms=now)
         store.save_checkpoint(checkpoint, expected_sequence=checkpoint.sequence-1)
-        canonical = CanonicalDecision("BTCUSDT", "60", ANCHOR+HOUR, "e"*64,
-                                      "LONG_ENTRY", 1, ANCHOR+2*HOUR)
+        canonical = CanonicalDecision("BTCUSDT", "60", anchor+HOUR, "e"*64,
+                                      "LONG_ENTRY", 1, anchor+2*HOUR)
         plan = plan_action(config, checkpoint, canonical, evaluated_at_ms=now,
                            mode=DecisionMode.LIVE, action_history=())
         from trading_lab.runtime.state import transition_runtime_state
         pending = transition_runtime_state(checkpoint.snapshot, plan.events[0])
-        store.commit_live_risk_decision(replace(candle, candle_open_ms=ANCHOR+HOUR,
+        store.commit_live_risk_decision(replace(candle, candle_open_ms=anchor+HOUR,
             input_fingerprint="e"*64), plan.decision, replace(checkpoint,
             sequence=checkpoint.sequence+1, snapshot=pending,
-            last_processed_candle_ms=ANCHOR+HOUR), expected_sequence=checkpoint.sequence,
+            last_processed_candle_ms=anchor+HOUR), expected_sequence=checkpoint.sequence,
             evaluated_at_ms=now, proposed_action=plan.action)
         checkpoint = store.get_checkpoint()
         store.start_attempt(plan.action.logical_action_id, replace(checkpoint,
@@ -135,10 +137,10 @@ class ClockSkewMigrationTests(unittest.TestCase):
                 position_evidence=PositionEvidence.LAST_KNOWN,
                 reason=RuntimeReason.ACTION_OUTCOME_UNKNOWN)), expected_sequence=checkpoint.sequence)
         checkpoint = store.get_checkpoint()
-        next_candle = replace(candle, candle_open_ms=ANCHOR+2*HOUR)
+        next_candle = replace(candle, candle_open_ms=anchor+2*HOUR)
         next_decision = replace(plan.decision, candle_open_ms=next_candle.candle_open_ms,
             input_fingerprint=next_candle.input_fingerprint, signal="HOLD", action_id=None,
-            disposition=DecisionDisposition.REPLAY_ONLY, available_at_ms=ANCHOR+3*HOUR)
+            disposition=DecisionDisposition.REPLAY_ONLY, available_at_ms=anchor+3*HOUR)
         store.commit_decision(next_candle, next_decision, replace(checkpoint,
             sequence=checkpoint.sequence+1, last_processed_candle_ms=next_candle.candle_open_ms,
             replay_until_ms=next_candle.candle_open_ms), expected_sequence=checkpoint.sequence)
@@ -223,6 +225,54 @@ class ClockSkewMigrationTests(unittest.TestCase):
                 if field.name != "max_clock_skew_ms":
                     self.assertEqual(getattr(saved, field.name), getattr(self.config, field.name), field.name)
             self.assertEqual((saved.decision_max_age_ms, saved.observation_max_age_ms), (60000, 60000))
+
+    def test_matching_nondefault_history_anchor_is_preserved_with_full_history(self):
+        self.config = replace(self.config, history_anchor_ms=ANCHOR+24*HOUR)
+        self.target = replace(self.config, max_clock_skew_ms=6000)
+        self.fixture()
+        before = self.snapshot()
+        self.assertTrue(all(before[2][table] for table in module._SCHEMA))
+        self.assertIs(self.migrate(), True)
+        self.assert_only_skew_changed(before)
+        with RuntimeStore.open(self.lock, self.target) as store:
+            self.assertEqual(store.get_configuration().history_anchor_ms, self.config.history_anchor_ms)
+            self.assertEqual(store.get_checkpoint().last_processed_candle_ms, self.config.history_anchor_ms+2*HOUR)
+        after = self.snapshot()
+        self.assertIs(self.migrate(), False)
+        self.assertEqual(self.snapshot(), after)
+
+    def test_matching_non_none_broker_account_id_is_preserved_with_full_history(self):
+        self.config = replace(self.config, broker_account_id="synthetic-account")
+        self.target = replace(self.config, max_clock_skew_ms=6000)
+        self.fixture()
+        before = self.snapshot()
+        self.assertTrue(all(before[2][table] for table in module._SCHEMA))
+        self.assertIs(self.migrate(), True)
+        self.assert_only_skew_changed(before)
+        with RuntimeStore.open(self.lock, self.target) as store:
+            self.assertEqual(store.get_configuration().broker_account_id, "synthetic-account")
+        after = self.snapshot()
+        self.assertIs(self.migrate(), False)
+        self.assertEqual(self.snapshot(), after)
+
+    def test_caller_history_anchor_mismatch_is_refused_without_write(self):
+        self.fixture()
+        mismatched = replace(self.config, history_anchor_ms=ANCHOR+HOUR)
+        self.assert_refused_unchanged(mismatched)
+        self.assertIs(self.migrate(), True)
+        self.assert_refused_unchanged(mismatched)
+
+    def test_caller_broker_account_id_mismatch_is_refused_without_write(self):
+        self.config = replace(self.config, broker_account_id="synthetic-account")
+        self.target = replace(self.config, max_clock_skew_ms=6000)
+        self.fixture()
+        for value in (None, "different-account"):
+            with self.subTest(broker_account_id=value):
+                self.assert_refused_unchanged(replace(self.config, broker_account_id=value))
+        self.assertIs(self.migrate(), True)
+        for value in (None, "different-account"):
+            with self.subTest(target_broker_account_id=value):
+                self.assert_refused_unchanged(replace(self.config, broker_account_id=value))
 
     def test_old_configuration_open_is_rejected_after_success(self):
         self.fixture()
@@ -352,10 +402,10 @@ class ClockSkewMigrationTests(unittest.TestCase):
         self.fixture()
         cases = ({"account_binding": "other"}, {"bot_id": "bot2"},
                  {"symbol": "ETHUSDT", "base_currency": "ETH"}, {"buy_quote_budget": D(11)},
-                 {"history_anchor_ms": ANCHOR+HOUR}, {"decision_max_age_ms": 60001},
+                 {"decision_max_age_ms": 60001},
                  {"observation_max_age_ms": 60001}, {"reconciliation_timeout_ms": 600001},
                  {"reconciliation_round_limit": 6}, {"read_attempt_limit": 2},
-                 {"request_timeout_ms": 10001}, {"broker_account_id": "different"},
+                 {"request_timeout_ms": 10001},
                  {"configuration_digest": "e"*64}, {"strategy_implementation_digest": "f"*64})
         for changes in cases:
             with self.subTest(fields=tuple(changes)):

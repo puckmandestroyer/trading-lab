@@ -1141,7 +1141,7 @@ class PreservationIntegrationTests(IntegrationCase):
             "runtime/recovery.py": "847a7634018925c9815f52e2f9ff7654ab422ea61fd877fdb418c1806d1b58f4",
             "runtime/scheduler.py": "3f65cb158118811c4994785b04f979cd93fc3a36e1119cca4dc98bd6d39d2c91",
             "runtime/state.py": "014b92aca145d61a57df230d3c3747025768090d2b96cdeaa97a96e5ad2675bc",
-            "runtime/store.py": "15eec27654268bccccdba7171fd6e7ca8d893c190949b05f1c3de42b1d9de429",
+            "runtime/store.py": "4defc2f65d4afcc5a475c2c381c81e0521c3fe00a2d4b83e52735971a2cc12c4",
             "data/closed_candles.py": "1c2068060dd73729f8bd3468901fd9c34b3807509906801f8f03af1d83914af6",
             "exchange/bybit_public_market.py": "62183a274d7a04a0aaac5642a0801ca61221717e2ac344c5ab77aeabad504b1b",
             "exchange/bybit_demo.py": "322500c83ce6077c51b8d7ba966b421c661ced7888bde3052f8d4892900eb748",

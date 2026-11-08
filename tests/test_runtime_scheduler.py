@@ -721,7 +721,7 @@ class PublicAndStructuralTests(SchedulerCase):
         expected = {
             "cycle": "75a03537819ce66cff38c871a800ee461d35bd1c2995ba599ae32bd2338a4fce",
             "state": "014b92aca145d61a57df230d3c3747025768090d2b96cdeaa97a96e5ad2675bc",
-            "store": "15eec27654268bccccdba7171fd6e7ca8d893c190949b05f1c3de42b1d9de429",
+            "store": "4defc2f65d4afcc5a475c2c381c81e0521c3fe00a2d4b83e52735971a2cc12c4",
             "locking": "b10c5a8ac5e4ed4b8a7616b656602319c4e238eb0d2404fc2d31e6d636048273",
             "reconciliation": "d67f816fbeb225b311546f1bf99a6176b77b7bf57042818fecad99fbbd70aa33",
             "planner": "e97b0f9c709e909c56f132cfd5a718a3fbb8a488debb0c71823415adb0605686",
