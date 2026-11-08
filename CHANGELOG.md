@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-11-08 — Decision 026 freeze closure
+
+- Recorded independent owner **OWNER REVIEW PASS / ACCEPTED FOR FREEZE** of the four-path local proposal based on `347b6d0126ea7dc1c64f65d346bba2ee10eab043`. Decision 026 is **ACCEPTED / COMPLETE / FROZEN**; the reviewed one-field Demo policy is unchanged.
+- Accepted clock-skew target: 6000 ms for `bybit-demo` / `demo-main` / `bot1` only. The owner-reviewed durable store still contains 1000 ms at sequence 403 / STARTING / LAST_KNOWN; production implementation is NOT IMPLEMENTED and migration is NOT RUN. Both 60000-ms freshness bounds, the opaque runtime digest, risk digest behavior and all trading/risk semantics remain unchanged. Acceptance grants no migration, Gate G or runtime authority.
+- Documentation-only acceptance/status closure. No production/test/schema/dependency/frozen Decision 001–025 changes, credential access, real RuntimeStore operation, broker/Telegram request or order mutation. Diff/scope/secret checks only; no full-suite rerun or new CI claim. Stage 12.2b NOT STARTED; Stage 12.2 STARTED / INCOMPLETE; Stage 12 INCOMPLETE; v1.0.0 NOT RELEASED.
+
+## 2026-11-08 — Proposed Demo clock-skew tolerance correction
+
+*Historical proposal record; independent owner acceptance and freeze are recorded in the closure above.*
+
+- Added Decision 026: **PROPOSED / OWNER REVIEW PENDING / NOT FROZEN**, proposing a fixed deployment-specific Demo skew bound of 1000→6000 ms from two owner-supplied approximately 4.1-second observations, without claiming a root cause or general safety. The current 1000-ms contract remains authoritative.
+- Require a future reviewed one-field durable configuration migration that preserves the opaque runtime configuration digest and all checkpoint/history/risk data. No digest derivation is invented; decision/observation freshness stays 60000 ms and the trading/risk profile is unchanged. Migration is not implemented or run.
+- Updated current documentation only. Decisions 001–025, production/tests/schema/dependencies remain unchanged; no credential access, RuntimeStore operation, broker/Telegram/network request or order mutation. Targeted documentation checks only; no full-suite rerun. Stage 12.2b NOT STARTED; Stage 12.2 STARTED / INCOMPLETE; Stage 12 INCOMPLETE; v1.0.0 NOT RELEASED.
+
 ## 2026-10-30 — Decision 025 freeze closure
 
 - Independent remote owner audit PASS at substantive publication `2364bdecaa353dbdf6eeab87b16372ccee89cc6a` — `Document Bybit Demo UTA permission exception`; exact parent `98db2c588bc4fd633549a02c5a54d1b397787d5e`, one commit beyond that baseline and exactly four published paths verified: M CHANGELOG.md, M PROJECT_STATE.md, M README.md, A decisions/025_bybit_demo_uta_permission_bundle_correction.md.

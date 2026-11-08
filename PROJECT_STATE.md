@@ -6,6 +6,8 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 ## Current stage
 
+**Accepted Stage 12.2 clock correction:** [Decision 026](decisions/026_demo_clock_skew_tolerance_correction.md) is **ACCEPTED / COMPLETE / FROZEN** after independent owner review **OWNER REVIEW PASS / ACCEPTED FOR FREEZE**. The accepted `max_clock_skew_ms` target is **6000 ms** for `bybit-demo` / `demo-main` / `bot1` only. **The reviewed durable value remains 1000 ms: production implementation is NOT IMPLEMENTED, durable migration is NOT RUN, and the store is not migrated to 6000.** Both 60000-ms freshness bounds and the opaque configuration digest remain unchanged. The owner-supplied reviewed baseline is sequence 403, STARTING / LAST_KNOWN, with strategy/replay/risk frontiers at 2026-11-08 05:00 UTC; this closure does not inspect the real store. Future implementation and migration require separate authorization. **Stage 12.2b remains NOT STARTED.**
+
 **Stage 12.2a — Demo Activation / Runbook Contract: COMPLETE / FROZEN** after independent remote owner audit of reviewed substantive publication baseline `aa479968f58bd9e1cd22864ace94176c2cf7044c`. Accepted [Decision 024](decisions/024_demo_activation_runbook_contract.md) authorizes no operation. Stage 12.2 is STARTED / INCOMPLETE. **Stage 12.1 remains COMPLETE / FROZEN** at production baseline `e4c88c4408d85386c7081c94a2871952f03bf41f`. A documentation-only closure records the independent remote audit and corrects stale pre-publication status wording; it establishes no new production/trading baseline. Stage 12 remains INCOMPLETE; **12.2b–d, 12.3 and 12.4 NOT STARTED. v1.0.0 NOT RELEASED.**
 
 **Decision 025 — Bybit Demo UTA permission-bundle compatibility correction: ACCEPTED / COMPLETE / FROZEN.** The [accepted correction](decisions/025_bybit_demo_uta_permission_bundle_correction.md) passed independent remote owner audit at substantive frozen baseline `2364bdecaa353dbdf6eeab87b16372ccee89cc6a`. Its narrow Demo-only pre-Gate-G permission gate requires `uta == 1`, `readOnly == 0` and SpotTrade. The documentation-only freeze closure changes no substantive permission policy or Decision 001–024; contract acceptance grants no mutation/runtime authorization. Stage 12.2b remains NOT STARTED.
@@ -2739,6 +2741,8 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
+Decision 026 has passed independent owner review and is ACCEPTED / COMPLETE / FROZEN. Its accepted target is 6000 ms, but implementation is NOT IMPLEMENTED and the real store remains owner-reviewed at 1000 ms, with migration NOT RUN. The next contract-dependent work requires separate authorization for the narrow migration implementation, independent review/freeze of that implementation, then separate authorization for the one-time durable 1000→6000 update. Preserve the opaque configuration digest, checkpoint/history/risk state and both 60000-ms freshness bounds. This freeze authorizes no implementation, migration, preflight or trading activity.
+
 Next operational work, only under separately approved scope: Stage 12.2b preparation using the accepted [Decision 025](decisions/025_bybit_demo_uta_permission_bundle_correction.md) permission re-audit → operational preflight/reconciliation → separate explicit Stage 12.2b authorization. Decision 025 is ACCEPTED / COMPLETE / FROZEN at `2364bdecaa353dbdf6eeab87b16372ccee89cc6a` after independent remote owner audit PASS. This sequence is a plan, not permission to execute any read, store operation or trading action; Stage 12.2b remains NOT STARTED. Stage 12.2 is STARTED / INCOMPLETE; Stage 12.1 and 12.2a remain COMPLETE / FROZEN. Stage 12.2c–d, 12.3/12.4 remain NOT STARTED; Stage 12 remains INCOMPLETE; v1.0.0 NOT RELEASED.
 
 ## Not implemented yet
@@ -2757,6 +2761,8 @@ Next operational work, only under separately approved scope: Stage 12.2b prepara
 - Docker/deployment.
 
 ## Next milestone
+
+[Decision 026](decisions/026_demo_clock_skew_tolerance_correction.md) is ACCEPTED / COMPLETE / FROZEN after independent owner review PASS. The next contract-dependent milestone is separately authorized narrow migration implementation followed by independent review/freeze; the real one-time migration needs its own later authorization. The accepted 6000-ms target is not yet active: implementation is NOT IMPLEMENTED and the durable 1000-ms value is unchanged, with migration NOT RUN. Stage 12.2b remains NOT STARTED.
 
 Decision 025 is COMPLETE / FROZEN at substantive baseline `2364bdecaa353dbdf6eeab87b16372ccee89cc6a`; Stage 12.2a remains COMPLETE / FROZEN. The next operational milestone, Stage 12.2b — Controlled 24h → 72h Demo Run, remains NOT STARTED. Its separately authorized preparation is permission re-audit under accepted Decision 025 → operational preflight/reconciliation → separate explicit Stage 12.2b authorization with exact runtime/risk configuration, bounded run window, permitted mutation scope and stop conditions. No preparation or trading activity starts automatically. Stage 12.2c–d and all 12.3/12.4 work remain NOT STARTED; Stage 12.1 COMPLETE / FROZEN; Stage 12 INCOMPLETE; v1.0.0 NOT RELEASED. Contract acceptance grants no permission to load credentials, perform broker/Telegram operations, migrate/activate/rearm a real journal or start Demo validation.
 
