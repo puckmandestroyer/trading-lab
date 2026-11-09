@@ -6,7 +6,7 @@ The long-term goal is to support historical market data, multiple independent st
 
 ## Current stage
 
-**Accepted Stage 12.2 clock correction:** [Decision 026](decisions/026_demo_clock_skew_tolerance_correction.md) remains **ACCEPTED / COMPLETE / FROZEN**. Its narrow migration implementation is **IMPLEMENTED / OWNER REVIEW REQUIRED**, with offline synthetic tests only. **Real durable migration: NOT RUN. The current owner-reviewed real durable value remains 1000 ms; 6000 ms is the accepted target, not an active real-store value.** Operational use still requires independent implementation review/freeze and separate migration authorization. Decision/observation freshness stays **60000 ms** and the existing opaque configuration digest is preserved without a new derivation. **Stage 12.2b remains NOT STARTED.**
+**Accepted Stage 12.2 clock correction:** [Decision 026](decisions/026_demo_clock_skew_tolerance_correction.md) remains **ACCEPTED / COMPLETE / FROZEN**. Its narrow migration implementation is **COMPLETE / OWNER-REVIEWED / FROZEN** at substantive baseline `1efcbe385334f7700d245745ff1384b0866465b8`, following independent owner re-review PASS. **Real durable migration: NOT RUN. The current owner-reviewed real durable value remains 1000 ms; 6000 ms is the accepted target, not an active real-store value.** This historical durable evidence was not freshly inspected during freeze. Any real migration requires separate explicit authorization and fresh pre-migration inspection/review. Decision/observation freshness stays **60000 ms**; both opaque identity digests are preserved without derivation. **Stage 12.2b remains NOT STARTED.**
 
 **Stage 12.2a — Demo Activation / Runbook Contract: COMPLETE / FROZEN** after independent remote owner audit of reviewed substantive publication baseline `aa479968f58bd9e1cd22864ace94176c2cf7044c`. Accepted [Decision 024](decisions/024_demo_activation_runbook_contract.md) authorizes no operation. Stage 12.2 is STARTED / INCOMPLETE. **Stage 12.1 remains COMPLETE / FROZEN** at production baseline `e4c88c4408d85386c7081c94a2871952f03bf41f`. A documentation-only closure records the independent remote audit and corrects stale pre-publication status wording; it establishes no new production/trading baseline. Stage 12 remains INCOMPLETE; **12.2b–d, 12.3 and 12.4 NOT STARTED. v1.0.0 NOT RELEASED.**
 
@@ -22,9 +22,11 @@ The integrated risk boundary is **Strategy → Planner → Risk Gate → Durable
 
 **Current limits:** Demo only; one account/bot/EMA strategy/symbol; hourly `60`; LONG/FLAT Spot MARKET. No short/leverage/borrowing, automatic liquidation, risk-generated stop loss/take profit/trailing stop, manual risk kill/pause, configuration editing or operational controls UI. No long-running Demo validation or live trading has occurred.
 
-### Decision 026 migration implementation — owner review required
+### Decision 026 migration implementation — COMPLETE / OWNER-REVIEWED / FROZEN
 
-`trading_lab.runtime.store` adds one standalone boundary:
+Independent owner re-review of `1efcbe385334f7700d245745ff1384b0866465b8` — `Correct Decision 026 migration profile binding` returned **OWNER RE-REVIEW PASS / IMPLEMENTATION ACCEPTED FOR FREEZE**. Its parent is `c57bd887959901cf6d53bfc60b62e00c168834f8` — `Implement Decision 026 clock-skew migration`. This documentation-only closure records acceptance; it does not replace that substantive implementation baseline or authorize execution.
+
+The frozen standalone boundary in `trading_lab.runtime.store` is:
 
 ```python
 migrate_demo_clock_skew_1000_to_6000(
@@ -40,9 +42,9 @@ The boundary has no broker, credential, strategy, scheduler, restart, reconcilia
 
 Initial implementation validation at `c57bd88`: **50 new migration tests; 350 existing RuntimeStore tests; 23 locking tests; 64 runtime integration tests; 16 frozen EMA tests; four refreshed preservation guards — all pass. Full suite: 3,418 passed (3,368 + 50)**, failures/errors/skips **0/0/0**, in **613.752 seconds**. `pip check`, in-memory compilation, preservation/secret checks and `git diff --check` passed. This is historical local offline evidence, not CI or real operational validation.
 
-The owner-review provenance correction removes the two unsupported fixed-value assumptions for history anchor and broker-account binding. Matching caller/durable values are preserved, including a different valid hourly anchor and a non-None synthetic account binding; mismatches still fail without writes. The API, fixed V1 policy, one-field mutation, normal validation and transaction/uncertainty mechanics remain unchanged. The corrected implementation awaits independent owner review/freeze; real migration is NOT RUN and Stage 12.2b is NOT STARTED.
+The owner-reviewed provenance correction removes the two unsupported fixed-value assumptions for history anchor and broker-account binding. Matching caller/durable values are preserved, including a different valid hourly anchor and a non-None synthetic account binding; mismatches still fail without writes. The API, fixed V1 policy, one-field mutation, normal validation and transaction/uncertainty mechanics remain unchanged. Independent owner re-review accepted this corrected implementation for freeze at the substantive baseline above; real migration is NOT RUN and Stage 12.2b is NOT STARTED.
 
-Correction validation: **54 migration tests passed (50 retained + 4 new)**; **447 focused tests passed** including RuntimeStore, locking, frozen EMA and the four fingerprint guards. The full suite passed **3,422 tests (3,418 + 4)** in **603.049 seconds**, failures/errors/skips **0/0/0**. `pip check`, compilation, secret/scope review and `git diff --check` pass. Local offline evidence only; no real database, credentials or external broker/Telegram operation.
+Accepted prior local implementation validation: **54 migration tests passed (50 retained + 4 new)**; **447 focused tests passed** including RuntimeStore, locking, frozen EMA and the four fingerprint guards. The full suite passed **3,422 tests (3,418 + 4)** in **603.049 seconds**, failures/errors/skips **0/0/0**. `pip check`, compilation, secret/scope review and `git diff --check` passed. Owner re-review had no GitHub commit-status or workflow-run evidence: **no CI evidence is claimed**. The full suite is **NOT RERUN** for this documentation-only freeze; closure checks are diff, scope, whitespace and secret review only. No real RuntimeStore was opened or mutated by implementation/freeze tasks; no credentials, broker/Telegram, preflight, reconciliation, restart, runtime/scheduler, strategy, rearm, order or Gate G operation is authorized by this freeze.
 
 ### Demo activation contract — Stage 12.2a (COMPLETE / FROZEN)
 

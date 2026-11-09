@@ -1,6 +1,15 @@
 # Changelog
 
+## 2026-11-09 — Decision 026 migration implementation freeze closure
+
+- Independent owner verdict **OWNER RE-REVIEW PASS / IMPLEMENTATION ACCEPTED FOR FREEZE** at substantive implementation baseline `1efcbe385334f7700d245745ff1384b0866465b8` — `Correct Decision 026 migration profile binding`; exact parent `c57bd887959901cf6d53bfc60b62e00c168834f8` — `Implement Decision 026 clock-skew migration`. Migration implementation **COMPLETE / OWNER-REVIEWED / FROZEN**; Decision 026 remains ACCEPTED / COMPLETE / FROZEN and unchanged. This documentation closure is bookkeeping, not a new substantive production/trading baseline.
+- Accepted contract unchanged: exact named Demo deployment, only skew1000→6000, caller-supplied anchor/optional broker binding/digests preserved with full durable equality, strict normal validation, canonical locking/durability, one-field atomic update, complete evidence preservation and fail-closed uncertain outcomes. No generic editor, hot reload or operational authority.
+- Retained accepted local evidence: **54 migration / 447 focused / 3,422 full-suite tests passed**, failures/errors/skips **0/0/0**, full suite **603.049 seconds**; prior pip check, diff and secret/scope reviews PASS. Owner implementation review had no GitHub commit-status/workflow-run evidence; no CI claim. Full suite NOT RERUN for this documentation-only freeze; closure checks are complete diff/scope/whitespace/secret review only.
+- Only README.md, PROJECT_STATE.md and CHANGELOG.md change. Production/tests/schema/dependencies/Decisions 001–026 unchanged. Real migration NOT RUN; owner-reviewed durable skew1000 ms and historical sequence403 / STARTING / LAST_KNOWN evidence not freshly inspected. No real store operation, credentials, broker/Telegram, preflight/reconciliation/restart, strategy/runtime/scheduler/rearm, orders or Gate G. Stage 12.2b NOT STARTED; Stage 12 INCOMPLETE; v1.0.0 NOT RELEASED. Later real migration requires separate explicit authorization and fresh pre-migration inspection/review.
+
 ## 2026-11-09 — Decision 026 migration profile binding correction
+
+*Historical correction-publication record; independent owner acceptance and freeze are recorded above.*
 
 - Corrected the owner-review provenance blocker: history anchor and optional broker-account binding now come directly from the reviewed caller configuration, alongside the two opaque digests. Complete durable identity equality remains mandatory; none of these fields is an editable migration target. The fixed V1 Demo policy and sole skew1000→6000 mutation are unchanged.
 - Added four synthetic regressions for matching non-default/optional values and no-write mismatch rejection. Retained original migration coverage and refreshed only affected source fingerprints in the four preservation guards. Normal RuntimeStore behavior, schema, dependencies and frozen Decisions remain unchanged.
@@ -8,6 +17,8 @@
 - Implementation remains OWNER REVIEW REQUIRED / NOT FROZEN. Real RuntimeStore and credentials not accessed; real migration, operational preflight, broker/Telegram requests, reconciliation and order actions NOT RUN. Stage 12.2b NOT STARTED.
 
 ## 2026-11-09 — Decision 026 narrow clock migration implementation
+
+*Historical initial implementation record; the corrected substantive baseline and subsequent owner acceptance/freeze are recorded above.*
 
 - Added standalone `migrate_demo_clock_skew_1000_to_6000(lock, configuration)`: exact reviewed V1 Demo profile only, canonical held lock/no open store, one atomic identity field update, complete row preservation and exact target reopen. Exact completed target is verification-only; mismatches fail closed and uncertain commits stop without retry/reopen. Ordinary RuntimeStore methods/validation remain byte-identical.
 - Added offline synthetic migration, identity/path/integrity, preservation, rollback/uncertainty and capability regressions. Refreshed affected checksums in four existing source guards, with a new assertion preserving the original complete store prefix; pinned the already-stale Decision-collection checksum to unchanged accepted Decisions 001–026 at f80529a. No behavioral assertion, schema, dependency, risk/strategy/timing, frozen Decision, notebook or data change.
