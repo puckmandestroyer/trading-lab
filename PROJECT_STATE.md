@@ -6,7 +6,7 @@ Build a Python trading research and demo-trading platform supporting multiple st
 
 ## Current stage
 
-**Accepted Stage 12.2 clock correction:** [Decision 026](decisions/026_demo_clock_skew_tolerance_correction.md) remains **ACCEPTED / COMPLETE / FROZEN**. Migration implementation is **COMPLETE / OWNER-REVIEWED / FROZEN** at substantive baseline `1efcbe385334f7700d245745ff1384b0866465b8`, following **OWNER RE-REVIEW PASS / IMPLEMENTATION ACCEPTED FOR FREEZE**. Only the exact `max_clock_skew_ms: 1000 → 6000` transition on `bybit-demo` / `demo-main` / `bot1` is supported. **Real durable migration: NOT RUN. The current owner-reviewed real durable value remains 1000 ms, not 6000.** Both 60000-ms freshness bounds and the opaque identity digests remain unchanged. The owner-supplied prior durable baseline is historical evidence: sequence 403, STARTING / LAST_KNOWN, with last-processed/replay/risk frontiers at 2026-11-08 05:00 UTC. Implementation/freeze tasks did not open or mutate the real store; this freeze does not freshly revalidate that evidence. Any real migration requires separate explicit authorization and fresh pre-migration inspection/review. **Stage 12.2b remains NOT STARTED.**
+**Accepted Stage 12.2 clock correction:** [Decision 026](decisions/026_demo_clock_skew_tolerance_correction.md) remains **ACCEPTED / COMPLETE / FROZEN**. Migration implementation remains **COMPLETE / OWNER-REVIEWED / FROZEN** at substantive baseline `1efcbe385334f7700d245745ff1384b0866465b8`, following **OWNER RE-REVIEW PASS / IMPLEMENTATION ACCEPTED FOR FREEZE**. **Real durable 1000 → 6000 migration: COMPLETE / OWNER-REVIEWED. Current durable max_clock_skew_ms: 6000 ms** on `bybit-demo` / `demo-main` / `bot1`. The frozen API was called exactly once and returned True after the accepted source fingerprint/state matched. Both 60000-ms freshness bounds, opaque identity digests and all checkpoint/history/risk evidence remain unchanged. The operation and its verification are recorded below; this documentation closure does not reopen the store or repeat the migration. **Gate G remains NOT RUN; Stage 12.2b remains NOT STARTED.**
 
 **Stage 12.2a — Demo Activation / Runbook Contract: COMPLETE / FROZEN** after independent remote owner audit of reviewed substantive publication baseline `aa479968f58bd9e1cd22864ace94176c2cf7044c`. Accepted [Decision 024](decisions/024_demo_activation_runbook_contract.md) authorizes no operation. Stage 12.2 is STARTED / INCOMPLETE. **Stage 12.1 remains COMPLETE / FROZEN** at production baseline `e4c88c4408d85386c7081c94a2871952f03bf41f`. A documentation-only closure records the independent remote audit and corrects stale pre-publication status wording; it establishes no new production/trading baseline. Stage 12 remains INCOMPLETE; **12.2b–d, 12.3 and 12.4 NOT STARTED. v1.0.0 NOT RELEASED.**
 
@@ -110,6 +110,8 @@ Stage 5 — Analytics remains COMPLETE and frozen at `a3fde091be234fd78d216f6338
 
 ## Decision 026 clock migration implementation — COMPLETE / OWNER-REVIEWED / FROZEN
 
+*Implementation/freeze completion-time record. The subsequent owner-reviewed real migration and current 6000-ms durable value are recorded in the next section.*
+
 Substantive frozen implementation baseline: `1efcbe385334f7700d245745ff1384b0866465b8` — `Correct Decision 026 migration profile binding`; exact parent `c57bd887959901cf6d53bfc60b62e00c168834f8` — `Implement Decision 026 clock-skew migration`. The initial implementation followed the frozen contract at `f80529a84a55b4fd47d52228bc25b7551b3e077c`. Independent owner re-review of the corrected implementation returned **OWNER RE-REVIEW PASS / IMPLEMENTATION ACCEPTED FOR FREEZE**. Migration implementation is now **COMPLETE / OWNER-REVIEWED / FROZEN**. This three-document closure records acceptance without creating a new substantive production/trading baseline. Decision 026 remains ACCEPTED / COMPLETE / FROZEN and byte-identical; its original implementation-status statements are historical contract-completion evidence.
 
 Additive standalone API in `runtime/store.py`:
@@ -134,9 +136,65 @@ Historical provenance correction: `1efcbe385334f7700d245745ff1384b0866465b8` cor
 
 Accepted prior local implementation validation: **54 migration tests passed (50 retained + 4 new)** in **12.035 seconds**. The focused group passed **447 tests** (54 migration / 350 RuntimeStore / 23 locking / 16 frozen EMA / four preservation guards) in **39.708 seconds**. The complete suite passed **3,422 tests (3,418 + 4)** in **603.049 seconds**, failures/errors/skips **0/0/0**. `pip check` reported no broken requirements; compilation, secret/scope review and `git diff --check` passed. Implementation AST comparison confined production changes to the clarified docstring and two caller-bound fields; normal store, transaction, evidence and reopen code were unchanged. Owner re-review had no GitHub commit-status or workflow-run evidence; **CI evidence: NONE**. These are accepted local offline results, not operational validation. The full suite is **NOT RERUN** for this documentation-only freeze. Closure verification consists only of complete documentation diff review, scope/preservation checks, whitespace checks and secret-safety review.
 
-**Real durable migration: NOT RUN. Current owner-reviewed real durable max_clock_skew_ms: 1000 ms; target: 6000 ms.** The owner-supplied prior baseline remains historical evidence: checkpoint sequence 403, STARTING / LAST_KNOWN; last processed candle, replay cutoff and risk frontier all 2026-11-08 05:00 UTC; durable skew 1000 ms. It was not freshly inspected or revalidated during freeze. Implementation/freeze tasks did not open or mutate the real RuntimeStore. A later real migration requires separate explicit authorization and fresh pre-migration inspection/review; no automatic progression follows from acceptance.
+**Historical implementation-freeze status:** real durable migration was NOT RUN, with owner-reviewed source skew 1000 ms and target 6000 ms. Sequence 403 / STARTING / LAST_KNOWN and the 2026-11-08 05:00 UTC frontiers were historical evidence at that time, not freshly revalidated by implementation/freeze tasks. The later separately authorized inspection and completed real migration are recorded below; implementation/freeze tasks themselves did not open or mutate the real store.
 
-This freeze grants no authority for real RuntimeStore open/mutation, durable migration, credential access, broker/Telegram requests, reconciliation, restart preparation, runtime/scheduler start, strategy execution, risk rearm, order placement/cancellation, Gate G or Stage 12.2b. Stage 12.1/12.2a remain COMPLETE / FROZEN; Stage 12.2 STARTED / INCOMPLETE; 12.2b–d, 12.3/12.4 NOT STARTED; Stage 12 INCOMPLETE; v1.0.0 NOT RELEASED. Production, tests, schema, dependencies and Decisions 001–026 have no closure changes.
+That implementation freeze granted no operational authority. The later inspection/migration required separate explicit owner authorization; its completion still grants no broker/Telegram, reconciliation, restart, runtime/scheduler, strategy, risk rearm, order, Gate G or Stage 12.2b authority. Stage 12.1/12.2a remain COMPLETE / FROZEN; Stage 12.2 STARTED / INCOMPLETE; 12.2b–d, 12.3/12.4 NOT STARTED; Stage 12 INCOMPLETE; v1.0.0 NOT RELEASED. Production, tests, schema, dependencies and Decisions 001–026 have no documentation-closure changes.
+
+## Decision 026 real durable migration — COMPLETE / OWNER-REVIEWED
+
+The owner accepted the completed real migration on repository baseline `79e6786096eadc70fcb7bc62d8cb64f9bbb9d933` — `Freeze Decision 026 migration implementation`. Decision 026 remains ACCEPTED / COMPLETE / FROZEN; its implementation remains COMPLETE / OWNER-REVIEWED / FROZEN at substantive baseline `1efcbe385334f7700d245745ff1384b0866465b8`. The separately authorized real operation called the frozen `migrate_demo_clock_skew_1000_to_6000(lock, old_configuration)` **exactly once**, returning **True**. **Current durable max_clock_skew_ms is 6000 ms**, from source 1000, for `bybit-demo` / `demo-main` / `bot1` only. This documentation closure records that accepted operation; it neither repeats it nor opens the store.
+
+Accepted fresh pre-migration inspection: **2026-11-10 03:00:20 UTC**. Database bytes were identical before/after that inspection. Before the later migration call, the exact accepted file fingerprint, complete source configuration and durable state matched again under the canonical RuntimeAccountLock. The lock remained held until every migration/verification handle closed, then was released.
+
+| Database evidence | Accepted source | Verified target |
+| --- | --- | --- |
+| SHA256 | `95113ee90227d6af9740779f3dc8c72d3e427e1d185d79f5e4e82bf58d454e15` | `0735b1da8207538e8690a45fa354041d5c82c768f4f54c927a5fb8da80339ea5` |
+| Device / inode | 16777233 / 61857110 | Unchanged |
+| Size | 430080 bytes | Unchanged |
+| Permissions / hard links | 0600 / 1 | Unchanged |
+| Journal / WAL / SHM sidecars | Absent | Absent |
+| Schema / user_version / journal_mode | Exact supported v2 / 2 / delete | Unchanged |
+
+Normal exact target `RuntimeStore.open(lock, new_configuration, initialize=False)` with skew 6000 passed full validation. Normal old exact 1000 configuration open was **REJECTED AS EXPECTED**. Post-migration quick_check and foreign_key_check both **PASS**. The changed database SHA256 is physical-file evidence, not either runtime identity digest and not a digest derivation rule.
+
+**Sole logical durable delta: `identity.max_clock_skew_ms: 1000 → 6000`.** Complete rows, row IDs and raw Decimal TEXT across **all ten tables** matched the pre-migration snapshot except for that field; schema/indexes, user_version and every row count were preserved. The following facts were unchanged before/after:
+
+| Durable fact | Preserved value |
+| --- | --- |
+| Checkpoint | Sequence 403 / STARTING / LAST_KNOWN |
+| Owned base / desired position / pending | 0 BTC / 0 / NONE |
+| Last processed candle / replay cutoff | 2026-11-08 05:00:00 UTC |
+| Last reconciled / observed timestamp | 2026-11-08 06:00:04.643 UTC |
+| Coverage start / end | NULL / NULL |
+| Bootstrap cutoff | 2026-10-23 00:00:00 UTC |
+| HALT / shutdown / rearm timestamps | NULL / NULL / NULL |
+| Actions / fills / unresolved actions | 0 / 0 / 0 |
+| Candles / decisions | 390 / 390 |
+| Risk epoch / valuations / verdicts | 1 / 390 / 0 |
+| Risk frontier candle / trip | 2026-11-08 05:00:00 UTC / NO |
+| history_anchor_ms / broker_account_id | 1792713600000 / NULL |
+| configuration_digest / strategy_implementation_digest | Both unchanged; no derivation/regeneration |
+| decision_max_age_ms / observation_max_age_ms | 60000 / 60000 |
+
+Risk configuration and its digest were preserved: 100-USDT risk capital, 10-USDT BUY budget, 10-USDT maximum entry and position notionals, daily loss fraction 0.05, drawdown fraction 0.10 and three entries per UTC day. No checkpoint bump, history replay/reset, new risk epoch, rearm, reconciliation, restart preparation, runtime operation, action regeneration or promotion of LAST_KNOWN evidence occurred. Normal target validation and old-source rejection did not restore 1000 or weaken strict identity matching.
+
+This three-document closure changes no production, tests, Decisions 001–026, schema or dependencies. It performs no real store access/migration, credential access, broker/market/Telegram request, reconciliation, restart, strategy/runtime/scheduler, rearm, order or Gate G operation. The full suite is **NOT RERUN** for this documentation-only closure; accepted prior **3,422-pass local offline evidence** remains historical, with no new CI claim. Closure verification is complete diff, whitespace, scope and secret review only.
+
+Next required sequence — **PLAN ONLY; each operational step requires separate explicit owner authorization**:
+
+```text
+Decision 025 permission re-audit
+→ separately authorized operational activation preflight
+→ canonical lock
+→ exact 6000 RuntimeStore/config/risk validation
+→ fresh process-entry/reconciliation
+→ fresh public clock validation with abs(skew) <= 6000
+→ fresh closed-history/freshness validation
+→ Gate G readiness classification
+→ separate explicit Stage 12.2b authorization
+```
+
+Migration completion grants no trading/runtime authority. Stage 12.1/12.2a remain COMPLETE / FROZEN; Stage 12.2 is STARTED / INCOMPLETE; **Gate G NOT RUN; Stage 12.2b–d, 12.3/12.4 NOT STARTED; Stage 12 INCOMPLETE; v1.0.0 NOT RELEASED.** No next step is executed by this closure.
 
 ## Accepted Demo UTA permission-bundle correction — Decision 025
 
@@ -2771,9 +2829,9 @@ The final OPEN trade is excluded and unvalued. The positive gross arithmetic ave
 
 ## Current focus
 
-Decision 026 remains ACCEPTED / COMPLETE / FROZEN. Its narrow migration implementation is COMPLETE / OWNER-REVIEWED / FROZEN at substantive baseline `1efcbe385334f7700d245745ff1384b0866465b8`, with accepted local offline evidence only. The current owner-reviewed real durable value remains 1000 ms, not freshly inspected during freeze; real migration is NOT RUN. Any next real-migration work requires separate explicit authorization and fresh pre-migration inspection/review. Preserve the caller-supplied identity fields, checkpoint/history/risk state and both 60000-ms freshness bounds. This freeze authorizes no operational preflight, reconciliation or trading activity.
+Decision 026 remains ACCEPTED / COMPLETE / FROZEN; its implementation remains COMPLETE / OWNER-REVIEWED / FROZEN at substantive baseline `1efcbe385334f7700d245745ff1384b0866465b8`. The real migration is COMPLETE / OWNER-REVIEWED, with current durable skew **6000 ms**, unchanged checkpoint 403 / STARTING / LAST_KNOWN and preserved history/risk/identity/freshness. This documentation closure records accepted operational evidence without repeating or revalidating the real operation. No operational preflight, reconciliation, runtime or trading activity is authorized by completion.
 
-Next operational work, only under separately approved scope: Stage 12.2b preparation using the accepted [Decision 025](decisions/025_bybit_demo_uta_permission_bundle_correction.md) permission re-audit → operational preflight/reconciliation → separate explicit Stage 12.2b authorization. Decision 025 is ACCEPTED / COMPLETE / FROZEN at `2364bdecaa353dbdf6eeab87b16372ccee89cc6a` after independent remote owner audit PASS. This sequence is a plan, not permission to execute any read, store operation or trading action; Stage 12.2b remains NOT STARTED. Stage 12.2 is STARTED / INCOMPLETE; Stage 12.1 and 12.2a remain COMPLETE / FROZEN. Stage 12.2c–d, 12.3/12.4 remain NOT STARTED; Stage 12 remains INCOMPLETE; v1.0.0 NOT RELEASED.
+Next operational work is the [plan above](#decision-026-real-durable-migration--complete--owner-reviewed), starting with a separately authorized Decision 025 permission re-audit, then lock-held exact 6000 configuration/risk, process-entry/reconciliation, clock/history/freshness checks and Gate G readiness classification before separate Stage 12.2b authorization. Decision 025 remains ACCEPTED / COMPLETE / FROZEN at `2364bdecaa353dbdf6eeab87b16372ccee89cc6a`. This is a plan, not permission to execute any read, store operation or trading action. Gate G NOT RUN; Stage 12.2b–d, 12.3/12.4 NOT STARTED; Stage 12.2 STARTED / INCOMPLETE; Stage 12.1/12.2a COMPLETE / FROZEN; Stage 12 INCOMPLETE; v1.0.0 NOT RELEASED.
 
 ## Not implemented yet
 
@@ -2792,9 +2850,9 @@ Next operational work, only under separately approved scope: Stage 12.2b prepara
 
 ## Next milestone
 
-[Decision 026](decisions/026_demo_clock_skew_tolerance_correction.md) is ACCEPTED / COMPLETE / FROZEN. Its narrow migration implementation is COMPLETE / OWNER-REVIEWED / FROZEN at substantive baseline `1efcbe385334f7700d245745ff1384b0866465b8`. Any later real 1000→6000 migration needs separate explicit authorization and fresh pre-migration inspection/review. The accepted target is not yet active in the real store: the owner-reviewed durable value remains 1000 ms, not freshly inspected during freeze, and real migration is NOT RUN. Stage 12.2b remains NOT STARTED; no next operation starts automatically.
+[Decision 026](decisions/026_demo_clock_skew_tolerance_correction.md) remains ACCEPTED / COMPLETE / FROZEN. Its narrow implementation remains COMPLETE / OWNER-REVIEWED / FROZEN at substantive baseline `1efcbe385334f7700d245745ff1384b0866465b8`; the real 1000→6000 migration is COMPLETE / OWNER-REVIEWED. Current durable skew is **6000 ms**. Do not repeat the migration. Gate G remains NOT RUN and Stage 12.2b remains NOT STARTED; no next operation starts automatically.
 
-Decision 025 is COMPLETE / FROZEN at substantive baseline `2364bdecaa353dbdf6eeab87b16372ccee89cc6a`; Stage 12.2a remains COMPLETE / FROZEN. The next operational milestone, Stage 12.2b — Controlled 24h → 72h Demo Run, remains NOT STARTED. Its separately authorized preparation is permission re-audit under accepted Decision 025 → operational preflight/reconciliation → separate explicit Stage 12.2b authorization with exact runtime/risk configuration, bounded run window, permitted mutation scope and stop conditions. No preparation or trading activity starts automatically. Stage 12.2c–d and all 12.3/12.4 work remain NOT STARTED; Stage 12.1 COMPLETE / FROZEN; Stage 12 INCOMPLETE; v1.0.0 NOT RELEASED. Contract acceptance grants no permission to load credentials, perform broker/Telegram operations, migrate/activate/rearm a real journal or start Demo validation.
+Decision 025 is COMPLETE / FROZEN at substantive baseline `2364bdecaa353dbdf6eeab87b16372ccee89cc6a`; Stage 12.2a remains COMPLETE / FROZEN. The next operational milestone, Stage 12.2b — Controlled 24h → 72h Demo Run, remains NOT STARTED. Its separately authorized preparation follows the [6000-ms operational plan above](#decision-026-real-durable-migration--complete--owner-reviewed); any later run authorization must specify exact runtime/risk configuration, bounded run window, permitted mutation scope and stop conditions. No preparation or trading activity starts automatically. Stage 12.2c–d and all 12.3/12.4 work remain NOT STARTED; Stage 12.1 COMPLETE / FROZEN; Stage 12.2 STARTED / INCOMPLETE; Stage 12 INCOMPLETE; v1.0.0 NOT RELEASED. This closure grants no credential, broker/Telegram, journal activation/rearm or Demo-validation authority.
 
 ## Backtesting execution contract
 

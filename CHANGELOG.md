@@ -1,6 +1,15 @@
 # Changelog
 
+## 2026-11-10 — Decision 026 real durable migration closure
+
+- Recorded the already completed, owner-reviewed real operation at repository baseline `79e6786096eadc70fcb7bc62d8cb64f9bbb9d933`: frozen migration API called exactly once, returned True, sole logical durable delta `identity.max_clock_skew_ms: 1000 → 6000`. Real migration COMPLETE / OWNER-REVIEWED; current durable skew 6000 ms. Decision 026 and its implementation remain frozen.
+- Accepted source inspection at 2026-11-10 03:00:20 UTC was byte-preserving; the pre-call fingerprint/state matched. Exact target open and SQLite checks passed; old exact 1000 configuration was rejected. Complete rows/row IDs/raw Decimal TEXT across all ten tables were preserved except the skew field, including checkpoint 403 / STARTING / LAST_KNOWN, risk epoch 1/no trip, history/IDs/digests and freshness 60000/60000. Full pre/post SHA256 and preservation evidence are in PROJECT_STATE.md.
+- Documentation only: README.md, PROJECT_STATE.md and CHANGELOG.md. No production/test/Decision/schema/dependency changes, store access or repeated migration, credentials, broker/market/Telegram, reconciliation/restart, strategy/runtime/scheduler/rearm, orders or Gate G in this closure. Full suite NOT RERUN; prior local validation remains historical; no new CI claim. Diff/whitespace/scope/secret review only.
+- Next permission re-audit → separately authorized activation preflight with canonical lock/exact 6000 configuration/risk → fresh process-entry/reconciliation → clock/history/freshness validation → Gate G readiness → separate Stage 12.2b authorization is a plan only. Stage 12.2 STARTED / INCOMPLETE; Gate G NOT RUN; Stage 12.2b NOT STARTED; Stage 12 INCOMPLETE; v1.0.0 NOT RELEASED.
+
 ## 2026-11-09 — Decision 026 migration implementation freeze closure
+
+*Historical implementation-freeze record before the real migration; the completed owner-reviewed operation and current 6000-ms durable value are recorded above.*
 
 - Independent owner verdict **OWNER RE-REVIEW PASS / IMPLEMENTATION ACCEPTED FOR FREEZE** at substantive implementation baseline `1efcbe385334f7700d245745ff1384b0866465b8` — `Correct Decision 026 migration profile binding`; exact parent `c57bd887959901cf6d53bfc60b62e00c168834f8` — `Implement Decision 026 clock-skew migration`. Migration implementation **COMPLETE / OWNER-REVIEWED / FROZEN**; Decision 026 remains ACCEPTED / COMPLETE / FROZEN and unchanged. This documentation closure is bookkeeping, not a new substantive production/trading baseline.
 - Accepted contract unchanged: exact named Demo deployment, only skew1000→6000, caller-supplied anchor/optional broker binding/digests preserved with full durable equality, strict normal validation, canonical locking/durability, one-field atomic update, complete evidence preservation and fail-closed uncertain outcomes. No generic editor, hot reload or operational authority.
