@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-20 — Decision 027 detached bounded Demo launcher
+
+- Added reusable operator lifecycle and macOS LaunchAgent management, two thin entrypoints and comprehensive offline tests. Canonical lock, exact existing-store/risk validation, explicit private secret mapping, one restart/reconciliation and frozen observed scheduler; Event signals/deadline and resource cleanup. No new trading/risk logic, schema or dependencies.
+- Plist KeepAlive=false / RunAtLoad=false, explicit start only, no shell/credential environment or automatic restart. Status is process-only. Existing unsafe paths fail without repair. Mac lid-open/AC/awake/session conditions remain required; detached supervision does not remove sleep/downtime risk.
+- Decision 027 PROPOSED / IMPLEMENTED / OWNER REVIEW REQUIRED. Capability IMPLEMENTED / NOT DEPLOYED; real LaunchAgent NOT INSTALLED, runtime NOT STARTED BY THIS TASK. Stage 12.2b STARTED / INCOMPLETE; prior 24h NOT COMPLETED, 72h NOT STARTED, Stage 12 INCOMPLETE, v1.0.0 NOT RELEASED. Earlier historical operational status records below remain completion-time evidence.
+- No real RuntimeStore/credential/service/API/order/runtime operation. Frozen production and Decisions 001–026 remain byte-identical. Narrowed the existing ADR preservation test's collection to its documented frozen 001–026 range without changing its hash, permitting additive 027. **99 focused / 3,521 full-suite tests passed**, zero failures/errors/skips; full suite 548.553 seconds. Explicit frozen-boundary audits, both CLI help checks, pip check, whitespace and secret/scope reviews PASS. Local evidence only; no CI/deployment claim.
+
 ## 2026-11-10 — Decision 026 real durable migration closure
 
 - Recorded the already completed, owner-reviewed real operation at repository baseline `79e6786096eadc70fcb7bc62d8cb64f9bbb9d933`: frozen migration API called exactly once, returned True, sole logical durable delta `identity.max_clock_skew_ms: 1000 → 6000`. Real migration COMPLETE / OWNER-REVIEWED; current durable skew 6000 ms. Decision 026 and its implementation remain frozen.

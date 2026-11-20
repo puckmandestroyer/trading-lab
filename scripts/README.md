@@ -2,9 +2,27 @@
 
 Use this directory for small command-line utilities that call reusable code under `src/trading_lab/`.
 
-Keep reusable logic under `src/trading_lab/` and let scripts call that code. Store original datasets under `data/raw/`, transformed copies under `data/processed/`, and generated outputs under `results/`. Credentials must come from environment variables.
+Keep reusable logic under `src/trading_lab/` and let scripts call that code. Store original datasets under `data/raw/`, transformed copies under `data/processed/`, and generated outputs under `results/`. Credentials must come from the explicitly approved external source, never literal source-code or CLI values.
 
-## Stage 12.2a activation contract (COMPLETE / FROZEN)
+## Detached bounded Demo launcher (implemented, NOT DEPLOYED)
+
+[Decision 027](../decisions/027_detached_bounded_demo_runtime_launcher.md) is PROPOSED / IMPLEMENTED / OWNER REVIEW REQUIRED. This task installs no LaunchAgent, loads no real credentials, opens no real store and starts no runtime. Stage 12.2b STARTED / INCOMPLETE; 24h NOT COMPLETED; 72h NOT STARTED. The commands below describe later separately authorized operations only.
+
+`trading_lab_demo_runtime.py --help` describes explicit non-secret configuration. The runtime requires `--registry-root`, `--observability-root`, `--secret-file`, `--duration-hours`, `--start-next-hour` and `--confirm-demo-runtime`. Supply absolute paths resolved locally by the owner, never literal secrets. Use the one established canonical registry for bybit-demo/demo-main/bot1; no alternate root/identity on contention. Whole-hour durations 1–72 are capability only; current reviewed duration is 24 and each start requires fresh authorization.
+
+`trading_lab_launchagent.py --help` describes `generate`, `install`, `status`, `start`, `stop`, `uninstall`. In addition to the runtime path/duration flags, supply an absolute `--python-executable` for the existing virtual environment and an external private `--operator-root`. No shell wrapper or PYTHONPATH environment is stored in the plist: scripts import the repository's src directly. Every operation except status requires `--confirm-management`; that flag is a deliberate invocation gate, not a substitute for owner approval or Gate G.
+
+Later reviewed workflow: generate private plist/logs → inspect exact non-secret configuration → install/register the reviewed stopped job → separately authorize one bounded start → inspect process-only status → request graceful SIGTERM stop if needed → wait for process/sinks/lock cleanup → uninstall only when stopped. No command in that workflow is executed by this implementation task. Install never starts trading (RunAtLoad=false); completion/crash never restarts (KeepAlive=false). No `kickstart -k`, SIGKILL, automatic rearm/retry or bootout of a running job.
+
+The runtime chooses the next UTC-hour H, waits in its own foreground process until H+8s before lock/store/credentials, then gates activation within the first minute. Absolute stop is H+duration+90s. It calls the canonical lock, existing-store-only validation, restart once, reconciliation once and fresh clock/history gates before the frozen observed scheduler. One unprotected unseen startup candle refuses activation rather than granting historical LIVE authority; see Decision027. No automatic retry on gate failure.
+
+Private secret parent0700/file0600, current-user ownership, regular/single-link/no symlinks, outside repo; only four approved names, no expansion/sourcing/search. Values are mapped directly into frozen loaders/transports, never exported or printed. Explicit ObservabilityStorage and nested Telegram receipts remain outside repo. Operator root0700 and logs/plists0600; existing unsafe paths are refused without repair. Do not dump environments, enable shell tracing or display secret-file contents. Demo/Live separation, permission re-audit and compromise→revoke/rotate remain mandatory.
+
+Status reads launchd process metadata/log existence only; no credentials/store/network/broker truth. GUI user session, AC power, lid-open/host-awake conditions must last through cleanup. launchd/caffeinate cannot prevent clamshell sleep or logout/shutdown. Codex/terminal lifetime no longer controls a launchd-started process, but physical downtime remains possible. Stop handlers only set an Event; frozen shutdown owns state changes. Sink draining may extend cleanup past the trading deadline without further trading authority. Never start another run to work around an unresolved cleanup or ambiguous outcome.
+
+## Historical Stage 12.2a activation contract (COMPLETE / FROZEN)
+
+The following section records the contract-only milestone at its completion, before the separately authorized Stage 12.2b attempts and Decision 027 capability. Its NOT STARTED/no-launcher wording is historical; it does not override the current implementation state above.
 
 [Accepted Decision 024](../decisions/024_demo_activation_runbook_contract.md) is the canonical future Demo activation/runbook contract: **COMPLETE / FROZEN** after independent remote owner audit of reviewed substantive publication `aa479968f58bd9e1cd22864ace94176c2cf7044c`. It authorizes no request or runtime. A documentation-only closure records the independent remote audit and corrects stale pre-publication status wording without altering the accepted contract or production/trading baseline. Stage 12.1 is COMPLETE / FROZEN at production baseline e4c88c4; 12.2 STARTED / INCOMPLETE through documentation only; 12.2b–d and 12.3/12.4 NOT STARTED; Stage 12 INCOMPLETE; v1.0.0 NOT RELEASED.
 

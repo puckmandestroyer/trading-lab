@@ -6,6 +6,20 @@ The long-term goal is to support historical market data, multiple independent st
 
 ## Current stage
 
+**Decision 027 — Detached Bounded Demo Runtime Launcher: PROPOSED / IMPLEMENTED / OWNER REVIEW REQUIRED.** The [new operator boundary](decisions/027_detached_bounded_demo_runtime_launcher.md) adds a bounded macOS LaunchAgent capability: **IMPLEMENTED / NOT DEPLOYED**. Real LaunchAgent **NOT INSTALLED**; real runtime **NOT STARTED BY THIS TASK**. Stage 12.2b is **STARTED / INCOMPLETE** from earlier separately authorized attempts; the 24h run is **NOT COMPLETED**, and 72h is **NOT STARTED**. Stage 12 remains INCOMPLETE; v1.0.0 NOT RELEASED.
+
+The thin scripts call `trading_lab.operator`, which acquires the canonical account lock, opens only an existing exact-profile store, validates existing risk state, prepares process restart once, reconciles once, performs fresh clock/history gates and invokes the frozen `run_observed_hourly_scheduler`. Decisions 001–026 and all trading/risk/schema/dependency behavior remain unchanged. No real operational resource is accessed by this implementation task.
+
+launchd separates process lifetime from Codex and the terminal. It does not automatically restart a failed/completed run: **KeepAlive=false / RunAtLoad=false**. Each new start needs separate bounded owner authorization. SIGTERM/SIGINT request the frozen graceful stop through an Event. Private external secret loading is explicit; no credentials in the plist, CLI arguments or subprocess environment. Status reports process supervision only. See [scripts/README.md](scripts/README.md) for future explicit management; no service is installed by importing code or asking for help.
+
+The Mac must still remain lid-open, on AC, awake and logged into the user session. LaunchAgent/caffeinate do not prevent clamshell sleep or prove a completed 24h run. Unexpected exit/downtime requires owner review; no automatic rearm or ambiguous-order recovery is added. Stage 12.1 remains COMPLETE / FROZEN.
+
+Decision 027 local validation: **99 focused operator tests / 3,521 full-suite tests passed**, zero failures/errors/skips; pip check, whitespace and secret/scope reviews PASS. These are local offline results, not CI or deployment evidence.
+
+### Historical accepted stage records before Decision 027
+
+The following acceptance/migration records retain their completion-time evidence. Their earlier NOT STARTED/NOT RUN operational statements describe those milestones, not the current Stage 12.2b attempts or detached capability above.
+
 **Accepted Stage 12.2 clock correction:** [Decision 026](decisions/026_demo_clock_skew_tolerance_correction.md) remains **ACCEPTED / COMPLETE / FROZEN**. Its narrow migration implementation remains **COMPLETE / OWNER-REVIEWED / FROZEN** at substantive baseline `1efcbe385334f7700d245745ff1384b0866465b8`. **The real durable 1000 → 6000 migration is COMPLETE / OWNER-REVIEWED; current durable max_clock_skew_ms is 6000 ms.** The separately authorized operation called the frozen API exactly once and returned True. All other identity, checkpoint/history/risk state and both **60000-ms** freshness bounds were preserved. This documentation closure records the accepted result without reopening the store or repeating the migration. **Gate G remains NOT RUN; Stage 12.2b remains NOT STARTED.**
 
 **Stage 12.2a — Demo Activation / Runbook Contract: COMPLETE / FROZEN** after independent remote owner audit of reviewed substantive publication baseline `aa479968f58bd9e1cd22864ace94176c2cf7044c`. Accepted [Decision 024](decisions/024_demo_activation_runbook_contract.md) authorizes no operation. Stage 12.2 is STARTED / INCOMPLETE. **Stage 12.1 remains COMPLETE / FROZEN** at production baseline `e4c88c4408d85386c7081c94a2871952f03bf41f`. A documentation-only closure records the independent remote audit and corrects stale pre-publication status wording; it establishes no new production/trading baseline. Stage 12 remains INCOMPLETE; **12.2b–d, 12.3 and 12.4 NOT STARTED. v1.0.0 NOT RELEASED.**
