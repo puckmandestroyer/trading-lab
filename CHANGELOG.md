@@ -1,6 +1,16 @@
 # Changelog
 
+## 2026-11-20 — Decision 027 owner-reviewed freeze closure
+
+- Owner implementation review PASS / ACCEPTED FOR FREEZE: YES. Decision 027 **ACCEPTED / COMPLETE / FROZEN**; detached launcher implementation **COMPLETE / OWNER-REVIEWED / FROZEN** at substantive baseline `72076768d66deaffd5bb457da810f163d947566d` (parent `e8a2cbeaa45f8673f90cb99a702367dddd51d4cc`). This four-file documentation-only closure records acceptance, not a replacement implementation baseline.
+- Accepted chain remains macOS LaunchAgent → thin runtime script → trading_lab.operator.demo_runtime → canonical RuntimeAccountLock → existing frozen RuntimeStore/recovery/reconciliation → run_observed_hourly_scheduler. KeepAlive=false / RunAtLoad=false; no periodic trigger, automatic crash restart, risk rearm, migration, HALT clearing, ambiguous-action repair or Live trading. Closing Codex/terminal or exhausting usage limits does not intentionally stop a launchd-started process; launchd supplies supervision only, no trading authority.
+- Pre-existing risk trip refuses new-process activation for OWNER REVIEW. In-run trip does not automatically HALT the scheduler; latched ENTRY remains blocked and valid exact strategy EXIT from confirmed LONG may remain authorized under Decisions 018/020. No automatic emergency SELL or rearm. Decisions 001–026 and frozen runtime/risk/exchange/strategy/observability/schema/dependencies remain unchanged; no production/test/script changes.
+- Accepted prior local-only evidence: **99 focused / 3,521 full-suite tests passed**, failures/errors/skips **0/0/0**, full suite **548.553 seconds**; pip check, git diff --check and secret/scope review PASS. CI evidence NONE CLAIMED. No tests/pip check rerun for this documentation-only closure; validation is exact diff/scope, whitespace, secret and status-consistency review.
+- Capability IMPLEMENTED / NOT DEPLOYED; real LaunchAgent NOT INSTALLED, real detached runtime and 24h detached run NOT STARTED. Earlier operator-session 24h remains NOT COMPLETED; Stage 12.2b STARTED / INCOMPLETE, 72h NOT STARTED, Stage 12 INCOMPLETE, v1.0.0 NOT RELEASED. No launchctl, real store/lock, credential, broker/Telegram, runtime or order operation. Later installation/run needs separate explicit owner authority.
+
 ## 2026-11-20 — Decision 027 detached bounded Demo launcher
+
+*Historical implementation-publication record; owner freeze acceptance is recorded above.*
 
 - Added reusable operator lifecycle and macOS LaunchAgent management, two thin entrypoints and comprehensive offline tests. Canonical lock, exact existing-store/risk validation, explicit private secret mapping, one restart/reconciliation and frozen observed scheduler; Event signals/deadline and resource cleanup. No new trading/risk logic, schema or dependencies.
 - Plist KeepAlive=false / RunAtLoad=false, explicit start only, no shell/credential environment or automatic restart. Status is process-only. Existing unsafe paths fail without repair. Mac lid-open/AC/awake/session conditions remain required; detached supervision does not remove sleep/downtime risk.

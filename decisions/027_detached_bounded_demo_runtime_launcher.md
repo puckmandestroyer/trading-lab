@@ -1,11 +1,30 @@
 # 027 — Detached Bounded Demo Runtime Launcher
 
 - Date: 2026-11-20
-- Status: **PROPOSED / IMPLEMENTED / OWNER REVIEW REQUIRED; NOT FROZEN.**
-- Software capability: **IMPLEMENTED / NOT DEPLOYED.** Real LaunchAgent: **NOT INSTALLED**. Real runtime: **NOT STARTED BY THIS TASK**.
+- Status: **ACCEPTED / COMPLETE / FROZEN** after owner implementation review PASS / ACCEPTED FOR FREEZE: YES.
+- Launcher implementation: **COMPLETE / OWNER-REVIEWED / FROZEN** at substantive implementation baseline `72076768d66deaffd5bb457da810f163d947566d` — `Implement detached bounded Demo runtime launcher`.
+- Software capability: **IMPLEMENTED / NOT DEPLOYED.** Real LaunchAgent: **NOT INSTALLED**. Real detached runtime: **NOT STARTED**. 24h detached run: **NOT STARTED**.
 - Pre-implementation baseline: `e8a2cbeaa45f8673f90cb99a702367dddd51d4cc`.
-- Governing Decisions 016–026 and their frozen implementations remain unchanged.
+- Decisions 001–026 and frozen runtime, risk, exchange, strategy, observability, schema and dependencies remain unchanged. Decision 027 adds only the detached operator/launchd boundary.
 - Stage 12.2b: **STARTED / INCOMPLETE**. The 24h run is **NOT COMPLETED**; 72h is **NOT STARTED**. Stage 12 remains INCOMPLETE; v1.0.0 NOT RELEASED.
+
+## Owner acceptance and documentation freeze closure
+
+The owner verdict is **DECISION 027 IMPLEMENTATION OWNER REVIEW: PASS / ACCEPTED FOR FREEZE: YES** for `72076768d66deaffd5bb457da810f163d947566d`, parent `e8a2cbeaa45f8673f90cb99a702367dddd51d4cc`. This subsequent four-file documentation-only closure records that acceptance; it does not replace the substantive implementation baseline or change any accepted API, architecture or behavior.
+
+The accepted chain remains **macOS LaunchAgent → thin runtime script → trading_lab.operator.demo_runtime → canonical RuntimeAccountLock → existing frozen RuntimeStore/recovery/reconciliation → run_observed_hourly_scheduler**. KeepAlive=false / RunAtLoad=false; no periodic trigger, automatic crash restart, automatic risk rearm, migration, HALT clearing, ambiguous-action repair or Live trading. launchd supplies process supervision only, never trading authority. Closing Codex/terminal or exhausting usage limits does not intentionally terminate a launchd-started runtime process.
+
+Accepted risk-trip semantics remain distinct:
+
+| Condition | Frozen behavior |
+| --- | --- |
+| Pre-existing trip at a new process activation | OWNER REVIEW; launcher refuses automatic activation. |
+| Trip during an already-running scheduler | Does not automatically HALT the scheduler; latch remains. |
+| New ENTRY with active latch | Blocked according to frozen policy. |
+| Valid exact strategy EXIT from confirmed LONG | May remain authorized under Decisions 018/020 and every operational guard. |
+| Automatic emergency SELL / automatic rearm | NONE / NONE. |
+
+This closure installs no LaunchAgent, invokes no launchctl, acquires no real lock, opens no real RuntimeStore, accesses no credentials and performs no broker/Telegram, runtime or order operation. The earlier operator-session 24h attempt remains NOT COMPLETED; a **detached** 24h run has NOT STARTED. Installation and any bounded real run require separate explicit owner authorization after review. Acceptance is software freeze, not deployment or operational validation.
 
 ## Problem and chosen boundary
 
@@ -103,6 +122,6 @@ On crash, launchd does **not** restart. OS process exit releases the canonical d
 
 ## Validation and deployment boundary
 
-Offline tests use temporary directories, synthetic values, temporary SQLite fixtures, fake resources/clocks/events, mocked SDK/network and an injected launchctl runner. No owner RuntimeStore, secret file, real launchd mutation or external request is used. Frozen production, schemas, dependencies and Decisions001–026 remain byte-for-byte unchanged. The existing preservation test now selects its documented frozen001–026 range, retaining the same aggregate hash; new027 is additive and is not silently frozen by that guard.
+At the substantive implementation baseline, offline tests used temporary directories, synthetic values, temporary SQLite fixtures, fake resources/clocks/events, mocked SDK/network and an injected launchctl runner. No owner RuntimeStore, secret file, real launchd mutation or external request was used. Frozen production, schemas, dependencies and Decisions 001–026 remained byte-for-byte unchanged. The existing preservation test selected its documented frozen 001–026 range, retaining the same aggregate hash. Decision 027's freeze is the explicit owner acceptance above; no test or preservation hash changes in this closure.
 
-Local validation passed: **99 focused operator tests, 3,521 full-suite tests**, zero failures/errors/skips; full suite 548.553 seconds. Frozen-boundary audits, both CLI help checks, pip check, whitespace and secret/scope reviews passed. No CI or deployment success is inferred from local tests. Publication of software is not service installation or trading authorization. Real LaunchAgent NOT INSTALLED; real runtime NOT STARTED BY THIS TASK; Decision027 remains OWNER REVIEW REQUIRED.
+Accepted prior **local-only** evidence at `72076768d66deaffd5bb457da810f163d947566d`: **99 focused operator tests / 3,521 full-suite tests passed**, failures/errors/skips **0/0/0**, full-suite duration **548.553 seconds**. Frozen-boundary audits, both CLI help checks, pip check, git diff --check and secret/scope review PASS. **CI evidence: NONE CLAIMED.** No tests or pip check are rerun for this documentation-only closure; its validation is exact diff/scope, whitespace, secret and status-consistency review. Publication is not service installation or trading authorization. Decision 027 is ACCEPTED / COMPLETE / FROZEN; launcher implementation COMPLETE / OWNER-REVIEWED / FROZEN at the substantive baseline above. Real LaunchAgent NOT INSTALLED; real detached runtime and 24h detached run NOT STARTED.
