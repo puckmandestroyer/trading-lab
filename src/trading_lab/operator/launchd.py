@@ -152,6 +152,61 @@ def _agents_directory():
     return directory
 
 
+def _parse_launchctl_job_status(stdout):
+    """Read only direct fields of one structurally valid outer job scope.
+
+    launchctl indents each scope with a tab. Nested coalition states describe
+    those coalitions, not the job's process. Unknown layouts remain UNKNOWN.
+    """
+    unknown = (None, None, None)
+    if type(stdout) is not str or len(stdout) > 1_048_576:
+        return unknown
+    lines = [line for line in stdout.splitlines() if line.strip()]
+    header = "gui/" + str(os.getuid()) + "/" + LABEL + " = {"
+    if not lines or lines[0] != header:
+        return unknown
+    scopes = [0]
+    fields = {"state": [], "pid": [], "last exit code": []}
+    for line in lines[1:]:
+        if not scopes:
+            return unknown  # Extra text or another outer scope is ambiguous.
+        prefix = re.match(r"[\t ]*", line).group()
+        indentation = len(prefix.expandtabs(8))
+        value = line[len(prefix):].rstrip()
+        if value == "}":
+            if indentation != scopes.pop():
+                return unknown
+            continue
+        if indentation != scopes[-1] + 8:
+            return unknown
+        reserved = len(scopes) == 1 and re.match(r"(?:state|pid|last exit code)(?:\s|=|:|$)", value)
+        if value.endswith("{"):
+            if reserved or "{" in value[:-1] or "}" in value:
+                return unknown
+            scopes.append(indentation)
+        elif len(scopes) == 1:
+            match = re.fullmatch(r"(state|pid|last exit code)\s*=\s*(.*)", value)
+            if match:
+                fields[match[1]].append(match[2])
+            elif reserved:
+                return unknown
+    if scopes or len(fields["state"]) != 1 or any(len(values) > 1 for values in fields.values()):
+        return unknown
+    state = fields["state"][0]
+    pids, exits = fields["pid"], fields["last exit code"]
+    if pids and re.fullmatch(r"[1-9][0-9]{0,9}", pids[0]) is None:
+        return unknown
+    if exits and re.fullmatch(r"-?[0-9]{1,10}", exits[0]) is None:
+        return unknown
+    pid = int(pids[0]) if pids else None
+    last_exit = int(exits[0]) if exits else None
+    if state == "running" and pid is not None:
+        return True, pid, last_exit
+    if state in ("not running", "exited", "waiting") and pid is None:
+        return False, None, last_exit
+    return None, None, last_exit
+
+
 class LaunchAgentManager:
     """No implicit activation. Each management operation is an explicit call."""
 
@@ -177,15 +232,7 @@ class LaunchAgentManager:
         loaded = running = pid = last_exit = None
         if result.returncode == 0:
             loaded = True
-            pids = re.findall(r"^\s*pid = ([1-9][0-9]*)\s*$", result.stdout, re.MULTILINE)
-            states = re.findall(r"^\s*state = ([a-z ]+)\s*$", result.stdout, re.MULTILINE)
-            exits = re.findall(r"^\s*last exit code = (-?[0-9]+)\s*$", result.stdout, re.MULTILINE)
-            if len(pids) == 1 and states == ["running"]:
-                pid, running = int(pids[0]), True
-            elif not pids and states in (["not running"], ["exited"], ["waiting"]):
-                running = False
-            if len(exits) == 1:
-                last_exit = int(exits[0])
+            running, pid, last_exit = _parse_launchctl_job_status(result.stdout)
         elif (result.returncode == 113 and "Could not find service" in result.stderr
               and LABEL in result.stderr):
             loaded, running = False, False

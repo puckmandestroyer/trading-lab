@@ -46,6 +46,11 @@ MAX_DURATION_HOURS = 72
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 SECRET_NAMES = frozenset(("BYBIT_DEMO_API_KEY", "BYBIT_DEMO_API_SECRET",
                           "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"))
+_PREPARATION_FAILURE_CODES = frozenset((
+    "AWARE_UTC_CLOCK_REQUIRED", "UTC_CLOCK_OUT_OF_RANGE", "BOUNDED_DEADLINE_REQUIRED",
+    "SLEEP_PREVENTION_UNAVAILABLE", "LID_GATE_FAILED", "AC_POWER_GATE_FAILED",
+    "CONSOLE_USER_GATE_FAILED", "SLEEP_ASSERTION_NOT_CONFIRMED",
+))
 _PROCESS_ENV = {"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "LC_ALL": "C"}
 _RUNTIME_PROFILE = {
     "broker_id": "bybit-demo", "account_binding": "demo-main", "bot_id": "bot1",
@@ -130,6 +135,13 @@ class DemoRuntimeResult:
     cycle_count: int = 0
     wake_count: int = 0
     cleanup_ok: bool = True
+    failure_code: str | None = None
+
+    def __post_init__(self):
+        _require(self.failure_code is None or
+                 (self.code == "REFUSED_PREPARATION" and type(self.failure_code) is str
+                  and self.failure_code in _PREPARATION_FAILURE_CODES),
+                 "INVALID_PREPARATION_FAILURE_CODE")
 
 
 @dataclass(frozen=True, slots=True, repr=False)
@@ -279,9 +291,9 @@ def _host_ready(child):
     lid = output("/usr/sbin/ioreg", "-r", "-n", "IOPMrootDomain", "-d", "1")
     power = output("/usr/bin/pmset", "-g", "batt")
     assertions = output("/usr/bin/pmset", "-g", "assertions")
-    _require(re.search(r'"AppleClamshellState"\s*=\s*No', lid) is not None
-             and "'AC Power'" in power and Path("/dev/console").stat().st_uid == os.getuid(),
-             "LID_POWER_OR_CONSOLE_GATE_FAILED")
+    _require(re.search(r'"AppleClamshellState"\s*=\s*No', lid) is not None, "LID_GATE_FAILED")
+    _require("'AC Power'" in power, "AC_POWER_GATE_FAILED")
+    _require(Path("/dev/console").stat().st_uid == os.getuid(), "CONSOLE_USER_GATE_FAILED")
     _require(re.search(r"^\s*pid\s+" + str(child.pid)
                        + r"\(caffeinate\):[^\n]*\bPreventUserIdleSystemSleep\b",
                        assertions, re.MULTILINE) is not None, "SLEEP_ASSERTION_NOT_CONFIRMED")
@@ -512,9 +524,16 @@ def run_demo_runtime(configuration, *, utc_now=_utc_now, monotonic=time.monotoni
                 0 if observed.exit_reason is SchedulerExit.STOP_REQUESTED else 1,
                 boundary, deadline, observed.exit_reason.value, observed.checkpoint.sequence,
                 observed.cycle_count, observed.wake_count)
-    except OperatorError:
+    except OperatorError as error:
+        # Read only a static code from the exact local exception class. Never
+        # stringify arbitrary exceptions or propagate external diagnostics.
+        detail = None
+        if (stage == "PREPARATION" and type(error) is OperatorError
+                and len(error.args) == 1 and type(error.args[0]) is str
+                and error.args[0] in _PREPARATION_FAILURE_CODES):
+            detail = error.args[0]
         result = DemoRuntimeResult("UNCERTAIN" if entered_scheduler or stage == "RESTART"
-                                   else "REFUSED_" + stage, 1, boundary, deadline)
+                                   else "REFUSED_" + stage, 1, boundary, deadline, failure_code=detail)
     except BaseException:
         result = DemoRuntimeResult("UNCERTAIN" if entered_scheduler or persistence_begun
                                    else "FAILED_" + stage, 1, boundary, deadline)
@@ -580,7 +599,8 @@ def runtime_main(argv=None):
     args = parser.parse_args(argv)
     try:
         result = run_demo_runtime(configuration_from_arguments(args))
-        print(json.dumps({"code": result.code, "scheduler_exit": result.scheduler_exit,
+        print(json.dumps({"code": result.code, "failure_code": result.failure_code,
+                          "scheduler_exit": result.scheduler_exit,
                           "checkpoint_sequence": result.checkpoint_sequence,
                           "cycle_count": result.cycle_count, "wake_count": result.wake_count,
                           "start_boundary_ms": result.start_boundary_ms,

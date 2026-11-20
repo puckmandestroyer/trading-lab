@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-21 — Decision 027 narrow launcher diagnostic correction
+
+- Decision 027 contract UNCHANGED / FROZEN. Implementation correction IMPLEMENTED / OWNER REVIEW REQUIRED / NOT YET FROZEN, from baseline `ab5c3a5571ed307d677c6a08bdd3571580f316a9`. Status parses only the structurally validated outer job fields; nested `active` state/PID/exit fields no longer contaminate job status. Malformed/conflicting/unsupported evidence remains UNKNOWN.
+- Split lid/AC/console refusal codes without changing acceptance conditions; added optional allowlisted PREPARATION `failure_code` to the safe result/JSON. No arbitrary exception text, AC retry, relaxed host gate or changed runtime/trading/risk behavior. Accepted-configuration plist bytes remain identical; no reinstall is needed solely for this correction.
+- LaunchAgent INSTALLED / LOADED / STOPPED; first detached start REFUSED_PREPARATION, 24h detached run NOT STARTED, second kickstart NOT RUN. Original preparation root cause remains UNRESOLVED: one later isolated AC predicate failure followed by PASS does not establish its cause. Earlier records below retain their completion-time operational facts.
+- Only two operator modules, two operator test files and README/PROJECT_STATE/CHANGELOG change. Decisions 001–027, scripts, frozen runtime/risk/exchange/strategy/observability, schema/dependencies/data/notebooks remain unchanged. Read-only process status only; no real store/lock/credentials, service mutation/start, broker/Telegram or order action. **127 focused / 3,549 full-suite tests passed**, failures/errors/skips **0/0/0**, full suite **582.635 seconds**; pip check, whitespace, secret/scope review and generated-plist byte comparison PASS. Host predicates/evaluation order and activation/scheduler/timing/cleanup bodies are unchanged. Local evidence only; CI NONE CLAIMED.
+
 ## 2026-11-20 — Decision 027 owner-reviewed freeze closure
 
 - Owner implementation review PASS / ACCEPTED FOR FREEZE: YES. Decision 027 **ACCEPTED / COMPLETE / FROZEN**; detached launcher implementation **COMPLETE / OWNER-REVIEWED / FROZEN** at substantive baseline `72076768d66deaffd5bb457da810f163d947566d` (parent `e8a2cbeaa45f8673f90cb99a702367dddd51d4cc`). This four-file documentation-only closure records acceptance, not a replacement implementation baseline.

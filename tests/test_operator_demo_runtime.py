@@ -7,6 +7,8 @@ from decimal import Decimal
 import ast
 import inspect
 import io
+import itertools
+import json
 import os
 from pathlib import Path
 import signal
@@ -89,6 +91,54 @@ class ConfigurationTests(PrivateCase):
         for value in (datetime.now(), datetime.now(timezone(timedelta(hours=1))), None):
             with self.assertRaises(m.OperatorError):
                 m.milliseconds(value)
+
+
+class HostGateTests(unittest.TestCase):
+    def check_host(self, *, lid=True, ac=True, console=True, alive=True, assertion=True):
+        child = NS(pid=123, poll=lambda: None if alive else 1)
+        outputs = [NS(stdout='"AppleClamshellState" = ' + ("No" if lid else "Yes")),
+                   NS(stdout="Now drawing from '" + ("AC Power" if ac else "Battery Power") + "'"),
+                   NS(stdout="   pid " + ("123" if assertion else "124")
+                      + "(caffeinate): [TEST_ONLY] PreventUserIdleSystemSleep")]
+        self.commands = Mock(side_effect=outputs)
+        with patch.object(m.subprocess,"run",self.commands), \
+             patch.object(m.Path,"stat",return_value=NS(st_uid=os.getuid() if console else os.getuid()+1)):
+            m._host_ready(child)
+
+    def test_lid_failure_has_specific_static_code(self):
+        with self.assertRaisesRegex(m.OperatorError,"^LID_GATE_FAILED$"):
+            self.check_host(lid=False)
+
+    def test_ac_failure_has_specific_static_code(self):
+        with self.assertRaisesRegex(m.OperatorError,"^AC_POWER_GATE_FAILED$"):
+            self.check_host(ac=False)
+        self.assertEqual(self.commands.call_count,3)  # No retry or additional sleep.
+
+    def test_console_failure_has_specific_static_code(self):
+        with self.assertRaisesRegex(m.OperatorError,"^CONSOLE_USER_GATE_FAILED$"):
+            self.check_host(console=False)
+
+    def test_dead_child_refuses_before_host_commands(self):
+        with self.assertRaisesRegex(m.OperatorError,"^SLEEP_PREVENTION_UNAVAILABLE$"):
+            self.check_host(alive=False)
+        self.commands.assert_not_called()
+
+    def test_assertion_failure_has_unchanged_static_code(self):
+        with self.assertRaisesRegex(m.OperatorError,"^SLEEP_ASSERTION_NOT_CONFIRMED$"):
+            self.check_host(assertion=False)
+
+    def test_observed_caffeinate_line_shape_passes(self):
+        self.check_host()
+        self.assertEqual(self.commands.call_count,3)
+
+    def test_host_acceptance_truth_table_is_unchanged(self):
+        for lid,ac,console in itertools.product((False,True),repeat=3):
+            with self.subTest(lid=lid,ac=ac,console=console):
+                if lid and ac and console:
+                    self.check_host(lid=lid,ac=ac,console=console)
+                else:
+                    with self.assertRaises(m.OperatorError):
+                        self.check_host(lid=lid,ac=ac,console=console)
 
 
 class SecretTests(PrivateCase):
@@ -521,6 +571,62 @@ class OrchestrationTests(PrivateCase):
     def test_parent_identity_is_never_consulted(self):
         with patch.object(m.os, "getppid", side_effect=AssertionError("PARENT")):
             self.assertEqual(self.run_operator().exit_code, 0)
+
+    def test_all_allowlisted_preparation_details_are_preserved(self):
+        self.assertIs(type(m._PREPARATION_FAILURE_CODES),frozenset)
+        for code in m._PREPARATION_FAILURE_CODES:
+            with self.subTest(code=code):
+                self.mocks["_host_ready"].side_effect = m.OperatorError(code)
+                result = self.run_operator()
+                self.assertEqual(result.code,"REFUSED_PREPARATION")
+                self.assertEqual(result.failure_code,code)
+        self.mocks["load_demo_secret_file"].assert_not_called()
+        self.mocks["RuntimeAccountLock"].assert_not_called()
+
+    def test_utc_validation_detail_uses_same_safe_surface(self):
+        result = m.run_demo_runtime(self.config,utc_now=lambda: None,stop_event=self.stop)
+        self.assertEqual(result.failure_code,"AWARE_UTC_CLOCK_REQUIRED")
+        self.mocks["_caffeinate"].assert_not_called()
+
+    def test_non_allowlisted_operator_error_stays_generic(self):
+        self.mocks["_host_ready"].side_effect = m.OperatorError("<SYNTHETIC_SECRET_DO_NOT_EMIT>")
+        result = self.run_operator()
+        self.assertEqual(result.code,"REFUSED_PREPARATION")
+        self.assertIsNone(result.failure_code)
+        self.assertNotIn("<SYNTHETIC_SECRET_DO_NOT_EMIT>",repr(result))
+
+    def test_other_exception_with_allowlisted_text_stays_generic(self):
+        self.mocks["_host_ready"].side_effect = RuntimeError("AC_POWER_GATE_FAILED")
+        result = self.run_operator()
+        self.assertEqual(result.code,"FAILED_PREPARATION")
+        self.assertIsNone(result.failure_code)
+
+    def test_detail_not_propagated_from_later_stages(self):
+        self.mocks["_history_gate"].side_effect = m.OperatorError("AC_POWER_GATE_FAILED")
+        result = self.run_operator()
+        self.assertEqual(result.code,"REFUSED_HISTORY")
+        self.assertIsNone(result.failure_code)
+
+    def test_failure_field_rejects_arbitrary_or_wrong_scope_data(self):
+        for value in ("<SYNTHETIC_SECRET_DO_NOT_EMIT>",True,[],"",1):
+            with self.assertRaisesRegex(m.OperatorError,"^INVALID_PREPARATION_FAILURE_CODE$"):
+                m.DemoRuntimeResult("REFUSED_PREPARATION",1,failure_code=value)
+        with self.assertRaises(m.OperatorError):
+            m.DemoRuntimeResult("FAILED_STORE",1,failure_code="AC_POWER_GATE_FAILED")
+
+    def test_cli_emits_only_allowlisted_failure_detail(self):
+        args = ["--registry-root",str(self.config.registry_root),"--observability-root",
+                str(self.config.observability_root),"--secret-file",str(self.config.secret_file),
+                "--duration-hours","24","--start-next-hour","--confirm-demo-runtime"]
+        for error,expected in ((m.OperatorError("AC_POWER_GATE_FAILED"),"AC_POWER_GATE_FAILED"),
+                               (m.OperatorError("<SYNTHETIC_SECRET_DO_NOT_EMIT>"),None),
+                               (RuntimeError("<SYNTHETIC_SECRET_DO_NOT_EMIT>"),None)):
+            self.mocks["_host_ready"].side_effect = error
+            output,errors = io.StringIO(),io.StringIO()
+            with patch("sys.stdout",output),patch("sys.stderr",errors):
+                self.assertEqual(m.runtime_main(args),1)
+            self.assertEqual(json.loads(output.getvalue())["failure_code"],expected)
+            self.assertNotIn("<SYNTHETIC_SECRET_DO_NOT_EMIT>",output.getvalue()+errors.getvalue())
 
 
 class ControlTests(unittest.TestCase):

@@ -13,11 +13,17 @@ from trading_lab.operator import launchd as m
 from tests.test_operator_demo_runtime import PrivateCase
 
 
+def job_output(body):
+    """Sanitized launchctl outer job with the observed tab-per-scope layout."""
+    return ("gui/" + str(os.getuid()) + "/" + m.LABEL + " = {\n"
+            + "\n".join("\t" + line for line in body.splitlines()) + "\n}\n")
+
+
 class LaunchdTests(PrivateCase):
     def setUp(self):
         super().setUp()
         self.agent = m.LaunchAgentConfiguration(self.config, Path("/usr/bin/python3"), self.root / "operator")
-        self.runner = Mock(return_value=m.LaunchctlResult(0, "state = not running\nlast exit code = 0\n"))
+        self.runner = Mock(return_value=m.LaunchctlResult(0, job_output("state = not running\nlast exit code = 0")))
         self.manager = m.LaunchAgentManager(self.agent, runner=self.runner)
         self.home = self.root / "home"
         (self.home / "Library").mkdir(parents=True, mode=0o700)
@@ -127,7 +133,7 @@ class LaunchdTests(PrivateCase):
         self.assertEqual(path.read_bytes(), before)
 
     def test_status_reports_process_only(self):
-        self.runner.return_value = m.LaunchctlResult(0, "state = running\npid = 123\nlast exit code = 1\n")
+        self.runner.return_value = m.LaunchctlResult(0, job_output("state = running\npid = 123\nlast exit code = 1"))
         status = self.manager.status()
         self.assertTrue(status.loaded)
         self.assertTrue(status.running)
@@ -173,7 +179,7 @@ class LaunchdTests(PrivateCase):
         self.assertNotIn("-k", str(self.runner.call_args_list))
 
     def test_start_refuses_running_job(self):
-        self.runner.return_value = m.LaunchctlResult(0, "state = running\npid = 123\n")
+        self.runner.return_value = m.LaunchctlResult(0, job_output("state = running\npid = 123"))
         with self.assertRaises(m.OperatorError):
             self.manager.start()
         self.runner.assert_called_once()
@@ -186,12 +192,12 @@ class LaunchdTests(PrivateCase):
         self.runner.assert_called_once()
 
     def test_stop_only_sigterm(self):
-        self.runner.return_value = m.LaunchctlResult(0, "state = running\npid = 123\n")
+        self.runner.return_value = m.LaunchctlResult(0, job_output("state = running\npid = 123"))
         self.manager.stop()
         self.assertEqual(self.runner.call_args.args[0], ("kill", "SIGTERM", self.manager.target))
 
     def test_uninstall_refuses_running_job(self):
-        self.runner.return_value = m.LaunchctlResult(0, "state = running\npid = 123\n")
+        self.runner.return_value = m.LaunchctlResult(0, job_output("state = running\npid = 123"))
         with self.assertRaises(m.OperatorError):
             self.manager.uninstall()
         self.runner.assert_called_once()
@@ -231,6 +237,89 @@ class LaunchdTests(PrivateCase):
                 "--python-executable", str(self.agent.python_executable)]
         with patch.object(m, "launchctl", side_effect=AssertionError("NO CALL")), patch("sys.stdout", io.StringIO()):
             self.assertEqual(m.launchagent_main(args), 1)
+
+    def status_for(self, body):
+        self.runner.return_value = m.LaunchctlResult(0, job_output(body))
+        return self.manager.status()
+
+    def test_observed_nested_active_fixture_is_stopped(self):
+        status = self.status_for("active count = 0\nstate = not running\n"
+            "resource coalition = {\n\tstate = active\n\tactive count = 1\n}\n"
+            "jetsam coalition = {\n\tstate = active\n\tactive count = 1\n}\nlast exit code = 1")
+        self.assertTrue(status.loaded)
+        self.assertIs(status.running, False)
+        self.assertIsNone(status.pid)
+        self.assertEqual(status.last_exit_code, 1)
+
+    def test_running_top_level_with_nested_active(self):
+        status = self.status_for("state = running\npid = 321\n"
+                                 "nested = {\n\tstate = active\n}")
+        self.assertIs(status.running, True)
+        self.assertEqual(status.pid, 321)
+
+    def test_nested_pid_cannot_make_stopped_job_running(self):
+        status = self.status_for("state = not running\nnested = {\n\tpid = 321\n\tstate = active\n}")
+        self.assertIs(status.running, False)
+        self.assertIsNone(status.pid)
+
+    def test_nested_pid_cannot_supply_missing_running_job_pid(self):
+        status = self.status_for("state = running\nnested = {\n\tpid = 321\n}")
+        self.assertIsNone(status.running)
+        self.assertIsNone(status.pid)
+
+    def test_nested_exit_does_not_override_job_exit(self):
+        status = self.status_for("state = exited\nlast exit code = 1\n"
+                                 "nested = {\n\tlast exit code = 0\n}")
+        self.assertEqual(status.last_exit_code, 1)
+        status = self.status_for("state = exited\nnested = {\n\tlast exit code = 0\n}")
+        self.assertIsNone(status.last_exit_code)
+
+    def test_duplicate_top_level_states_are_unknown(self):
+        for second in ("running", "not running"):
+            with self.subTest(second=second):
+                self.assertIsNone(self.status_for("state = not running\nstate = " + second).running)
+
+    def test_unsupported_top_level_state_is_unknown(self):
+        for state in ("active", "spawn scheduled", "future state"):
+            with self.subTest(state=state):
+                self.assertIsNone(self.status_for("state = " + state).running)
+
+    def test_malformed_top_level_pid_is_unknown(self):
+        for pid in ("0", "-1", "abc", "1 2", "00123", "", "True"):
+            for state in ("running", "not running"):
+                with self.subTest(pid=pid,state=state):
+                    self.assertIsNone(self.status_for("state = " + state + "\npid = " + pid).running)
+
+    def test_stopped_state_with_top_level_pid_is_unknown(self):
+        self.assertIsNone(self.status_for("state = waiting\npid = 123").running)
+
+    def test_absent_pid_alone_is_not_stopped_evidence(self):
+        self.assertIsNone(self.status_for("last exit code = 1").running)
+
+    def test_duplicate_pid_and_exit_are_unknown(self):
+        for body in ("state = running\npid = 123\npid = 123",
+                     "state = exited\nlast exit code = 1\nlast exit code = 0",
+                     "state = exited\nlast exit code = invalid"):
+            self.assertIsNone(self.status_for(body).running)
+
+    def test_malformed_reserved_top_level_fields_are_unknown(self):
+        for field in ("pid : 123", "pid", "last exit code : 1", "state : exited", "pid = {\n}"):
+            with self.subTest(field=field):
+                self.assertIsNone(self.status_for("state = not running\n" + field).running)
+
+    def test_malformed_outer_structure_is_unknown(self):
+        valid = job_output("state = not running")
+        cases = ("state = not running", valid + valid, valid.rstrip()[:-1], valid + "unrelated text",
+                 valid.replace("\tstate", "\t\tstate"), valid.replace("gui/", "system/"),
+                 job_output("state = not running\nunclosed = {"))
+        for index,text in enumerate(cases):
+            with self.subTest(case=index):
+                self.runner.return_value = m.LaunchctlResult(0,text)
+                self.assertIsNone(self.manager.status().running)
+
+    def test_each_reviewed_stopped_state_remains_supported(self):
+        for state in ("not running", "exited", "waiting"):
+            self.assertIs(self.status_for("state = " + state).running, False)
 
 
 if __name__ == "__main__":
